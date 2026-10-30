@@ -1,0 +1,77 @@
+{
+  "artifact": {
+    "version": "2.8.0",
+    "sha256": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a"
+  },
+  "cold": {
+    "metrics": {
+      "elapsed": "623",
+      "full": "0",
+      "scroll": "0",
+      "small": "28"
+    },
+    "position": "absolute",
+    "ready": 28
+  },
+  "loading": {
+    "hidden": false,
+    "status": "Loading larger image…",
+    "width": 160
+  },
+  "dismissed": "",
+  "returning": {
+    "status": "Loading larger image…",
+    "width": 160
+  },
+  "ready": {
+    "state": "ready",
+    "width": 960
+  },
+  "pinned": {
+    "mode": "controls",
+    "pin": "true"
+  },
+  "learned": {
+    "metrics": {
+      "elapsed": "413",
+      "full": "0",
+      "scroll": "0",
+      "small": "28"
+    },
+    "ready": 28
+  },
+  "changed": {
+    "images": 1,
+    "src": "http://127.0.0.1:8765/qa-image/adaptive280-final-covers/small-changed.svg"
+  },
+  "remaining": 27,
+  "failed": {
+    "status": "Larger image unavailable. Showing thumbnail.",
+    "width": 160
+  },
+  "navigation": "http://127.0.0.1:8765/torrents.php?id=1",
+  "list": {
+    "metrics": {
+      "elapsed": "1432",
+      "ready": "50",
+      "scrollAtLoad": "0"
+    },
+    "ready": 50
+  },
+  "listLoading": {
+    "status": "Loading larger image…",
+    "width": 160
+  },
+  "listReady": {
+    "state": "ready",
+    "width": 960
+  },
+  "title": {
+    "mode": "tooltip",
+    "width": 160
+  },
+  "setting": {
+    "label": "Maximum concurrent thumbnails (automatic per host)",
+    "value": "6"
+  }
+}

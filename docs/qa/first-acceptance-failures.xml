@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="[PREF-03] a late autosave failure rolls back filter writes and keeps the draft retryable" time="0.261770" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs" failure="failed autosave must not partially replace filters&#10;+ actual - expected&#10;&#10;+ 'changed.tag'&#10;- 'original.tag'&#10;">
+		<failure type="testCodeFailure" message="failed autosave must not partially replace filters&#10;+ actual - expected&#10;&#10;+ 'changed.tag'&#10;- 'original.tag'">
+[Error [ERR_TEST_FAILURE]: failed autosave must not partially replace filters
++ actual - expected
+
++ 'changed.tag'
+- 'original.tag'
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: failed autosave must not partially replace filters
+  + actual - expected
+  
+  + 'changed.tag'
+  - 'original.tag'
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs:12:12)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'changed.tag',
+    expected: 'original.tag',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="[SEA-06] failed quick-save leaves durable searches, visible shortcuts and export state consistent" time="0.176079" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs" failure="The input did not match the regular expression /Could not save/i. Input:&#10;&#10;''&#10;">
+		<failure type="testCodeFailure" message="The input did not match the regular expression /Could not save/i. Input:&#10;&#10;''">
+[Error [ERR_TEST_FAILURE]: The input did not match the regular expression /Could not save/i. Input:
+
+''
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: The input did not match the regular expression /Could not save/i. Input:
+  
+  ''
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs:27:12)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '',
+    expected: /Could not save/i,
+    operator: 'match',
+    diff: 'simple'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="[SEA-06] failed rename, deletion and deletion Undo preserve the prior library and retry controls" time="0.221188" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs" failure="Expected values to be strictly equal:&#10;+ actual - expected&#10;&#10;+ 'Renamed'&#10;- 'Original'&#10;">
+		<failure type="testCodeFailure" message="Expected values to be strictly equal:&#10;+ actual - expected&#10;&#10;+ 'Renamed'&#10;- 'Original'">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
++ actual - expected
+
++ 'Renamed'
+- 'Original'
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'Renamed'
+  - 'Original'
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs:43:62)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'Renamed',
+    expected: 'Original',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="[HOV-08] removing a hovered result closes the transient preview without another mouse movement" time="0.217057" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs" failure="removed result must not leave an orphan hover&#10;&#10;false !== true&#10;">
+		<failure type="testCodeFailure" message="removed result must not leave an orphan hover&#10;&#10;false !== true">
+[Error [ERR_TEST_FAILURE]: removed result must not leave an orphan hover
+
+false !== true
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: removed result must not leave an orphan hover
+  
+  false !== true
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs:59:12)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="[PERF-02] removed native results release preview bindings and table-layout references" time="0.199574" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs" failure="removed rows must leave the preview binding map&#10;&#10;true !== false&#10;">
+		<failure type="testCodeFailure" message="removed rows must leave the preview binding map&#10;&#10;true !== false">
+[Error [ERR_TEST_FAILURE]: removed rows must leave the preview binding map
+
+true !== false
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: removed rows must leave the preview binding map
+  
+  true !== false
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs:71:12)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="[BOOT-02] [PREF-01] [TAG-04] rules, highlight lists and customized settings survive a cloned-storage reload" time="0.433996" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[SEA-01] saved complete criteria survive a reload with JSON-cloned manager storage" time="0.235234" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<!-- tests 7 -->
+	<!-- suites 0 -->
+	<!-- pass 2 -->
+	<!-- fail 5 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 2092.157583 -->
+</testsuites>

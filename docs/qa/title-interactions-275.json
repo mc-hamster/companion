@@ -1,0 +1,51 @@
+{
+  "artifact": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d",
+  "finalFocus275": {
+    "closed": true,
+    "hash": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+  },
+  "finalTitleTooltip275": {
+    "controlsHidden": true,
+    "hash": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d",
+    "src": "http://127.0.0.1:8765/qa-image/title-proof-275/small-1.svg",
+    "summary": "Sample dimensions and information",
+    "width": 160
+  },
+  "finalNativeTitle": {
+    "errors": "",
+    "hash": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d",
+    "originalRequests": 0,
+    "previewHidden": true,
+    "probe": "{\"defaultPrevented\":false,\"title\":\"Mountain Walk [2026.10.19] [720p]\",\"href\":\"http://127.0.0.1:8765/torrents.php?id=1\"}",
+    "ruleMenuHidden": true
+  },
+  "liveTitleFilter": {
+    "caption": "Hide or allow results by words in their titles. Separate phrases with semicolons.",
+    "row1Hidden": true,
+    "row2Hidden": true,
+    "row3Hidden": false,
+    "summary": "4 shown · 2 filtered"
+  },
+  "tagKind275": "tag",
+  "uploaderKind275": "uploader",
+  "nativeNavigation275": {
+    "criteria": "Server criteria: id=1",
+    "url": "http://127.0.0.1:8765/torrents.php?id=1"
+  },
+  "appendedHover275": {
+    "actionsHidden": true,
+    "src": "http://127.0.0.1:8765/qa-image/title-interactions-275/small-12.svg",
+    "summary": "Sample dimensions and information"
+  },
+  "appendedNativeMenu275": {
+    "previewHidden": true,
+    "probe": "{\"defaultPrevented\":false,\"title\":\"Valley Scene 12 [1080p]\",\"href\":\"http://127.0.0.1:8765/torrents.php?id=12\"}"
+  },
+  "noInlineTitle275": {
+    "actionsHidden": true,
+    "errors": "",
+    "inlineCount": 0,
+    "src": "http://127.0.0.1:8765/qa-image/title-interactions-275/small-1.svg",
+    "width": 160
+  }
+}

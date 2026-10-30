@@ -1,0 +1,36 @@
+{
+  "artifact": "5e80e8a7f9254c2432ece81f1c5d7c9167fc94ca16d71d0c186731ecaa363007",
+  "loading": {
+    "src": "http://127.0.0.1:8765/qa-image/hover-upgrade-clean-274/small-1.svg",
+    "status": "Loading larger image…",
+    "width": 160
+  },
+  "ready": {
+    "src": "http://127.0.0.1:8765/qa-image/hover-upgrade-clean-274/full-1.svg",
+    "status": "",
+    "width": 960
+  },
+  "cached": {
+    "src": "http://127.0.0.1:8765/qa-image/hover-upgrade-clean-274/full-1.svg",
+    "status": "",
+    "width": 960
+  },
+  "originalRequests": 1,
+  "failed": {
+    "errors": "",
+    "src": "http://127.0.0.1:8765/qa-image/hover-upgrade-clean-274/small-4.svg",
+    "state": "failed",
+    "status": "Larger image unavailable. Showing thumbnail.",
+    "width": 160
+  },
+  "pinDuringLoad": {
+    "pin": "true",
+    "src": "http://127.0.0.1:8765/qa-image/hover-upgrade-clean-274/small-3.svg",
+    "status": "Loading larger image…"
+  },
+  "retainedDuringRetry": {
+    "src": "http://127.0.0.1:8765/qa-image/hover-upgrade-clean-274/full-3.svg",
+    "status": "Loading image…",
+    "width": 960
+  }
+}

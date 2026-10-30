@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="[PREF-03] a late autosave failure rolls back filter writes and keeps the draft retryable" time="0.444498" classname="test"/>
+	<testcase name="[SEA-06] failed quick-save leaves durable searches, visible shortcuts and export state consistent" time="0.152314" classname="test"/>
+	<testcase name="[SEA-06] failed rename, deletion and deletion Undo preserve the prior library and retry controls" time="0.238247" classname="test"/>
+	<testcase name="[HOV-08] removing a hovered result closes the transient preview without another mouse movement" time="0.219619" classname="test"/>
+	<testcase name="[PERF-02] removed native results release preview bindings and table-layout references" time="0.199323" classname="test"/>
+	<testcase name="[HOV-08] a pinned preview retains working Retry and Close after its originating row is removed" time="0.195106" classname="test"/>
+	<testcase name="[BOOT-02] [PREF-01] [TAG-04] rules, highlight lists and customized settings survive a cloned-storage reload" time="0.316713" classname="test"/>
+	<testcase name="[SEA-01] saved complete criteria survive a reload with JSON-cloned manager storage" time="0.129253" classname="test"/>
+	<testcase name="[HOV-07] disabling inline thumbnails cancels transfers with no remaining consumer" time="0.162916" classname="test"/>
+	<testcase name="[SEA-05] rename respects IME and Escape keeps the Searches panel open" time="0.062764" classname="test"/>
+	<testcase name="[BOOT-04] unsupported origins stay untouched and the release declares no-frame execution" time="0.026257" classname="test"/>
+	<testcase name="[HOV-04] clicking the actual Unpin button does not bubble into re-pinning the enlargement" time="0.076871" classname="test"/>
+	<testcase name="[HOV-06] clicking another tool dismisses a transient keyboard preview before that tool handles the click" time="0.090433" classname="test"/>
+	<testcase name="[PREF-02] numeric preference validation preserves other values and safely clamps on blur" time="0.234052" classname="test"/>
+	<testcase name="[HOV-02] returning after original-cache eviction still displays the usable thumbnail" time="0.125353" classname="test"/>
+	<testcase name="[PERF-02] repeated result insertion and removal keeps DOM-owning maps and active work bounded" time="1.291623" classname="test"/>
+	<testcase name="captures and restores complete search controls without hidden credentials" time="0.065905" classname="test"/>
+	<testcase name="saved searches migrate legacy format, rename, delete and undo" time="0.090270" classname="test"/>
+	<testcase name="imports validate before changes; toolkit and NSE settings have separate namespaces" time="0.058847" classname="test"/>
+	<testcase name="transaction rolls back a storage write failure" time="0.043203" classname="test"/>
+	<testcase name="unopened gallery remains unrequested and is prepared for lazy reveal" time="0.043405" classname="test"/>
+	<testcase name="already failed image recovers to legacy original and stale recovery cannot overwrite a new source" time="0.091108" classname="test"/>
+	<testcase name="a native image that stalls offscreen recovers when scrolled into view" time="0.060351" classname="test"/>
+	<testcase name="collage covers share the pool and follow a changed background source" time="0.095842" classname="test"/>
+	<testcase name="dynamic rows get one thumbnail and keyboard preview shares its transfer" time="0.169522" classname="test"/>
+	<testcase name="slow old preview cannot replace the next title or image" time="0.037213" classname="test"/>
+	<testcase name="pagination ignores typing, composition and modifiers" time="0.036549" classname="test"/>
+	<testcase name="preferences save automatically without navigation or a second Apply action" time="0.642524" classname="test"/>
+	<testcase name="old two-slot default migrates and small thumbnails are preferred for supported hosts" time="0.036612" classname="test"/>
+	<testcase name="pinning an in-flight preview hands off its subscription without restarting it" time="0.031779" classname="test"/>
+	<testcase name="invalid filter imports report plain filter terminology without leaking internal keys" time="0.033030" classname="test"/>
+	<testcase name="size changes keep loaded thumbnails and current transfers intact" time="0.682112" classname="test"/>
+	<testcase name="quick Save search names and deduplicates without opening the library" time="0.034626" classname="test"/>
+	<testcase name="saved search shortcuts stay visible outside all panels and do not use a dropdown or drawer" time="0.086365" classname="test"/>
+	<testcase name="a primary shortcut runs exactly the saved criteria without replacing an unsaved form draft" time="0.031224" classname="test"/>
+	<testcase name="saved shortcuts can run from pages with no torrent search form" time="0.056360" classname="test"/>
+	<testcase name="Edit search opens saved criteria in its row without changing context or the site form" time="0.036598" classname="test"/>
+	<testcase name="Add to search form visibly combines criteria without changing results until Search now" time="0.035742" classname="test"/>
+	<testcase name="the saved-search editor retains fields and values absent from the current site form" time="0.036337" classname="test"/>
+	<testcase name="Cancel and Escape discard only the editor draft and keep the Searches panel open" time="0.035830" classname="test"/>
+	<testcase name="invalid editor names and storage failures keep the draft and original search intact" time="0.033416" classname="test"/>
+	<testcase name="saving an editor preserves changes to other searches and rejects stale edits to the same search" time="0.037404" classname="test"/>
+	<testcase name="unrelated library redraws and panel switches keep the inline draft" time="0.034825" classname="test"/>
+	<testcase name="radio and multiselect criteria round-trip without losing types or saved options" time="0.037765" classname="test"/>
+	<testcase name="imports and changes from another tab update primary shortcuts, including the empty state" time="0.034141" classname="test"/>
+	<testcase name="thumbnail hover shows a preview while keeping its trigger clickable" time="0.047047" classname="test"/>
+	<testcase name="thumbnail hover immediately enlarges the usable thumbnail and requests its larger version without controls" time="0.046237" classname="test"/>
+	<testcase name="returning to the same thumbnail restores its usable image while a cancelled original reloads" time="0.069320" classname="test"/>
+	<testcase name="repeated hover returns retain the thumbnail without spending retries or adding page scans" time="0.153767" classname="test"/>
+	<testcase name="moving off an enlarged thumbnail dismisses it immediately even if the small button has focus" time="0.043096" classname="test"/>
+	<testcase name="the enlarged image can receive the pointer, dismiss on exit, and pin on click without restarting its request" time="0.056386" classname="test"/>
+	<testcase name="keyboard focus offers preview controls and touch uses click instead of hover enlargement" time="0.054512" classname="test"/>
+	<testcase name="pointer cancellation and leaving the browser dismiss transient enlargement without affecting pinned controls" time="0.055557" classname="test"/>
+	<testcase name="pointer movement outside both images clears a transient enlargement after pointer capture" time="0.043602" classname="test"/>
+	<testcase name="one automatic recovery pass repairs a failed thumbnail and an already-open preview" time="0.038089" classname="test"/>
+	<testcase name="turning hover off preserves thumbnails and still permits click-to-pin" time="0.242503" classname="test"/>
+	<testcase name="undoing preferences keeps searches saved after the automatic restore point" time="0.081227" classname="test"/>
+	<testcase name="filtered-out image failures do not ask for attention during ordinary browsing" time="0.034324" classname="test"/>
+	<testcase name="all 50 result thumbnails warm without scrolling or an IntersectionObserver" time="0.800328" classname="test"/>
+	<testcase name="current and nearby rows overtake distant preloads; hidden and detached rows stay unrequested" time="0.112777" classname="test"/>
+	<testcase name="page warming waits for filters and foreground visibility, then resumes the whole list" time="0.188626" classname="test"/>
+	<testcase name="rows added far below the fold warm automatically while an unopened gallery stays deferred" time="0.077992" classname="test"/>
+	<testcase name="[HOV-09] hover keeps the thumbnail through incomplete and failed larger loads and names the upgrade" time="0.033706" classname="test"/>
+	<testcase name="[HOV-09] completed hover images are displayed from memory and stay usable through retry and cache reuse" time="0.034414" classname="test"/>
+	<testcase name="[HOV-09] a shared page image stays in place and a failed or stale display copy cannot replace the thumbnail" time="0.032795" classname="test"/>
+	<testcase name="backfill URLs retain the search and reject downloads, details, other origins and other searches" time="0.009779" classname="test"/>
+	<testcase name="numbered pager fallback moves forward in order and skips already loaded pages" time="0.068173" classname="test"/>
+	<testcase name="one click backfills five pages, deduplicates results and continues at the next unread page" time="0.287253" classname="test"/>
+	<testcase name="backfill uses original pager fallback and continues beyond a duplicate-only page" time="0.080416" classname="test"/>
+	<testcase name="appended preview data survives overlay-name collisions and media restarts without executing scripts" time="0.124324" classname="test"/>
+	<testcase name="new rows respect active filters and Show filtered before thumbnail or native-image requests" time="0.130592" classname="test"/>
+	<testcase name="partial failure keeps completed pages and retries only the failed cursor" time="0.080088" classname="test"/>
+	<testcase name="Stop discards late responses and a second click cannot run a parallel backfill" time="0.065211" classname="test"/>
+	<testcase name="timed-out, login, non-HTML and redirected responses leave the cursor retryable" time="0.253955" classname="test"/>
+	<testcase name="legacy fork preferences import, clamp and round-trip through Companion backups" time="0.057238" classname="test"/>
+	<testcase name="backfill remains available with media disabled and stays off detail/other pages" time="0.173623" classname="test"/>
+	<testcase name="backfill preferences autosave and Undo restores them without fetching any pages" time="0.147167" classname="test"/>
+	<testcase name="an empty results page stops backfill even if the original pager still lists later pages" time="0.059977" classname="test"/>
+	<testcase name="a failed filter pass rolls back the new page and leaves its results retryable" time="0.068135" classname="test"/>
+	<testcase name="built artifact is self-contained and restricted to Empornium" time="0.001934" classname="test"/>
+	<testcase name="full NSE engine mounts, defaults to empty lists, and keeps companion data on reset" time="0.314711" classname="test"/>
+	<testcase name="tag whitelist overrides blacklist; Hard Pass and individual overrides are retained" time="0.125513" classname="test"/>
+	<testcase name="status and uploader filters still handle new rows with image improvements disabled" time="0.159897" classname="test"/>
+	<testcase name="right-click management handles current and dynamic tags; Shift preserves native menu" time="0.103570" classname="test"/>
+	<testcase name="hostile list text is escaped in settings markup" time="0.068219" classname="test"/>
+	<testcase name="Black Hole removal hides the corresponding collage card before media loading" time="0.084602" classname="test"/>
+	<testcase name="one workspace owns filters, searches, images, and settings without legacy panels" time="0.097380" classname="test"/>
+	<testcase name="show filtered reveals matching rows alongside visible rows and keeps preview eligibility" time="0.069689" classname="test"/>
+	<testcase name="open visible action works with right-click management disabled" time="0.087027" classname="test"/>
+	<testcase name="notification rule imports use Companion controls and the current textarea value" time="0.056325" classname="test"/>
+	<testcase name="Companion branding covers every pane, row tooltip, and context menu; attribution is retained" time="0.142600" classname="test"/>
+	<testcase name="filter confirmations and userscript-manager metadata use Companion terminology" time="0.073924" classname="test"/>
+	<testcase name="typing filter rules autosaves and updates existing results without navigation" time="0.736104" classname="test"/>
+	<testcase name="visibility checkboxes update live and do not accumulate row controls" time="0.159024" classname="test"/>
+	<testcase name="removing a Hard Pass rule restores archived rows without a refresh" time="0.715048" classname="test"/>
+	<testcase name="restoring a filter export applies it immediately and updates the controls" time="0.159071" classname="test"/>
+	<testcase name="invalid draft preferences do not partially overwrite stored filter lists" time="0.718589" classname="test"/>
+	<testcase name="detail-page rules can update repeatedly without duplicate controls or title wrappers" time="0.162910" classname="test"/>
+	<testcase name="backfill uses the full filtering engine, preserves Show filtered and restores removed rows on rule edits" time="0.284381" classname="test"/>
+	<testcase name="the simplified interface shows three task areas and only two common settings or tag fields" time="0.078990" classname="test"/>
+	<testcase name="advanced search reveals matching controls, restores disclosure state and preserves customized preferences on save" time="0.122294" classname="test"/>
+	<testcase name="collapsed rule summaries expose active rules and update without resetting their values" time="0.111926" classname="test"/>
+	<testcase name="saved searches remain primary while management opens only on request and row options stay folded" time="0.060804" classname="test"/>
+	<testcase name="irrelevant toolbar actions are quiet and filtered-result access appears when needed" time="0.156097" classname="test"/>
+	<testcase name="version grouping respects live filtering and restores archived Hard Pass variants" time="0.243638" classname="test"/>
+	<testcase name="backfilled variants join the same expanded group with previews and tag highlights intact" time="0.184548" classname="test"/>
+	<testcase name="one contextual tag menu offers exclusive highlights without altering visibility rules" time="0.210342" classname="test"/>
+	<testcase name="tag highlighting remains keyboard accessible and returns focus when the menu closes" time="0.058212" classname="test"/>
+	<testcase name="highlight lists autosave in the folded Filters section without adding primary controls" time="0.228345" classname="test"/>
+	<testcase name="opening visible results includes the representative and expanded versions only" time="0.071590" classname="test"/>
+	<testcase name="oversized highlight drafts are rejected before either filter or Companion preferences are written" time="0.133749" classname="test"/>
+	<testcase name="URL gate rejects downloads, credentials and non-images" time="0.001115" classname="test"/>
+	<testcase name="legacy fallback is restricted and preserves existing queries" time="0.000366" classname="test"/>
+	<testcase name="overlay parser treats scripts and HTML as data" time="0.000692" classname="test"/>
+	<testcase name="thumbnail modes prefer supplied variants and limit guessed variants" time="0.000790" classname="test"/>
+	<testcase name="settings clamp values and distinguish hidden/unrequested/streaming images" time="0.000674" classname="test"/>
+	<testcase name="manual retry cooldown and automatic URL budget survive repeat hovers" time="0.000259" classname="test"/>
+	<testcase name="pool deduplicates requests and honors preview priority when a slot opens" time="0.001016" classname="test"/>
+	<testcase name="never-answering image stalls then retries with bounded attempts" time="0.000642" classname="test"/>
+	<testcase name="legacy resize error moves to original and displays first frame before completion" time="0.001061" classname="test"/>
+	<testcase name="explicit retry keeps subscribers and cross-tier reuse avoids a duplicate transfer" time="0.000699" classname="test"/>
+	<testcase name="circuit breaker resumes deferred jobs without requiring another hover" time="0.001085" classname="test"/>
+	<testcase name="decoded cache evicts idle entries and releases timers" time="0.000314" classname="test"/>
+	<testcase name="two slow originals cannot block six small thumbnails or consume their slots" time="0.001020" classname="test"/>
+	<testcase name="a failed small candidate falls back immediately in the large-image lane" time="0.000278" classname="test"/>
+	<testcase name="visible demand overtakes preloads and disconnected rows are not requested" time="0.000293" classname="test"/>
+	<testcase name="direct inline image target is not transferred twice or erased by cache eviction" time="0.000138" classname="test"/>
+	<testcase name="a hover has a reserved slot even while body recovery occupies both large-image slots" time="0.000113" classname="test"/>
+	<testcase name="abandoned previews free their slot without spending the failure retry budget" time="0.000458" classname="test"/>
+	<testcase name="automatic rescue allows one fresh attempt and cannot loop after another failure" time="0.000321" classname="test"/>
+	<testcase name="[HOV-02] repeated successful reloads after cache eviction do not exhaust the failure budget" time="0.000569" classname="test"/>
+	<testcase name="[IMG-01] a supplied small image hands off to a large fallback with the full image deadline" time="0.000273" classname="test"/>
+	<testcase name="overlapping scan roots reduce to connected outer subtrees" time="0.063487" classname="test"/>
+	<testcase name="image source and style bursts perform one local scan and zero result regrouping" time="0.214366" classname="test"/>
+	<testcase name="nested result mutations are scanned once per subtree and title edits still regroup" time="0.279120" classname="test"/>
+	<testcase name="expanding one cached group does not scan the whole result list or tag collection" time="0.188422" classname="test"/>
+	<testcase name="highlight changes use the tag index and removed rows release indexed elements" time="0.274858" classname="test"/>
+	<testcase name="saving highlight-only preferences leaves media and version membership intact" time="0.186216" classname="test"/>
+	<testcase name="queued and completed thumbnails leave scroll observation while new results still warm" time="0.233108" classname="test"/>
+	<testcase name="replacement search forms are adopted even when no torrent rows change" time="0.186999" classname="test"/>
+	<testcase name="startup defers scans until filters finish, then processes the final page once" time="0.190196" classname="test"/>
+	<testcase name="bursts of image health updates share one frame and settled pages do no scan work" time="0.272666" classname="test"/>
+	<testcase name="large lists stabilize existing column proportions and restore native layout when grouping is disabled" time="0.223213" classname="test"/>
+	<testcase name="technical resolution, codec and container differences identify the same release" time="0.003034" classname="test"/>
+	<testcase name="dates, word order, parts, studios, cuts, fixes and censoring keep releases separate" time="0.000280" classname="test"/>
+	<testcase name="positive search highlighting handles boolean groups, negation and wildcards" time="0.001044" classname="test"/>
+	<testcase name="wildcard search terms match literal tag segments without regular-expression evaluation" time="0.000130" classname="test"/>
+	<testcase name="group expansion preserves original links, tags, status and row handlers; disabling restores order" time="0.152060" classname="test"/>
+	<testcase name="filtering the representative promotes an eligible version; revealing filters keeps expansion state" time="0.098188" classname="test"/>
+	<testcase name="new rows join existing groups without stealing focus, and same names in other tables or categories stay separate" time="0.116342" classname="test"/>
+	<testcase name="collapsed alternate thumbnails stay unrequested and expand through the existing pool" time="0.070347" classname="test"/>
+	<testcase name="favorites, cautions and search matches coexist without changing filter visibility or original tooltips" time="0.061840" classname="test"/>
+	<testcase name="highlight preferences survive unrelated settings changes, export/restore and preference Undo" time="0.069428" classname="test"/>
+	<testcase name="highlight selection handles storage failure without changing the appearance" time="0.060897" classname="test"/>
+	<testcase name="highlight settings normalize duplicates and resolve overlapping categories without evaluating tag text" time="0.000133" classname="test"/>
+	<!-- tests 155 -->
+	<!-- suites 0 -->
+	<!-- pass 155 -->
+	<!-- fail 0 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 6415.007708 -->
+</testsuites>

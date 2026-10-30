@@ -1,0 +1,100 @@
+{
+  "loads": [
+    {
+      "pass": 0,
+      "id": "1",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-1.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 0,
+      "id": "2",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-2.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 0,
+      "id": "3",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-3.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 0,
+      "id": "4",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-4.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 0,
+      "id": "6",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-6.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 1,
+      "id": "1",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-1.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 1,
+      "id": "2",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-2.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 1,
+      "id": "3",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-3.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 1,
+      "id": "4",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-4.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 1,
+      "id": "6",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-6.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 2,
+      "id": "1",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-1.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 2,
+      "id": "2",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-2.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 2,
+      "id": "3",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-3.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 2,
+      "id": "4",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-4.svg",
+      "state": "ready"
+    },
+    {
+      "pass": 2,
+      "id": "6",
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/full-6.svg",
+      "state": "ready"
+    }
+  ],
+  "returnAfterEviction": {
+    "hash": "42312636975135822990be112030101d9efe308531a2f5ba6db725e10c995437",
+    "hidden": false,
+    "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+    "state": "loading"
+  }
+}

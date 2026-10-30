@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="[HOST-01] responsive hosts start at two, grow gradually to six and retain the global ceiling" time="0.007526" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-02] latency growth backs off and stale successful completions cannot immediately reopen capacity" time="0.000448" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-03] errors cool down only the actual failing host and one wake timer resumes its queue" time="0.000425" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-03] variant fallback uses its destination host and cancellation neither penalizes nor trains hosts" time="0.000279" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-04] host backoff still reserves a large hover slot and respects cooldown without bypasses" time="0.000241" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-04] partial animation completion, instantaneous cache hits and hidden-page samples do not grow host limits" time="0.000363" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-04] page-local host history is bounded and a lower ceiling drains without cancelling active images" time="0.008985" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-04] learned limits persist in bounded batches without asset URLs, expire and survive storage failure" time="0.001254" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-03] a constrained host shares its reduced budget across small, fallback and hover work" time="0.000338" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-02] a stable serial RTT change can establish a new baseline and resume cautious growth" time="0.001967" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-04] switching away and returning does not turn interrupted timing into host slowdown" time="0.000909" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs" failure="Expected values to be strictly equal:&#10;&#10;2 !== 3&#10;">
+		<failure type="testCodeFailure" message="Expected values to be strictly equal:&#10;&#10;2 !== 3">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
+
+2 !== 3
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  2 !== 3
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs:133:47)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 3,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="[HOST-04] background watchdog expiry does not penalize a host but actual image errors still do" time="0.000235" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs" failure="Expected values to be strictly equal:&#10;&#10;1 !== 2&#10;">
+		<failure type="testCodeFailure" message="Expected values to be strictly equal:&#10;&#10;1 !== 2">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
+
+1 !== 2
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 2
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs:140:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+}
+		</failure>
+	</testcase>
+	<!-- tests 12 -->
+	<!-- suites 0 -->
+	<!-- pass 10 -->
+	<!-- fail 2 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 242.322083 -->
+</testsuites>

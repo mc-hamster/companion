@@ -1,0 +1,30 @@
+{
+  "scope": "Native in-app Chromium, real IndexedDB, mock GM transport, neutral local images",
+  "observations": [
+    {
+      "stage": "initial",
+      "card": "Image cache\nReset stats\nThumbnails\n4 · 2.0 KB\nPreviews\n0 · 0 B\n\n2.0 KB of 512 MB used\n\nCumulative: 0 cache hits · 4 downloads",
+      "artifact": "0cdb8061f323cd5f851a5a787afd4d202a63d1858005e8b7402ac6c14a88bc2c"
+    },
+    {
+      "stage": "after-refresh",
+      "card": "Image cache\nReset stats\nThumbnails\n4 · 2.0 KB\nPreviews\n0 · 0 B\n\n2.0 KB of 512 MB used\n\nCumulative: 4 cache hits · 4 downloads"
+    },
+    {
+      "stage": "after-reset",
+      "card": "Image cache\nReset stats\nThumbnails\n4 · 2.0 KB\nPreviews\n0 · 0 B\n\n2.0 KB of 512 MB used\n\nCumulative: 0 cache hits · 0 downloads"
+    },
+    {
+      "stage": "reload-after-reset",
+      "card": "Image cache\nReset stats\nThumbnails\n4 · 2.0 KB\nPreviews\n0 · 0 B\n\n2.0 KB of 512 MB used\n\nCumulative: 4 cache hits · 0 downloads"
+    },
+    {
+      "stage": "second-page",
+      "card": "Image cache\nReset stats\nThumbnails\n4 · 2.0 KB\nPreviews\n0 · 0 B\n\n2.0 KB of 512 MB used\n\nCumulative: 8 cache hits · 0 downloads"
+    },
+    {
+      "stage": "other-tab-reset-notification",
+      "card": "Image cache\nReset stats\nThumbnails\n4 · 2.0 KB\nPreviews\n0 · 0 B\n\n2.0 KB of 512 MB used\n\nCumulative: 0 cache hits · 0 downloads"
+    }
+  ]
+}

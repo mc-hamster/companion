@@ -1,0 +1,151 @@
+{
+  "before": {
+    "artifact": "f0c7e94347decee31568c26ec10f08d5cdeeea1520f65778bafe211c62b323d5",
+    "rows": [
+      {
+        "classes": "torrent rowa epc-category-keep",
+        "display": "table-row",
+        "filtered": null,
+        "id": "1"
+      },
+      {
+        "classes": "torrent rowa hidden epc-category-keep epc-revealed epc-version-hidden epc-version-member",
+        "display": "none",
+        "filtered": "1",
+        "id": "2"
+      },
+      {
+        "classes": "torrent rowa epc-version-hidden epc-version-member epc-category-keep",
+        "display": "none",
+        "filtered": null,
+        "id": "3"
+      },
+      {
+        "classes": "torrent rowa hidden epc-category-keep epc-revealed",
+        "display": "table-row",
+        "filtered": "1",
+        "id": "4"
+      }
+    ],
+    "toggle": "Hide filtered"
+  },
+  "after": {
+    "artifact": "42fcd239d82e6ab4535e8bc1db4ff29fd2c7f7c8730a80dc9c547ec61e550b12",
+    "rows": [
+      {
+        "classes": "torrent rowa epc-category-keep",
+        "display": "table-row",
+        "filtered": null,
+        "id": "1",
+        "image": "http://127.0.0.1:8765/qa-image/reveal282-after1/small-1.svg"
+      },
+      {
+        "classes": "torrent rowa epc-version-hidden epc-version-member epc-category-keep",
+        "display": "none",
+        "filtered": null,
+        "id": "3",
+        "image": null
+      },
+      {
+        "classes": "torrent rowa hidden epc-category-keep epc-revealed",
+        "display": "table-row",
+        "filtered": "1",
+        "id": "2",
+        "image": "http://127.0.0.1:8765/qa-image/reveal282-after1/small-2.svg"
+      },
+      {
+        "classes": "torrent rowa hidden epc-category-keep epc-revealed",
+        "display": "table-row",
+        "filtered": "1",
+        "id": "4",
+        "image": "http://127.0.0.1:8765/qa-image/reveal282-after1/small-4.svg"
+      }
+    ]
+  },
+  "hidden": {
+    "expanded": "true",
+    "rows": [
+      {
+        "display": "table-row",
+        "id": "1"
+      },
+      {
+        "display": "table-row",
+        "id": "3"
+      },
+      {
+        "display": "none",
+        "id": "2"
+      },
+      {
+        "display": "none",
+        "id": "4"
+      }
+    ]
+  },
+  "refreshed": {
+    "groupExpanded": "false",
+    "rows": [
+      {
+        "display": "table-row",
+        "filtered": null,
+        "id": "1",
+        "revealed": false
+      },
+      {
+        "display": "none",
+        "filtered": null,
+        "id": "3",
+        "revealed": false
+      },
+      {
+        "display": "table-row",
+        "filtered": "1",
+        "id": "2",
+        "revealed": true
+      },
+      {
+        "display": "table-row",
+        "filtered": "1",
+        "id": "4",
+        "revealed": true
+      }
+    ],
+    "toolbar": "Companion3 shown · 1 grouped · 2 filteredFiltersSearchesSettingsHide filteredBackfill resultsSave searchLoading previews…"
+  },
+  "images": [
+    {
+      "display": "table-row",
+      "id": "1",
+      "src": "http://127.0.0.1:8765/qa-image/reveal282-after1/small-1.svg",
+      "width": 160
+    },
+    {
+      "display": "none",
+      "id": "3",
+      "src": "http://127.0.0.1:8765/qa-image/reveal282-after1/small-3.svg",
+      "width": 160
+    },
+    {
+      "display": "table-row",
+      "id": "2",
+      "src": "http://127.0.0.1:8765/qa-image/reveal282-after1/small-2.svg",
+      "width": 160
+    },
+    {
+      "display": "table-row",
+      "id": "4",
+      "src": "http://127.0.0.1:8765/qa-image/reveal282-after1/small-4.svg",
+      "width": 160
+    }
+  ],
+  "allFiltered": {
+    "filtered": 4,
+    "groupControls": 0,
+    "visible": 4
+  },
+  "allHidden": {
+    "visible": 0
+  },
+  "restoredExpansion": "true"
+}

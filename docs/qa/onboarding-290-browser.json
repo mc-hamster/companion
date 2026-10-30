@@ -1,0 +1,164 @@
+{
+  "version": "2.9.0",
+  "artifactSha": "9f84211b194c7e67e043917b6939bb63e2c8d95f891fa32e7ac91affcb9583ba",
+  "environment": "Native in-app Chromium; neutral local assets and JSON-persistent GM mocks. Actual Chrome/Tampermonkey not connected.",
+  "review": "Observations identify their observed hash where available. Final source differs from 0bc9ee1703d5 only by a post-foreground cancellation guard; onboarding/UI/CSS and other normal loading behavior are identical. Final storage retry, Stop, all-pages and CPU checks execute 9f84211b194c. The first two 63533a0 observations precede compact/footer CSS.",
+  "evidence": [
+    {
+      "stage": "Fresh setup before Finish",
+      "data": {
+        "dialog": true,
+        "mode": "pages",
+        "pages": "3",
+        "rows": 1,
+        "settingsGuidance": true,
+        "sha": "63533a0bcc422b691cbdf5a0dda33380f4abd9a0f67e6bd9bf9ea7187025a944"
+      }
+    },
+    {
+      "stage": "Suggested three-page batch complete",
+      "data": {
+        "dialog": false,
+        "rows": 4,
+        "status": "3 results added from 3 pages"
+      }
+    },
+    {
+      "stage": "Reload completed profile",
+      "data": {
+        "dialog": false,
+        "rows": 4,
+        "sha": "0bc9ee1703d548c2c21cba1c1d6a5bbd076fc3142c260dae2afb7ecdbd7f4ceb",
+        "status": "3 results added from 3 pages"
+      }
+    },
+    {
+      "stage": "Settings replay",
+      "data": {
+        "mode": "pages",
+        "pages": "3",
+        "submit": "Save changes"
+      }
+    },
+    {
+      "stage": "Stop all-pages automatic run",
+      "data": {
+        "button": "Backfill results",
+        "rows": 1,
+        "sha": "0bc9ee1703d548c2c21cba1c1d6a5bbd076fc3142c260dae2afb7ecdbd7f4ceb",
+        "status": "Backfill stopped. Loaded results are kept."
+      }
+    },
+    {
+      "stage": "Stopped run stays stopped",
+      "data": {
+        "rows": 1,
+        "status": "Backfill stopped. Loaded results are kept."
+      }
+    },
+    {
+      "stage": "All remaining pages beyond old batch limit",
+      "data": {
+        "buttonHidden": true,
+        "rows": 18,
+        "sha": "0bc9ee1703d548c2c21cba1c1d6a5bbd076fc3142c260dae2afb7ecdbd7f4ceb",
+        "status": "17 results added from 17 pages · No more pages"
+      }
+    },
+    {
+      "stage": "Existing custom preferences first upgrade",
+      "data": {
+        "hover": false,
+        "mode": "off",
+        "pages": "7",
+        "rows": 1,
+        "size": "88"
+      }
+    },
+    {
+      "stage": "Manual mode reload preserves one page",
+      "data": {
+        "dialog": false,
+        "mode": "off",
+        "rows": 1,
+        "size": "88"
+      }
+    },
+    {
+      "stage": "Narrow native dialog before optional section",
+      "data": {
+        "buttonBottom": 675,
+        "dialogBottom": 684,
+        "overflow": false,
+        "width": 328
+      }
+    },
+    {
+      "stage": "Narrow native dialog optional section expanded",
+      "data": {
+        "buttonBottom": 659.1875,
+        "dialogBottom": 684,
+        "overflow": false,
+        "width": 328
+      }
+    },
+    {
+      "stage": "Keyboard focus containment",
+      "data": {
+        "activeTag": "BUTTON",
+        "inside": true,
+        "sha": "0bc9ee1703d548c2c21cba1c1d6a5bbd076fc3142c260dae2afb7ecdbd7f4ceb"
+      }
+    },
+    {
+      "stage": "Invalid additional-page count is blocked",
+      "data": {
+        "dialog": true,
+        "rows": 1,
+        "value": "0"
+      }
+    },
+    {
+      "stage": "Final build fresh completion",
+      "data": {
+        "dialog": false,
+        "rows": 4,
+        "sha": "0bc9ee1703d548c2c21cba1c1d6a5bbd076fc3142c260dae2afb7ecdbd7f4ceb",
+        "status": "3 results added from 3 pages"
+      }
+    },
+    {
+      "stage": "Final build storage failure keeps setup open",
+      "data": {
+        "dialog": true,
+        "rows": 1,
+        "sha": "9f84211b194c7e67e043917b6939bb63e2c8d95f891fa32e7ac91affcb9583ba",
+        "status": "Could not save setup. Your choices are still here. Please try again."
+      }
+    },
+    {
+      "stage": "Storage retry applies setup",
+      "data": {
+        "dialog": false,
+        "rows": 4,
+        "status": "3 results added from 3 pages"
+      }
+    },
+    {
+      "stage": "Final build Stop",
+      "data": {
+        "rows": 1,
+        "sha": "9f84211b194c7e67e043917b6939bb63e2c8d95f891fa32e7ac91affcb9583ba",
+        "status": "Backfill stopped. Loaded results are kept."
+      }
+    },
+    {
+      "stage": "Final release all pages",
+      "data": {
+        "rows": 18,
+        "sha": "9f84211b194c7e67e043917b6939bb63e2c8d95f891fa32e7ac91affcb9583ba",
+        "status": "17 results added from 17 pages · No more pages"
+      }
+    }
+  ]
+}

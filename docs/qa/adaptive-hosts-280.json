@@ -1,0 +1,3103 @@
+{
+  "scope": "Final2.8.0 background-safe artifact versus preserved2.7.7;60 local native Chromium trials,default retries,50 PNGs,three repetitions,five host profiles,cold/learned automatic starts. No concurrent regression-suite work. Selected callback timing excludes total-process CPU and decoder threads;no production-host traffic.",
+  "trials": [
+    {
+      "slots": 6,
+      "profile": "single",
+      "id": "1792809558059-0-single-fixed6",
+      "mode": "fixed6",
+      "historyKey": "0-single",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1588,
+      "first6Ms": 252,
+      "lastImageMs": 1564,
+      "callbackMs": 86.8,
+      "rafMs": 83.5,
+      "observerMs": 3.3,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.1,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 6,
+        "hosts": {
+          "127.0.0.1:8770": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "single",
+      "id": "1792809558059-0-single-fixed8",
+      "mode": "fixed8",
+      "historyKey": "0-single",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1565,
+      "first6Ms": 229,
+      "lastImageMs": 1539,
+      "callbackMs": 80.8,
+      "rafMs": 78.5,
+      "observerMs": 2.3,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.3,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 6,
+        "hosts": {
+          "127.0.0.1:8770": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "single",
+      "id": "1792809558059-0-single-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "0-single",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 2224,
+      "first6Ms": 535,
+      "lastImageMs": 2187,
+      "callbackMs": 38.2,
+      "rafMs": 35.8,
+      "observerMs": 2.4,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 6,
+        "hosts": {
+          "127.0.0.1:8770": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 6,
+          "constrained": false,
+          "baseline": 163,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "single",
+      "id": "1792809558059-0-single-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "0-single",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1572,
+      "first6Ms": 213,
+      "lastImageMs": 1528,
+      "callbackMs": 36.7,
+      "rafMs": 34.9,
+      "observerMs": 1.8,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 6,
+        "hosts": {
+          "127.0.0.1:8770": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 6,
+          "constrained": false,
+          "baseline": 163,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "distributed",
+      "id": "1792809558059-0-distributed-fixed6",
+      "mode": "fixed6",
+      "historyKey": "0-distributed",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1572,
+      "first6Ms": 216,
+      "lastImageMs": 1530,
+      "callbackMs": 71.6,
+      "rafMs": 69.5,
+      "observerMs": 2.1,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "distributed",
+      "id": "1792809558059-0-distributed-fixed8",
+      "mode": "fixed8",
+      "historyKey": "0-distributed",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1230,
+      "first6Ms": 221,
+      "lastImageMs": 1208,
+      "callbackMs": 71,
+      "rafMs": 69.2,
+      "observerMs": 1.8,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.3,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "distributed",
+      "id": "1792809558059-0-distributed-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "0-distributed",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1233,
+      "first6Ms": 209,
+      "lastImageMs": 1197,
+      "callbackMs": 37.2,
+      "rafMs": 35.3,
+      "observerMs": 1.9,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 163,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 163,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 162,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "distributed",
+      "id": "1792809558059-0-distributed-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "0-distributed",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1232,
+      "first6Ms": 206,
+      "lastImageMs": 1197,
+      "callbackMs": 32.1,
+      "rafMs": 30.7,
+      "observerMs": 1.4,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.1,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 164,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 164,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 165,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "slow",
+      "id": "1792809558059-0-slow-fixed6",
+      "mode": "fixed6",
+      "historyKey": "0-slow",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1571,
+      "first6Ms": 218,
+      "lastImageMs": 1531,
+      "callbackMs": 61.3,
+      "rafMs": 59.6,
+      "observerMs": 1.7,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.3,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "slow",
+      "id": "1792809558059-0-slow-fixed8",
+      "mode": "fixed8",
+      "historyKey": "0-slow",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1782,
+      "first6Ms": 216,
+      "lastImageMs": 1739,
+      "callbackMs": 65.7,
+      "rafMs": 63.6,
+      "observerMs": 2.1,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "slow",
+      "id": "1792809558059-0-slow-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "0-slow",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1540,
+      "first6Ms": 200,
+      "lastImageMs": 1492,
+      "callbackMs": 33.3,
+      "rafMs": 31.5,
+      "observerMs": 1.8,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 164,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 164,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 165,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "slow",
+      "id": "1792809558059-0-slow-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "0-slow",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1570,
+      "first6Ms": 201,
+      "lastImageMs": 1523,
+      "callbackMs": 33.4,
+      "rafMs": 31.7,
+      "observerMs": 1.7,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 165,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 165,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 165,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "limited",
+      "id": "1792809558059-0-limited-fixed6",
+      "mode": "fixed6",
+      "historyKey": "0-limited",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1565,
+      "first6Ms": 218,
+      "lastImageMs": 1532,
+      "callbackMs": 57.9,
+      "rafMs": 56.3,
+      "observerMs": 1.6,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "limited",
+      "id": "1792809558059-0-limited-fixed8",
+      "mode": "fixed8",
+      "historyKey": "0-limited",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 12,
+      "failed": 0,
+      "allMs": 20051,
+      "first6Ms": 214,
+      "lastImageMs": 15621,
+      "callbackMs": 64.3,
+      "rafMs": 62.7,
+      "observerMs": 1.6,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.1,
+      "peakScheduled": 10,
+      "server": {
+        "requests": 27,
+        "rejected": 15,
+        "bytes": 505884,
+        "active": 0,
+        "peak": 7,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "limited",
+      "id": "1792809558059-0-limited-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "0-limited",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1828,
+      "first6Ms": 213,
+      "lastImageMs": 1793,
+      "callbackMs": 43.8,
+      "rafMs": 41.8,
+      "observerMs": 2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 9.9,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 53,
+        "rejected": 3,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 7,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 164,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 165,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 164,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "limited",
+      "id": "1792809558059-0-limited-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "0-limited",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1547,
+      "first6Ms": 208,
+      "lastImageMs": 1526,
+      "callbackMs": 40.9,
+      "rafMs": 39.3,
+      "observerMs": 1.6,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 163,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 165,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 163,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "mixed",
+      "id": "1792809558059-0-mixed-fixed6",
+      "mode": "fixed6",
+      "historyKey": "0-mixed",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1565,
+      "first6Ms": 218,
+      "lastImageMs": 1530,
+      "callbackMs": 62.9,
+      "rafMs": 61,
+      "observerMs": 1.9,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.3,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "mixed",
+      "id": "1792809558059-0-mixed-fixed8",
+      "mode": "fixed8",
+      "historyKey": "0-mixed",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 3056,
+      "first6Ms": 222,
+      "lastImageMs": 3016,
+      "callbackMs": 73.3,
+      "rafMs": 71.2,
+      "observerMs": 2.1,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.1,
+      "peakScheduled": 9,
+      "server": {
+        "requests": 60,
+        "rejected": 10,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 9,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "mixed",
+      "id": "1792809558059-0-mixed-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "0-mixed",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1823,
+      "first6Ms": 212,
+      "lastImageMs": 1779,
+      "callbackMs": 43.8,
+      "rafMs": 41.6,
+      "observerMs": 2.2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 9,
+      "server": {
+        "requests": 51,
+        "rejected": 1,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 9,
+        "peakHost": 4,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 164,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 165,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 166,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "mixed",
+      "id": "1792809558059-0-mixed-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "0-mixed",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1574,
+      "first6Ms": 205,
+      "lastImageMs": 1525,
+      "callbackMs": 33.5,
+      "rafMs": 31.6,
+      "observerMs": 1.9,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 165,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 165,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 164,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "single",
+      "id": "1792809558059-1-single-fixed6",
+      "mode": "fixed6",
+      "historyKey": "1-single",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1566,
+      "first6Ms": 218,
+      "lastImageMs": 1534,
+      "callbackMs": 63.4,
+      "rafMs": 61.2,
+      "observerMs": 2.2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.3,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 6,
+        "hosts": {
+          "127.0.0.1:8770": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "single",
+      "id": "1792809558059-1-single-fixed8",
+      "mode": "fixed8",
+      "historyKey": "1-single",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1547,
+      "first6Ms": 213,
+      "lastImageMs": 1513,
+      "callbackMs": 71.1,
+      "rafMs": 69.1,
+      "observerMs": 2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.1,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 6,
+        "hosts": {
+          "127.0.0.1:8770": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "single",
+      "id": "1792809558059-1-single-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "1-single",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 2215,
+      "first6Ms": 532,
+      "lastImageMs": 2182,
+      "callbackMs": 37.5,
+      "rafMs": 36,
+      "observerMs": 1.5,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 6,
+        "hosts": {
+          "127.0.0.1:8770": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 6,
+          "constrained": false,
+          "baseline": 164,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "single",
+      "id": "1792809558059-1-single-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "1-single",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1554,
+      "first6Ms": 207,
+      "lastImageMs": 1522,
+      "callbackMs": 33.9,
+      "rafMs": 32.5,
+      "observerMs": 1.4,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.1,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 6,
+        "hosts": {
+          "127.0.0.1:8770": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 6,
+          "constrained": false,
+          "baseline": 163,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "distributed",
+      "id": "1792809558059-1-distributed-fixed6",
+      "mode": "fixed6",
+      "historyKey": "1-distributed",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1567,
+      "first6Ms": 215,
+      "lastImageMs": 1524,
+      "callbackMs": 63.6,
+      "rafMs": 62,
+      "observerMs": 1.6,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "distributed",
+      "id": "1792809558059-1-distributed-fixed8",
+      "mode": "fixed8",
+      "historyKey": "1-distributed",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1222,
+      "first6Ms": 213,
+      "lastImageMs": 1201,
+      "callbackMs": 68.5,
+      "rafMs": 67,
+      "observerMs": 1.5,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "distributed",
+      "id": "1792809558059-1-distributed-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "1-distributed",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1230,
+      "first6Ms": 200,
+      "lastImageMs": 1200,
+      "callbackMs": 35,
+      "rafMs": 33.3,
+      "observerMs": 1.7,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 166,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 165,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 168,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "distributed",
+      "id": "1792809558059-1-distributed-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "1-distributed",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1261,
+      "first6Ms": 210,
+      "lastImageMs": 1220,
+      "callbackMs": 33.3,
+      "rafMs": 31.2,
+      "observerMs": 2.1,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 167,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 168,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 168,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "slow",
+      "id": "1792809558059-1-slow-fixed6",
+      "mode": "fixed6",
+      "historyKey": "1-slow",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1619,
+      "first6Ms": 227,
+      "lastImageMs": 1566,
+      "callbackMs": 65.9,
+      "rafMs": 63.7,
+      "observerMs": 2.2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "slow",
+      "id": "1792809558059-1-slow-fixed8",
+      "mode": "fixed8",
+      "historyKey": "1-slow",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1788,
+      "first6Ms": 225,
+      "lastImageMs": 1763,
+      "callbackMs": 68.1,
+      "rafMs": 66,
+      "observerMs": 2.1,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "slow",
+      "id": "1792809558059-1-slow-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "1-slow",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1566,
+      "first6Ms": 214,
+      "lastImageMs": 1522,
+      "callbackMs": 39.6,
+      "rafMs": 37.4,
+      "observerMs": 2.2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.3,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 165,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 165,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 165,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "slow",
+      "id": "1792809558059-1-slow-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "1-slow",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1571,
+      "first6Ms": 207,
+      "lastImageMs": 1540,
+      "callbackMs": 32.1,
+      "rafMs": 30.6,
+      "observerMs": 1.5,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.3,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 166,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 168,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 167,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "limited",
+      "id": "1792809558059-1-limited-fixed6",
+      "mode": "fixed6",
+      "historyKey": "1-limited",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1596,
+      "first6Ms": 221,
+      "lastImageMs": 1564,
+      "callbackMs": 61.2,
+      "rafMs": 58.8,
+      "observerMs": 2.4,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "limited",
+      "id": "1792809558059-1-limited-fixed8",
+      "mode": "fixed8",
+      "historyKey": "1-limited",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 12,
+      "failed": 0,
+      "allMs": 20028,
+      "first6Ms": 221,
+      "lastImageMs": 15632,
+      "callbackMs": 61.8,
+      "rafMs": 60.2,
+      "observerMs": 1.6,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 10,
+      "server": {
+        "requests": 27,
+        "rejected": 15,
+        "bytes": 505884,
+        "active": 0,
+        "peak": 7,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "limited",
+      "id": "1792809558059-1-limited-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "1-limited",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1861,
+      "first6Ms": 217,
+      "lastImageMs": 1815,
+      "callbackMs": 44.9,
+      "rafMs": 42.9,
+      "observerMs": 2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.3,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 53,
+        "rejected": 3,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 7,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 165,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 166,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 166,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "limited",
+      "id": "1792809558059-1-limited-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "1-limited",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1579,
+      "first6Ms": 214,
+      "lastImageMs": 1543,
+      "callbackMs": 39.3,
+      "rafMs": 37.3,
+      "observerMs": 2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 168,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 164,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 166,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "mixed",
+      "id": "1792809558059-1-mixed-fixed6",
+      "mode": "fixed6",
+      "historyKey": "1-mixed",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1587,
+      "first6Ms": 223,
+      "lastImageMs": 1559,
+      "callbackMs": 65,
+      "rafMs": 62.9,
+      "observerMs": 2.1,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "mixed",
+      "id": "1792809558059-1-mixed-fixed8",
+      "mode": "fixed8",
+      "historyKey": "1-mixed",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 3051,
+      "first6Ms": 218,
+      "lastImageMs": 3028,
+      "callbackMs": 69.7,
+      "rafMs": 67.1,
+      "observerMs": 2.6,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 9,
+      "server": {
+        "requests": 60,
+        "rejected": 10,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 9,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "mixed",
+      "id": "1792809558059-1-mixed-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "1-mixed",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1819,
+      "first6Ms": 208,
+      "lastImageMs": 1794,
+      "callbackMs": 35.9,
+      "rafMs": 33.8,
+      "observerMs": 2.1,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 9,
+      "server": {
+        "requests": 51,
+        "rejected": 1,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 9,
+        "peakHost": 4,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 165,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 170,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 168,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "mixed",
+      "id": "1792809558059-1-mixed-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "1-mixed",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1603,
+      "first6Ms": 212,
+      "lastImageMs": 1558,
+      "callbackMs": 33.2,
+      "rafMs": 31.1,
+      "observerMs": 2.1,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 167,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 166,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 165,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "single",
+      "id": "1792809558059-2-single-fixed6",
+      "mode": "fixed6",
+      "historyKey": "2-single",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1612,
+      "first6Ms": 219,
+      "lastImageMs": 1560,
+      "callbackMs": 60.6,
+      "rafMs": 58.5,
+      "observerMs": 2.1,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 6,
+        "hosts": {
+          "127.0.0.1:8770": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "single",
+      "id": "1792809558059-2-single-fixed8",
+      "mode": "fixed8",
+      "historyKey": "2-single",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1584,
+      "first6Ms": 227,
+      "lastImageMs": 1538,
+      "callbackMs": 66.9,
+      "rafMs": 64.9,
+      "observerMs": 2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.3,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 6,
+        "hosts": {
+          "127.0.0.1:8770": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "single",
+      "id": "1792809558059-2-single-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "2-single",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 2266,
+      "first6Ms": 541,
+      "lastImageMs": 2223,
+      "callbackMs": 39.4,
+      "rafMs": 37.4,
+      "observerMs": 2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 6,
+        "hosts": {
+          "127.0.0.1:8770": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 6,
+          "constrained": false,
+          "baseline": 164,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "single",
+      "id": "1792809558059-2-single-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "2-single",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1577,
+      "first6Ms": 206,
+      "lastImageMs": 1548,
+      "callbackMs": 35.4,
+      "rafMs": 33.6,
+      "observerMs": 1.8,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 6,
+        "hosts": {
+          "127.0.0.1:8770": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 6,
+          "constrained": false,
+          "baseline": 166,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "distributed",
+      "id": "1792809558059-2-distributed-fixed6",
+      "mode": "fixed6",
+      "historyKey": "2-distributed",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1604,
+      "first6Ms": 223,
+      "lastImageMs": 1567,
+      "callbackMs": 60.3,
+      "rafMs": 58.4,
+      "observerMs": 1.9,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.1,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "distributed",
+      "id": "1792809558059-2-distributed-fixed8",
+      "mode": "fixed8",
+      "historyKey": "2-distributed",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1257,
+      "first6Ms": 228,
+      "lastImageMs": 1226,
+      "callbackMs": 66,
+      "rafMs": 64.2,
+      "observerMs": 1.8,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "distributed",
+      "id": "1792809558059-2-distributed-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "2-distributed",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1238,
+      "first6Ms": 213,
+      "lastImageMs": 1221,
+      "callbackMs": 34.1,
+      "rafMs": 32.3,
+      "observerMs": 1.8,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 167,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 164,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 167,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "distributed",
+      "id": "1792809558059-2-distributed-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "2-distributed",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1232,
+      "first6Ms": 210,
+      "lastImageMs": 1212,
+      "callbackMs": 34,
+      "rafMs": 32.3,
+      "observerMs": 1.7,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.3,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 166,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 167,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 168,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "slow",
+      "id": "1792809558059-2-slow-fixed6",
+      "mode": "fixed6",
+      "historyKey": "2-slow",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1609,
+      "first6Ms": 221,
+      "lastImageMs": 1574,
+      "callbackMs": 56.4,
+      "rafMs": 54.6,
+      "observerMs": 1.8,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.1,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "slow",
+      "id": "1792809558059-2-slow-fixed8",
+      "mode": "fixed8",
+      "historyKey": "2-slow",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1783,
+      "first6Ms": 219,
+      "lastImageMs": 1752,
+      "callbackMs": 67.7,
+      "rafMs": 65.6,
+      "observerMs": 2.1,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.1,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "slow",
+      "id": "1792809558059-2-slow-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "2-slow",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1542,
+      "first6Ms": 205,
+      "lastImageMs": 1516,
+      "callbackMs": 36.7,
+      "rafMs": 34.8,
+      "observerMs": 1.9,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.3,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 168,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 168,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 167,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "slow",
+      "id": "1792809558059-2-slow-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "2-slow",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1603,
+      "first6Ms": 214,
+      "lastImageMs": 1565,
+      "callbackMs": 35.7,
+      "rafMs": 33.9,
+      "observerMs": 1.8,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 168,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 167,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 166,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "limited",
+      "id": "1792809558059-2-limited-fixed6",
+      "mode": "fixed6",
+      "historyKey": "2-limited",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1606,
+      "first6Ms": 226,
+      "lastImageMs": 1565,
+      "callbackMs": 67.6,
+      "rafMs": 65.6,
+      "observerMs": 2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "limited",
+      "id": "1792809558059-2-limited-fixed8",
+      "mode": "fixed8",
+      "historyKey": "2-limited",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 12,
+      "failed": 0,
+      "allMs": 20042,
+      "first6Ms": 217,
+      "lastImageMs": 15627,
+      "callbackMs": 63.7,
+      "rafMs": 62,
+      "observerMs": 1.7,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 10,
+      "server": {
+        "requests": 27,
+        "rejected": 15,
+        "bytes": 505884,
+        "active": 0,
+        "peak": 7,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "limited",
+      "id": "1792809558059-2-limited-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "2-limited",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1864,
+      "first6Ms": 213,
+      "lastImageMs": 1823,
+      "callbackMs": 45.5,
+      "rafMs": 43.1,
+      "observerMs": 2.4,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.3,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 53,
+        "rejected": 3,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 7,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 171,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 171,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 168,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "limited",
+      "id": "1792809558059-2-limited-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "2-limited",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1587,
+      "first6Ms": 215,
+      "lastImageMs": 1561,
+      "callbackMs": 41.2,
+      "rafMs": 39.2,
+      "observerMs": 2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 167,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 167,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 167,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 6,
+      "profile": "mixed",
+      "id": "1792809558059-2-mixed-fixed6",
+      "mode": "fixed6",
+      "historyKey": "2-mixed",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1616,
+      "first6Ms": 226,
+      "lastImageMs": 1566,
+      "callbackMs": 69.5,
+      "rafMs": 67.6,
+      "observerMs": 1.9,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 6,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 6,
+        "peakHost": 2,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "mixed",
+      "id": "1792809558059-2-mixed-fixed8",
+      "mode": "fixed8",
+      "historyKey": "2-mixed",
+      "sha": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "artifact": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 3043,
+      "first6Ms": 221,
+      "lastImageMs": 3017,
+      "callbackMs": 69.7,
+      "rafMs": 67.7,
+      "observerMs": 2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 9,
+      "server": {
+        "requests": 60,
+        "rejected": 10,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 9,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": []
+    },
+    {
+      "slots": 8,
+      "profile": "mixed",
+      "id": "1792809558059-2-mixed-adaptiveCold",
+      "mode": "adaptiveCold",
+      "historyKey": "2-mixed",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1822,
+      "first6Ms": 208,
+      "lastImageMs": 1797,
+      "callbackMs": 38.6,
+      "rafMs": 36.3,
+      "observerMs": 2.3,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.2,
+      "peakScheduled": 9,
+      "server": {
+        "requests": 51,
+        "rejected": 1,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 9,
+        "peakHost": 4,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 166,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 169,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 4,
+          "constrained": false,
+          "baseline": 171,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "slots": 8,
+      "profile": "mixed",
+      "id": "1792809558059-2-mixed-adaptiveWarm",
+      "mode": "adaptiveWarm",
+      "historyKey": "2-mixed",
+      "sha": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "artifact": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a",
+      "ready": 50,
+      "failed": 0,
+      "allMs": 1581,
+      "first6Ms": 216,
+      "lastImageMs": 1560,
+      "callbackMs": 33.8,
+      "rafMs": 31.8,
+      "observerMs": 2,
+      "longTasks": 0,
+      "longTaskMs": 0,
+      "frameGapP95": 10.1,
+      "peakScheduled": 8,
+      "server": {
+        "requests": 50,
+        "rejected": 0,
+        "bytes": 2107850,
+        "active": 0,
+        "peak": 8,
+        "peakHost": 3,
+        "hosts": {
+          "127.0.0.1:8770": 0,
+          "127.0.0.1:8771": 0,
+          "127.0.0.1:8772": 0
+        }
+      },
+      "hosts": [
+        {
+          "host": "127.0.0.1:8772",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 166,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8771",
+          "limit": 5,
+          "constrained": false,
+          "baseline": 165,
+          "cooldown": 0
+        },
+        {
+          "host": "127.0.0.1:8770",
+          "limit": 2,
+          "constrained": true,
+          "baseline": 168,
+          "cooldown": 0
+        }
+      ]
+    }
+  ],
+  "artifact": {
+    "version": "2.8.0",
+    "sha256": "574579cafbfe316601ed3a0602394214d88d121dbb0046d9bc1742221334f30a"
+  },
+  "summary": [
+    {
+      "profile": "single",
+      "mode": "fixed6",
+      "lastImageMs": 1560,
+      "allMs": 1588,
+      "first6Ms": 219,
+      "callbackMs": 63.4,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 6,
+      "peakOrigin": 6,
+      "longTasks": 0
+    },
+    {
+      "profile": "single",
+      "mode": "fixed8",
+      "lastImageMs": 1538,
+      "allMs": 1565,
+      "first6Ms": 227,
+      "callbackMs": 71.1,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 8,
+      "peakOrigin": 6,
+      "longTasks": 0
+    },
+    {
+      "profile": "single",
+      "mode": "adaptiveCold",
+      "lastImageMs": 2187,
+      "allMs": 2224,
+      "first6Ms": 535,
+      "callbackMs": 38.2,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 6,
+      "peakOrigin": 6,
+      "longTasks": 0
+    },
+    {
+      "profile": "single",
+      "mode": "adaptiveWarm",
+      "lastImageMs": 1528,
+      "allMs": 1572,
+      "first6Ms": 207,
+      "callbackMs": 35.4,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 6,
+      "peakOrigin": 6,
+      "longTasks": 0
+    },
+    {
+      "profile": "distributed",
+      "mode": "fixed6",
+      "lastImageMs": 1530,
+      "allMs": 1572,
+      "first6Ms": 216,
+      "callbackMs": 63.6,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 6,
+      "peakOrigin": 2,
+      "longTasks": 0
+    },
+    {
+      "profile": "distributed",
+      "mode": "fixed8",
+      "lastImageMs": 1208,
+      "allMs": 1230,
+      "first6Ms": 221,
+      "callbackMs": 68.5,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 8,
+      "peakOrigin": 3,
+      "longTasks": 0
+    },
+    {
+      "profile": "distributed",
+      "mode": "adaptiveCold",
+      "lastImageMs": 1200,
+      "allMs": 1233,
+      "first6Ms": 209,
+      "callbackMs": 35,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 8,
+      "peakOrigin": 3,
+      "longTasks": 0
+    },
+    {
+      "profile": "distributed",
+      "mode": "adaptiveWarm",
+      "lastImageMs": 1212,
+      "allMs": 1232,
+      "first6Ms": 210,
+      "callbackMs": 33.3,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 8,
+      "peakOrigin": 3,
+      "longTasks": 0
+    },
+    {
+      "profile": "slow",
+      "mode": "fixed6",
+      "lastImageMs": 1566,
+      "allMs": 1609,
+      "first6Ms": 221,
+      "callbackMs": 61.3,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 6,
+      "peakOrigin": 2,
+      "longTasks": 0
+    },
+    {
+      "profile": "slow",
+      "mode": "fixed8",
+      "lastImageMs": 1752,
+      "allMs": 1783,
+      "first6Ms": 219,
+      "callbackMs": 67.7,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 8,
+      "peakOrigin": 3,
+      "longTasks": 0
+    },
+    {
+      "profile": "slow",
+      "mode": "adaptiveCold",
+      "lastImageMs": 1516,
+      "allMs": 1542,
+      "first6Ms": 205,
+      "callbackMs": 36.7,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 8,
+      "peakOrigin": 3,
+      "longTasks": 0
+    },
+    {
+      "profile": "slow",
+      "mode": "adaptiveWarm",
+      "lastImageMs": 1540,
+      "allMs": 1571,
+      "first6Ms": 207,
+      "callbackMs": 33.4,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 6,
+      "peakOrigin": 2,
+      "longTasks": 0
+    },
+    {
+      "profile": "limited",
+      "mode": "fixed6",
+      "lastImageMs": 1564,
+      "allMs": 1596,
+      "first6Ms": 221,
+      "callbackMs": 61.2,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 6,
+      "peakOrigin": 2,
+      "longTasks": 0
+    },
+    {
+      "profile": "limited",
+      "mode": "fixed8",
+      "lastImageMs": 15627,
+      "allMs": 20042,
+      "first6Ms": 217,
+      "callbackMs": 63.7,
+      "readyEach": [
+        12,
+        12,
+        12
+      ],
+      "errors": 45,
+      "requests": [
+        27,
+        27,
+        27
+      ],
+      "peakScheduled": 10,
+      "peakOrigin": 3,
+      "longTasks": 0
+    },
+    {
+      "profile": "limited",
+      "mode": "adaptiveCold",
+      "lastImageMs": 1815,
+      "allMs": 1861,
+      "first6Ms": 213,
+      "callbackMs": 44.9,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 9,
+      "requests": [
+        53,
+        53,
+        53
+      ],
+      "peakScheduled": 8,
+      "peakOrigin": 3,
+      "longTasks": 0
+    },
+    {
+      "profile": "limited",
+      "mode": "adaptiveWarm",
+      "lastImageMs": 1543,
+      "allMs": 1579,
+      "first6Ms": 214,
+      "callbackMs": 40.9,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 6,
+      "peakOrigin": 2,
+      "longTasks": 0
+    },
+    {
+      "profile": "mixed",
+      "mode": "fixed6",
+      "lastImageMs": 1559,
+      "allMs": 1587,
+      "first6Ms": 223,
+      "callbackMs": 65,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 6,
+      "peakOrigin": 2,
+      "longTasks": 0
+    },
+    {
+      "profile": "mixed",
+      "mode": "fixed8",
+      "lastImageMs": 3017,
+      "allMs": 3051,
+      "first6Ms": 221,
+      "callbackMs": 69.7,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 30,
+      "requests": [
+        60,
+        60,
+        60
+      ],
+      "peakScheduled": 9,
+      "peakOrigin": 3,
+      "longTasks": 0
+    },
+    {
+      "profile": "mixed",
+      "mode": "adaptiveCold",
+      "lastImageMs": 1794,
+      "allMs": 1822,
+      "first6Ms": 208,
+      "callbackMs": 38.6,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 3,
+      "requests": [
+        51,
+        51,
+        51
+      ],
+      "peakScheduled": 9,
+      "peakOrigin": 4,
+      "longTasks": 0
+    },
+    {
+      "profile": "mixed",
+      "mode": "adaptiveWarm",
+      "lastImageMs": 1558,
+      "allMs": 1581,
+      "first6Ms": 212,
+      "callbackMs": 33.5,
+      "readyEach": [
+        50,
+        50,
+        50
+      ],
+      "errors": 0,
+      "requests": [
+        50,
+        50,
+        50
+      ],
+      "peakScheduled": 8,
+      "peakOrigin": 3,
+      "longTasks": 0
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+{
+  "scope": "Native in-app Chromium, real IndexedDB and mock GM storage/transport; neutral collage fixture modeled on read-only inspection of /collage/2591. The production site was not modified and no torrent downloads were performed.",
+  "liveStructure": {
+    "path": "/collage/2591",
+    "table": "#torrent_table",
+    "rows": 50,
+    "coverCards": ".torrent_grid > .torrent_grid__torrent",
+    "coverSizing": "empty svg viewBox spacer",
+    "next": "?page=2#discog_table"
+  },
+  "observations": [
+    {
+      "stage": "collage-backfill-complete",
+      "artifact": "68abc748ff9c6628ff2440e72c6fbd40c60d57e76103d6f26d521d92bc7300ab",
+      "structure": {
+        "cards": [
+          {
+            "height": 165.1484375,
+            "id": "1",
+            "ready": true,
+            "width": 165.140625
+          },
+          {
+            "height": 165.1484375,
+            "id": "2",
+            "ready": true,
+            "width": 165.140625
+          },
+          {
+            "height": 165.1484375,
+            "id": "3",
+            "ready": true,
+            "width": 165.140625
+          },
+          {
+            "height": 165.1484375,
+            "id": "4",
+            "ready": true,
+            "width": 165.1484375
+          },
+          {
+            "height": 165.1484375,
+            "id": "5",
+            "ready": true,
+            "width": 165.140625
+          },
+          {
+            "height": 165.1484375,
+            "id": "6",
+            "ready": true,
+            "width": 165.140625
+          }
+        ],
+        "pageMarks": 4,
+        "pagers": [
+          {
+            "disabled": "true",
+            "href": null
+          },
+          {
+            "disabled": "true",
+            "href": null
+          }
+        ],
+        "rows": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6"
+        ]
+      }
+    },
+    {
+      "stage": "filtered-collage-rows-and-covers",
+      "visibility": {
+        "covers": [
+          "1",
+          "3",
+          "5"
+        ],
+        "rows": [
+          "1",
+          "3",
+          "5"
+        ]
+      }
+    },
+    {
+      "stage": "show-filtered-restores-both",
+      "visibility": {
+        "covers": 6,
+        "rows": 6
+      }
+    },
+    {
+      "stage": "common-backfill-mode-autosaves",
+      "settings": "Appearance\nColor theme\nDefault\nLegacy\nEdgy\nBaked\nDark Purple\nCustom\nEnlarge images on hover\nThumbnail width\nBrowsing\nLoad more pages\nWhen I click Backfill\nAutomatically load a few pages\nAutomatically load all pages\nGroup alternate video versions\nImage cache\n\n11.3 KB of 512 MB used\n\nStatistics & storage\nAdvanced settings\nBackup & restore\nGetting started",
+      "pageCountHidden": true
+    },
+    {
+      "stage": "final-build-automatic-collage-backfill",
+      "artifact": "984a96d53d1c5ca3c878956541f844766a8629c0f5a22bb6536feaa1fc6047fb",
+      "counts": {
+        "covers": 6,
+        "rows": 6
+      }
+    },
+    {
+      "stage": "global-settings-search",
+      "disclosures": {
+        "advancedOpen": true,
+        "cacheLimitVisible": true,
+        "cacheOpen": true
+      }
+    },
+    {
+      "stage": "settings-search-restores-compact-view",
+      "disclosures": {
+        "advancedOpen": false,
+        "cacheOpen": false,
+        "pageCountHidden": true
+      },
+      "settings": "Appearance\nColor theme\nDefault\nLegacy\nEdgy\nBaked\nDark Purple\nCustom\nThumbnail width\nEnlarge images on hover\nBrowsing\nLoad more pages\nWhen I click Backfill\nAutomatically load a few pages\nAutomatically load all pages\nGroup alternate video versions\nImage cache\n\n11.3 KB of 512 MB used\n\nStatistics & storage\nAdvanced settings\nBackup & restore\nGetting started"
+    },
+    {
+      "stage": "final-360px-settings",
+      "artifact": "46a746dc81d5b1413ab6d6500fb9a45be2dfb908ea4946cf8e07c3c39e39e059",
+      "metrics": {
+        "cacheDetailsOpen": false,
+        "clientWidth": 286,
+        "modeWidth": 286,
+        "pageCountHidden": true,
+        "scrollWidth": 286,
+        "selectedMode": "Automatically load all pages"
+      }
+    },
+    {
+      "stage": "final-settings",
+      "artifact": "46a746dc81d5b1413ab6d6500fb9a45be2dfb908ea4946cf8e07c3c39e39e059",
+      "settings": "Appearance\nColor theme\nDefault\nLegacy\nEdgy\nBaked\nDark Purple\nCustom\nThumbnail width\nEnlarge images on hover\nBrowsing\nLoad more pages\nWhen I click Backfill\nAutomatically load a few pages\nAutomatically load all pages\nGroup alternate video versions\nImage cache\n\n11.3 KB of 512 MB used\n\nStatistics & storage\nAdvanced settings\nBackup & restore\nGetting started"
+    },
+    {
+      "stage": "final-cached-reloads-image-request-log",
+      "displayedLog": "[]"
+    }
+  ]
+}

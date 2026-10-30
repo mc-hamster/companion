@@ -1,0 +1,149 @@
+{
+  "before": {
+    "hash": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d",
+    "headers": [
+      {
+        "client": 31,
+        "label": "",
+        "scroll": 31,
+        "width": 31.328125
+      },
+      {
+        "client": 824,
+        "label": "Name",
+        "scroll": 824,
+        "width": 823.609375
+      },
+      {
+        "client": 46,
+        "label": "Files",
+        "scroll": 46,
+        "width": 45.9921875
+      },
+      {
+        "client": 60,
+        "label": "Comm",
+        "scroll": 60,
+        "width": 60.3515625
+      },
+      {
+        "client": 73,
+        "label": "Time",
+        "scroll": 73,
+        "width": 72.765625
+      },
+      {
+        "client": 60,
+        "label": "Size",
+        "scroll": 60,
+        "width": 60.3125
+      },
+      {
+        "client": 23,
+        "label": "↻",
+        "scroll": 23,
+        "width": 23.0859375
+      },
+      {
+        "client": 23,
+        "label": "↑",
+        "scroll": 23,
+        "width": 22.734375
+      },
+      {
+        "client": 23,
+        "label": "↓",
+        "scroll": 23,
+        "width": 22.734375
+      },
+      {
+        "client": 81,
+        "label": "Uploader",
+        "scroll": 81,
+        "width": 81.0859375
+      }
+    ],
+    "rows": 50,
+    "stable": false,
+    "tableWidth": 1244
+  },
+  "after": {
+    "columns": [
+      "2.5183%",
+      "66.2065%",
+      "3.6971%",
+      "4.8514%",
+      "5.8493%",
+      "4.8483%",
+      "1.8558%",
+      "1.8275%",
+      "1.8275%",
+      "6.5182%"
+    ],
+    "hash": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d",
+    "headers": [
+      {
+        "client": 23,
+        "label": "",
+        "scroll": 23,
+        "width": 23.2265625
+      },
+      {
+        "client": 932,
+        "label": "Name",
+        "scroll": 932,
+        "width": 932.3203125
+      },
+      {
+        "client": 34,
+        "label": "Files",
+        "scroll": 41,
+        "width": 34.1015625
+      },
+      {
+        "client": 45,
+        "label": "Comm",
+        "scroll": 55,
+        "width": 44.7421875
+      },
+      {
+        "client": 54,
+        "label": "Time",
+        "scroll": 54,
+        "width": 53.9453125
+      },
+      {
+        "client": 45,
+        "label": "Size",
+        "scroll": 45,
+        "width": 44.71875
+      },
+      {
+        "client": 17,
+        "label": "↻",
+        "scroll": 18,
+        "width": 17.109375
+      },
+      {
+        "client": 17,
+        "label": "↑",
+        "scroll": 18,
+        "width": 16.84375
+      },
+      {
+        "client": 17,
+        "label": "↓",
+        "scroll": 18,
+        "width": 16.84375
+      },
+      {
+        "client": 60,
+        "label": "Uploader",
+        "scroll": 76,
+        "width": 60.1484375
+      }
+    ],
+    "rows": 295,
+    "stable": true
+  }
+}

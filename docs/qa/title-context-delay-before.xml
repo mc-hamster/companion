@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="[TITLE-01] title hover is a temporary site-style tooltip using the ready thumbnail, with ordinary link focus and clicks" time="0.190616" classname="test" failure="right-click before the hover delay must cancel the pending tooltiptrue !== false">
+		<failure type="testCodeFailure" message="right-click before the hover delay must cancel the pending tooltiptrue !== false">
+[Error [ERR_TEST_FAILURE]: right-click before the hover delay must cancel the pending tooltip
+
+true !== false
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: right-click before the hover delay must cancel the pending tooltip
+  
+  true !== false
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs:807:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:297:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<!-- tests 1 -->
+	<!-- suites 0 -->
+	<!-- pass 0 -->
+	<!-- fail 1 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 584.426375 -->
+</testsuites>

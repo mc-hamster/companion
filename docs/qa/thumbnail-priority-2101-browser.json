@@ -1,0 +1,78 @@
+{
+  "version": "2.10.1",
+  "artifactSha": "3581d9a47821c53db1fdbe41bf0148c9aec84b4288ee2d0578cbd1749534b565",
+  "environment": "Native in-app Chromium, real IndexedDB, neutral local assets, mock manager transport. Fixture-only capacity3000 bytes; production remains512MB. Native browser quota/actual manager sandbox unverified.",
+  "evidence": [
+    {
+      "stage": "Existing v1 image bytes survive upgrade with host blocked",
+      "data": {
+        "loaded": 8,
+        "sha": "3581d9a47821c53db1fdbe41bf0148c9aec84b4288ee2d0578cbd1749534b565",
+        "stats": "{\"bytes\":4549,\"count\":9,\"thumbnailBytes\":4549}"
+      }
+    },
+    {
+      "stage": "Seed four protected thumbnails and one newer preview",
+      "data": {
+        "accepted": true,
+        "thumbs": [
+          true,
+          true,
+          true,
+          true,
+          false
+        ],
+        "preview": true,
+        "stats": {
+          "bytes": 2529,
+          "count": 5,
+          "thumbnailBytes": 2020,
+          "available": true
+        },
+        "version": 2
+      }
+    },
+    {
+      "stage": "Large admission declined without deleting useful entries",
+      "data": {
+        "accepted": false,
+        "thumbs": [
+          true,
+          true,
+          true,
+          true,
+          false
+        ],
+        "preview": true,
+        "stats": {
+          "bytes": 2529,
+          "count": 5,
+          "thumbnailBytes": 2020,
+          "available": true
+        },
+        "version": 2
+      }
+    },
+    {
+      "stage": "Small admission evicts preview and retains every thumbnail",
+      "data": {
+        "accepted": true,
+        "thumbs": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "preview": false,
+        "stats": {
+          "bytes": 2525,
+          "count": 5,
+          "thumbnailBytes": 2525,
+          "available": true
+        },
+        "version": 2
+      }
+    }
+  ]
+}

@@ -1,0 +1,248 @@
+{
+  "rows": 800,
+  "variant": "current",
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+  "methods": {
+    "initial": {
+      "DOM observer callbacks": {
+        "calls": 867,
+        "ms": 3.3,
+        "maxMs": 2
+      },
+      "VersionGroups.refresh": {
+        "calls": 1,
+        "ms": 37.2,
+        "maxMs": 37.2
+      },
+      "CompanionApp.syncGridFilters": {
+        "calls": 1,
+        "ms": 45.5,
+        "maxMs": 45.5
+      },
+      "CompanionApp.ensureSavedSearchUI": {
+        "calls": 1,
+        "ms": 0.5,
+        "maxMs": 0.5
+      },
+      "PageMedia.prepareThumbnails": {
+        "calls": 4,
+        "ms": 0.2,
+        "maxMs": 0.1
+      },
+      "TagHighlights.refresh": {
+        "calls": 3,
+        "ms": 36,
+        "maxMs": 19.6
+      },
+      "PageMedia.scan": {
+        "calls": 3,
+        "ms": 28.6,
+        "maxMs": 19.6
+      },
+      "PreviewController.scan": {
+        "calls": 3,
+        "ms": 10.3,
+        "maxMs": 9
+      },
+      "Animation frame callbacks": {
+        "calls": 11,
+        "ms": 112.5,
+        "maxMs": 84.7
+      },
+      "CompanionApp.updateHealth": {
+        "calls": 3,
+        "ms": 0.4,
+        "maxMs": 0.2
+      }
+    },
+    "idle": {
+      "Animation frame callbacks": {
+        "calls": 2,
+        "ms": 0,
+        "maxMs": 0
+      }
+    },
+    "image-updates": {
+      "DOM observer callbacks": {
+        "calls": 60,
+        "ms": 0.9,
+        "maxMs": 0.1
+      },
+      "Animation frame callbacks": {
+        "calls": 122,
+        "ms": 4.7,
+        "maxMs": 0.2
+      },
+      "TagHighlights.refresh": {
+        "calls": 30,
+        "ms": 0,
+        "maxMs": 0
+      },
+      "PageMedia.scan": {
+        "calls": 30,
+        "ms": 0.6,
+        "maxMs": 0.1
+      },
+      "PreviewController.scan": {
+        "calls": 30,
+        "ms": 0,
+        "maxMs": 0
+      },
+      "CompanionApp.updateHealth": {
+        "calls": 30,
+        "ms": 1.8,
+        "maxMs": 0.2
+      }
+    },
+    "scroll": {
+      "Animation frame callbacks": {
+        "calls": 92,
+        "ms": 0.7,
+        "maxMs": 0.1
+      },
+      "PageMedia.prepareThumbnails": {
+        "calls": 30,
+        "ms": 0.6,
+        "maxMs": 0.1
+      }
+    },
+    "group-toggle": {
+      "PageMedia.prepareThumbnails": {
+        "calls": 5,
+        "ms": 0,
+        "maxMs": 0
+      },
+      "DOM observer callbacks": {
+        "calls": 20,
+        "ms": 0.4,
+        "maxMs": 0.1
+      },
+      "CompanionApp.updateHealth": {
+        "calls": 10,
+        "ms": 0.9,
+        "maxMs": 0.2
+      },
+      "Animation frame callbacks": {
+        "calls": 32,
+        "ms": 1,
+        "maxMs": 0.2
+      }
+    },
+    "tag-change": {
+      "TagHighlights.refresh": {
+        "calls": 6,
+        "ms": 16.6,
+        "maxMs": 3
+      },
+      "DOM observer callbacks": {
+        "calls": 6,
+        "ms": 0.1,
+        "maxMs": 0.1
+      },
+      "Animation frame callbacks": {
+        "calls": 14,
+        "ms": 0,
+        "maxMs": 0
+      }
+    },
+    "append-50": {
+      "DOM observer callbacks": {
+        "calls": 3,
+        "ms": 0.1,
+        "maxMs": 0.1
+      },
+      "CompanionApp.ensureSavedSearchUI": {
+        "calls": 1,
+        "ms": 0,
+        "maxMs": 0
+      },
+      "VersionGroups.refresh": {
+        "calls": 1,
+        "ms": 15.5,
+        "maxMs": 15.5
+      },
+      "CompanionApp.syncGridFilters": {
+        "calls": 1,
+        "ms": 22.5,
+        "maxMs": 22.5
+      },
+      "TagHighlights.refresh": {
+        "calls": 1,
+        "ms": 12.7,
+        "maxMs": 12.7
+      },
+      "PageMedia.prepareThumbnails": {
+        "calls": 1,
+        "ms": 0,
+        "maxMs": 0
+      },
+      "PageMedia.scan": {
+        "calls": 1,
+        "ms": 9.2,
+        "maxMs": 9.2
+      },
+      "PreviewController.scan": {
+        "calls": 1,
+        "ms": 1.9,
+        "maxMs": 1.9
+      },
+      "Animation frame callbacks": {
+        "calls": 4,
+        "ms": 57.6,
+        "maxMs": 57.6
+      },
+      "CompanionApp.updateHealth": {
+        "calls": 1,
+        "ms": 0,
+        "maxMs": 0
+      }
+    },
+    "idle-after": {
+      "Animation frame callbacks": {
+        "calls": 2,
+        "ms": 0,
+        "maxMs": 0
+      }
+    }
+  },
+  "phases": [
+    {
+      "phase": "idle",
+      "elapsedMs": 1059,
+      "longTasks": 0
+    },
+    {
+      "phase": "image-updates",
+      "elapsedMs": 559,
+      "longTasks": 0
+    },
+    {
+      "phase": "scroll",
+      "elapsedMs": 558,
+      "longTasks": 0
+    },
+    {
+      "phase": "group-toggle",
+      "elapsedMs": 575,
+      "longTasks": 1
+    },
+    {
+      "phase": "tag-change",
+      "elapsedMs": 208,
+      "longTasks": 1
+    },
+    {
+      "phase": "append-50",
+      "elapsedMs": 146,
+      "longTasks": 1
+    },
+    {
+      "phase": "idle-after",
+      "elapsedMs": 1054,
+      "longTasks": 0
+    }
+  ],
+  "artifactSha": "21383534c6a8a919e1aaed735f955a6ea06b34d479f49cc77a229d7ea6be10ca",
+  "reviewedAgainst": "ae0082fdcc7331aa03d4eb63d12c5328e4dc608e1a006d7f262ecf13c4cfd0c4",
+  "reviewNote": "Final change only prioritizes retained originals over ordinary idle thumbnail entries during cache trimming. Idle/no-pool-work rendering paths are unchanged; observed artifactSha is retained."
+}

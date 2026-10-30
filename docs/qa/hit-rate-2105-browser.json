@@ -1,0 +1,60 @@
+{
+  "scope": "Native in-app Chromium, real IndexedDB, neutral local images, mock GM transport. Percentages derived from displayed per-window counts; no production installation.",
+  "observations": [
+    {
+      "stage": "initial",
+      "card": "Image cache\nReset stats\nThumbnails\n12 · 5.9 KB\nPreviews\n0 · 0 B\n\n5.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tHit rate\tDownloads\n5 min\t0\t4\t0%\t4\n15 min\t0\t4\t0%\t4\n1 hour\t0\t4\t0%\t4\nAll history\t4\t4\t50%\t4",
+      "artifact": "3ead46376c6b5fbc3db48d8ff5eafbf3f3303cd4d4215948d59414715418cd56"
+    },
+    {
+      "stage": "after-refresh",
+      "card": "Image cache\nReset stats\nThumbnails\n12 · 5.9 KB\nPreviews\n0 · 0 B\n\n5.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tHit rate\tDownloads\n5 min\t4\t4\t50%\t4\n15 min\t4\t4\t50%\t4\n1 hour\t4\t4\t50%\t4\nAll history\t8\t4\t66.7%\t4"
+    },
+    {
+      "stage": "360px-layout",
+      "card": "Image cache\nReset stats\nThumbnails\n12 · 5.9 KB\nPreviews\n0 · 0 B\n\n5.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tHit rate\tDownloads\n5 min\t8\t4\t66.7%\t4\n15 min\t8\t4\t66.7%\t4\n1 hour\t8\t4\t66.7%\t4\nAll history\t12\t4\t75%\t4",
+      "metrics": {
+        "cardClientWidth": 284,
+        "cardScrollWidth": 284,
+        "headers": [
+          {
+            "height": 24.4453125,
+            "scrollWidth": 65,
+            "text": "Period",
+            "width": 65
+          },
+          {
+            "height": 24.4453125,
+            "scrollWidth": 30,
+            "text": "Hits",
+            "width": 29.59375
+          },
+          {
+            "height": 24.4453125,
+            "scrollWidth": 46,
+            "text": "Misses",
+            "width": 46.1953125
+          },
+          {
+            "height": 24.4453125,
+            "scrollWidth": 49,
+            "text": "Hit rate",
+            "width": 49.4296875
+          },
+          {
+            "height": 24.4453125,
+            "scrollWidth": 70,
+            "text": "Downloads",
+            "width": 69.78125
+          }
+        ],
+        "tableScrollWidth": 260,
+        "tableWidth": 260
+      }
+    },
+    {
+      "stage": "reset-empty-windows",
+      "card": "Image cache\nReset stats\nThumbnails\n12 · 5.9 KB\nPreviews\n0 · 0 B\n\n5.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tHit rate\tDownloads\n5 min\t0\t0\t—\t0\n15 min\t0\t0\t—\t0\n1 hour\t0\t0\t—\t0\nAll history\t0\t0\t—\t0"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "artifact": "5e80e8a7f9254c2432ece81f1c5d7c9167fc94ca16d71d0c186731ecaa363007",
+  "rapid274": [
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "status": "Loading larger image…"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "status": "Loading larger image…"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "status": "Loading larger image…"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "status": "Loading larger image…"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "status": "Loading larger image…"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "status": "Loading larger image…"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "status": "Loading larger image…"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "status": "Loading larger image…"
+    }
+  ],
+  "cache274": [
+    {
+      "id": "1",
+      "width": 960
+    },
+    {
+      "id": "2",
+      "width": 960
+    },
+    {
+      "id": "3",
+      "width": 960
+    },
+    {
+      "id": "4",
+      "width": 960
+    },
+    {
+      "id": "6",
+      "width": 960
+    }
+  ]
+}

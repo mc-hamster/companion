@@ -1,0 +1,97 @@
+{
+  "artifact": "1fabcdbe160128daa293b6c13db6106f18912520e660c741a50f9612e95498bf",
+  "rapidCycles": [
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "state": "loading"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "state": "loading"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "state": "loading"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "state": "loading"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "state": "loading"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "state": "loading"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "state": "loading"
+    },
+    {
+      "hidden": false,
+      "src": "http://127.0.0.1:8765/qa-image/acceptance-hover-final/small-1.svg",
+      "state": "loading"
+    }
+  ],
+  "evictionCycles": [
+    {
+      "cycle": 0,
+      "id": "1",
+      "state": "ready"
+    },
+    {
+      "cycle": 0,
+      "id": "2",
+      "state": "ready"
+    },
+    {
+      "cycle": 0,
+      "id": "3",
+      "state": "ready"
+    },
+    {
+      "cycle": 0,
+      "id": "4",
+      "state": "ready"
+    },
+    {
+      "cycle": 0,
+      "id": "6",
+      "state": "ready"
+    },
+    {
+      "cycle": 1,
+      "id": "1",
+      "state": "ready"
+    },
+    {
+      "cycle": 1,
+      "id": "2",
+      "state": "ready"
+    },
+    {
+      "cycle": 1,
+      "id": "3",
+      "state": "ready"
+    },
+    {
+      "cycle": 1,
+      "id": "4",
+      "state": "ready"
+    },
+    {
+      "cycle": 1,
+      "id": "6",
+      "state": "ready"
+    }
+  ]
+}

@@ -1,0 +1,3652 @@
+{
+  "title": "Empornium Companion quality audit",
+  "phase": "Title interaction update complete · extension validation outstanding",
+  "focus": "160 automated tests pass.68 local scenarios pass; title tooltips and native title menus verified. Chrome/Tampermonkey and Firefox remain unverified.",
+  "artifact": {
+    "version": "2.7.5",
+    "sha256": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+  },
+  "startedAt": "2026-10-20T04:41:00.586Z",
+  "environments": [
+    {
+      "name": "Node + jsdom",
+      "status": "Available; automated model/bundle checks"
+    },
+    {
+      "name": "In-app Chromium",
+      "status": "Available; real browser, mock persistent GM APIs"
+    },
+    {
+      "name": "Chrome + Tampermonkey",
+      "status": "Not connected; manager sandbox unverified"
+    },
+    {
+      "name": "Firefox + manager",
+      "status": "Not connected; unverified"
+    }
+  ],
+  "cases": [
+    {
+      "id": "BOOT-01",
+      "area": "Startup",
+      "priority": "P0",
+      "context": "Fresh profile",
+      "steps": "Load results with no saved data.",
+      "expected": "One toolbar; empty rules; results and images usable.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "full NSE engine mounts, defaults to empty lists, and keeps companion data on reset",
+          "the simplified interface shows three task areas and only two common settings or tag fields"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Fresh-empty profile (no seeded settings/searches): one ready toolbar, empty block/allow, six thumbnail targets, no saved shortcuts and no uncaught errors."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "BOOT-02",
+      "area": "Startup",
+      "priority": "P0",
+      "context": "Existing profile",
+      "steps": "Upgrade the built script, reload, reopen preferences.",
+      "expected": "Rules, searches, highlights and customized values survive.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[BOOT-02] [PREF-01] [TAG-04] rules, highlight lists and customized settings survive a cloned-storage reload",
+          "old two-slot default migrates and small thumbnails are preferred for supported hosts"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Genuine 2.7.0 bundle customized width104/DarkPurple/blocked rule, then loaded current2.7.3; prefs, seed search and favorite/caution preserved. docs/qa/upgrade.json."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "BOOT-03",
+      "area": "Startup",
+      "priority": "P0",
+      "context": "Slow document parsing",
+      "steps": "Load the script before results and overlay definitions arrive.",
+      "expected": "Filter first; final page scanned; no duplicate UI or uncaught errors.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "page warming waits for filters and foreground visibility, then resumes the whole list",
+          "startup defers scans until filters finish, then processes the final page once"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "BOOT-04",
+      "area": "Startup",
+      "priority": "P1",
+      "context": "Unsupported origin / frame",
+      "steps": "Run the built artifact outside matched hosts or in a frame.",
+      "expected": "No site mutation, fetching, or settings controls.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[BOOT-04] unsupported origins stay untouched and the release declares no-frame execution"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "HOV-01",
+      "area": "Hover & preview",
+      "priority": "P0",
+      "context": "Ready thumbnail; original loading",
+      "steps": "Hover → leave → immediately return eight times.",
+      "expected": "Usable image returns every time; no stuck blank loading; cancellation preserves retries.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "returning to the same thumbnail restores its usable image while a cancelled original reloads",
+          "repeated hover returns retain the thumbnail without spending retries or adding page scans"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "5e80e8a7f9254c2432ece81f1c5d7c9167fc94ca16d71d0c186731ecaa363007",
+        "evidence": [
+          "Current artifact: eight native hover/leave/return cycles at 606px; usable image on every return. Evidence docs/qa/hover-current-artifact.json.",
+          "Eight native leave/return cycles passed on prior candidate; final candidate cache-pressure run also exercised 15 successful pointer entry/leave cycles without blank previews.",
+          "Final1fab artifact: eight native pointer hover/leave/immediate-return cycles, usable image every return; docs/qa/hover-release-final.json.",
+          "Final2.7.4 native eight immediate hover/leave/return cycles all retained usable image; docs/qa/hover-274-regressions.json."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 0f2ea981cae0; retest required for the new artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "HOV-02",
+      "area": "Hover & preview",
+      "priority": "P0",
+      "context": "Original completed / evicted",
+      "steps": "Leave and return before and after cache eviction.",
+      "expected": "Cached original appears immediately; eviction falls back to the ready thumbnail.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[HOV-02] returning after original-cache eviction still displays the usable thumbnail",
+          "[HOV-02] repeated successful reloads after cache eviction do not exhaust the failure budget"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "5e80e8a7f9254c2432ece81f1c5d7c9167fc94ca16d71d0c186731ecaa363007",
+        "evidence": [
+          "Cache pressure: working original1 incorrectly showed unavailable after successful reload/eviction cycles. QA-07.",
+          "QA-07 fixed: cacheEntries4, five good originals cycled three times (15 successful loads). Evicted return immediately shows small image with loading state; completed cache reuse had no loading status. docs/qa/cache-pressure-final.json.",
+          "Final1fab artifact with cache4: two full rounds of five distinct originals (10 successful loads), no retry exhaustion; previous candidate15-round verification and immediate cached/evicted fallback evidence retained. docs/qa/hover-release-final.json.",
+          "Final2.7.4 native cache4 with five distinct originals: all960px completions; successful cached original reused without another transfer in clean profile. Exact loaded-node cache reuse also tested with real DOM images."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "HOV-03",
+      "area": "Hover & preview",
+      "priority": "P0",
+      "context": "Two slow originals",
+      "steps": "Move A → B → A while responses finish out of order.",
+      "expected": "Only the currently hovered item appears.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "slow old preview cannot replace the next title or image"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "42312636975135822990be112030101d9efe308531a2f5ba6db725e10c995437",
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d",
+        "evidence": [
+          "Native 3→4→3 while originals delayed; after completion only title3/full3 displayed. Out-of-order branch additionally automated."
+        ]
+      },
+      "notes": [
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "HOV-04",
+      "area": "Hover & preview",
+      "priority": "P0",
+      "context": "Transient enlargement",
+      "steps": "Click small image or enlargement; move out; unpin; Escape.",
+      "expected": "Pin persists; unpin behaves consistently; Escape closes and restores focus.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[HOV-04] clicking the actual Unpin button does not bubble into re-pinning the enlargement",
+          "pinning an in-flight preview hands off its subscription without restarting it",
+          "moving off an enlarged thumbnail dismisses it immediately even if the small button has focus",
+          "the enlarged image can receive the pointer, dismiss on exit, and pin on click without restarting its request"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "5e80e8a7f9254c2432ece81f1c5d7c9167fc94ca16d71d0c186731ecaa363007",
+        "evidence": [
+          "Native Unpin click left mode=controls and controls visible; the click bubbled and immediately repinned the preview.",
+          "Actual Unpin button retested: controls hidden, zoom mode, popup dismissed on mouse-off. Image pinning and pinned mouse-off persistence also exercised.",
+          "Native click pinned, mouseoff retained image, actual Unpin button returned zoom mode without repinning, Escape closed. Keyboard restoration separately automated.",
+          "Final2.7.4 native pin while larger loading retains thumbnail, upgrades successfully; actual Unpin and Escape close without repinning."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 0f2ea981cae0; retest required for the new artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "HOV-05",
+      "area": "Hover & preview",
+      "priority": "P1",
+      "context": "Focused thumbnail",
+      "steps": "Move off after clicking, cancel pointer, or blur the window.",
+      "expected": "Transient preview closes; pinned preview remains.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "pointer cancellation and leaving the browser dismiss transient enlargement without affecting pinned controls",
+          "pointer movement outside both images clears a transient enlargement after pointer capture"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "HOV-06",
+      "area": "Hover & preview",
+      "priority": "P1",
+      "context": "Keyboard / touch-style input",
+      "steps": "Tab to thumbnail, use P/R/Escape; tap without hover.",
+      "expected": "Controls are reachable; typing/composition does not navigate.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[HOV-06] clicking another tool dismisses a transient keyboard preview before that tool handles the click",
+          "pagination ignores typing, composition and modifiers",
+          "keyboard focus offers preview controls and touch uses click instead of hover enlargement"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "evidence": [
+          "A focus-triggered preview intercepted a rapid More → Rename click; it stayed visible over the editor controls.",
+          "Candidate: keyboard focus/P/R/Escape checked. Outside-tool click immediately dismissed the keyboard preview; More→Rename was usable. Touch-specific pointer behavior is covered by automation, not physical touch hardware."
+        ],
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "HOV-07",
+      "area": "Hover & preview",
+      "priority": "P0",
+      "context": "Open preview",
+      "steps": "Change image preferences and retry while preview is open.",
+      "expected": "No orphan dialog, stale response or extra duplicate request.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[HOV-07] disabling inline thumbnails cancels transfers with no remaining consumer",
+          "size changes keep loaded thumbnails and current transfers intact",
+          "turning hover off preserves thumbnails and still permits click-to-pin"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "5e80e8a7f9254c2432ece81f1c5d7c9167fc94ca16d71d0c186731ecaa363007",
+        "evidence": [
+          "Changed thumbnail width64→76 with pinned ready image; pin stayed usable; Retry then Close worked without error.",
+          "Final2.7.4 native Retry of pinned ready original retained960px image throughout transfer. Size-toggle tests pass in fullsuite."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "HOV-08",
+      "area": "Hover & preview",
+      "priority": "P0",
+      "context": "Pinned/transient preview on result",
+      "steps": "Filter, collapse or remove the originating result.",
+      "expected": "Transient preview closes; pin/close remain usable; removed nodes are released.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[HOV-08] removing a hovered result closes the transient preview without another mouse movement",
+          "[HOV-08] a pinned preview retains working Retry and Close after its originating row is removed"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "5e80e8a7f9254c2432ece81f1c5d7c9167fc94ca16d71d0c186731ecaa363007",
+        "evidence": [
+          "Native pointer: scheduled removal of hovered row3 closed transient preview without pointer movement. Removing pinned row4 preserved Retry; Unpin closed immediately. No uncaught errors.",
+          "Final2.7.4 native: pinned cached960px image remained usable after originating row3 removed; Unpin closed immediately; no uncaught errors."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "HOV-09",
+      "area": "Hover & preview",
+      "priority": "P0",
+      "context": "Ready small thumbnail; larger image slow or fails",
+      "steps": "Hover; expose incomplete pixels; fail or complete the larger image; retry and rehover.",
+      "expected": "Thumbnail remains until successful larger load; clear upgrade status; loaded pixels reused; failure retains thumbnail.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[HOV-09] hover keeps the thumbnail through incomplete and failed larger loads and names the upgrade",
+          "[HOV-09] completed hover images are displayed from memory and stay usable through retry and cache reuse",
+          "[HOV-09] a shared page image stays in place and a failed or stale display copy cannot replace the thumbnail"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "5e80e8a7f9254c2432ece81f1c5d7c9167fc94ca16d71d0c186731ecaa363007",
+        "evidence": [
+          "Native Chromium final2.7.4:160px thumbnail stays visible with Loading larger image, then960px original after success; one original request total through swap and cached rehover (no-store responses). Permanent large failure retains160px thumbnail/status. Pin during load and Retry retain current pixels. docs/qa/hover-upgrade-274.json."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "IMG-01",
+      "area": "Images",
+      "priority": "P0",
+      "context": "Failed small image",
+      "steps": "Fail small source; allow original fallback; fail both.",
+      "expected": "Bounded retry/fallback and usable failure feedback; no infinite spinner.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[IMG-01] a supplied small image hands off to a large fallback with the full image deadline",
+          "one automatic recovery pass repairs a failed thumbnail and an already-open preview",
+          "a failed small candidate falls back immediately in the large-image lane"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "1fabcdbe160128daa293b6c13db6106f18912520e660c741a50f9612e95498bf",
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d",
+        "evidence": [
+          "Original fallback could not complete because its2200ms response exceeded inherited1500ms small timeout. QA-08.",
+          "Failed small5 then2200ms original: final candidate loaded full5 naturalWidth960 with4000ms original deadline (short timeout1500ms). Both-source permanent failure separately checked and automated."
+        ]
+      },
+      "notes": [
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "IMG-02",
+      "area": "Images",
+      "priority": "P0",
+      "context": "Image gives no events",
+      "steps": "Hold the request beyond stall and timeout thresholds.",
+      "expected": "Loading advances to slow/retry/failure rather than remaining indefinite.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "never-answering image stalls then retries with bounded attempts"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "IMG-03",
+      "area": "Images",
+      "priority": "P1",
+      "context": "Progressive / animation",
+      "steps": "Expose dimensions before final load; remain incomplete.",
+      "expected": "First usable frame appears; no full animation decode wait.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "legacy resize error moves to original and displays first frame before completion"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "IMG-04",
+      "area": "Images",
+      "priority": "P0",
+      "context": "Closed gallery",
+      "steps": "Load, scroll past, then reveal the gallery.",
+      "expected": "Closed sources stay unrequested; reveal loads them.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "unopened gallery remains unrequested and is prepared for lazy reveal",
+          "rows added far below the fold warm automatically while an unopened gallery stays deferred"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Fixture request log contained no gallery/cover requests until Reveal test gallery; then gallery naturalWidth=960 and cover fetched."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "IMG-05",
+      "area": "Images",
+      "priority": "P0",
+      "context": "Current source replaced",
+      "steps": "Change img src/srcset or collage background mid-request.",
+      "expected": "Only newest source wins; old retries cannot overwrite it.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "already failed image recovers to legacy original and stale recovery cannot overwrite a new source",
+          "collage covers share the pool and follow a changed background source"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Native Change gallery and cover replaced img currentSrc and CSS background with changed-* sources; image completed width960, no uncaught errors."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "IMG-06",
+      "area": "Images",
+      "priority": "P1",
+      "context": "Temporary offline / exhausted retry",
+      "steps": "Reconnect or wait for one rescue pass.",
+      "expected": "One bounded automatic recovery; no request loop.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "circuit breaker resumes deferred jobs without requiring another hover",
+          "automatic rescue allows one fresh attempt and cannot loop after another failure"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "IMG-07",
+      "area": "Images",
+      "priority": "P0",
+      "context": "50-row page",
+      "steps": "Stay at top until all eligible thumbnails finish.",
+      "expected": "50/50 prepared without scrolling; hidden/removed rows remain skipped.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "all 50 result thumbnails warm without scrolling or an IntersectionObserver",
+          "current and nearby rows overtake distant preloads; hidden and detached rows stay unrequested"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "1fabcdbe160128daa293b6c13db6106f18912520e660c741a50f9612e95498bf",
+        "evidence": [
+          "Final1fab artifact:50/50 native inline images complete in1110ms at scroll0; no scroll trigger. Local100ms small responses/no-store; docs/qa/thumbnail-warming-release-final.json."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "IMG-08",
+      "area": "Images",
+      "priority": "P1",
+      "context": "Background page",
+      "steps": "Hide then reactivate a page with queued thumbnails.",
+      "expected": "New work pauses and resumes without another scroll.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "page warming waits for filters and foreground visibility, then resumes the whole list"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "FLT-01",
+      "area": "Filtering",
+      "priority": "P0",
+      "context": "Overlapping tag rules",
+      "steps": "Block a tag, allow another, enable Hard Pass.",
+      "expected": "Allow overrides ordinary blocks; Hard Pass keeps its configured priority.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "tag whitelist overrides blacklist; Hard Pass and individual overrides are retained"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Native browser: landscape allow overrides blocked/panorama ordinary blocks; enabling Hard Pass blocked/hard removed rows 3/4 despite allow."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "FLT-02",
+      "area": "Filtering",
+      "priority": "P0",
+      "context": "Hard Pass removal active",
+      "steps": "Remove a rule, Undo, and change it again.",
+      "expected": "Archived rows and original positions restore without duplicate controls.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "removing a Hard Pass rule restores archived rows without a refresh",
+          "version grouping respects live filtering and restores archived Hard Pass variants"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Hard Pass removed rows 3/4; clearing rule restored original grouped order and one thumbnail control. Preference Undo restored earlier full preference snapshot."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "FLT-03",
+      "area": "Filtering",
+      "priority": "P0",
+      "context": "Hidden results",
+      "steps": "Show filtered → hide filtered → edit a rule.",
+      "expected": "Correct rows and counts; previews only follow currently displayed results.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "show filtered reveals matching rows alongside visible rows and keeps preview eligibility",
+          "filtering the representative promotes an eligible version; revealing filters keeps expansion state"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Show filtered visibly revealed row 4 with epc-revealed; Hide filtered hid it; clearing rules removed obsolete reveal action."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "FLT-04",
+      "area": "Filtering",
+      "priority": "P1",
+      "context": "Status/uploader rules",
+      "steps": "Toggle unseeded, reported, grabbed and uploader rules with allow bypass.",
+      "expected": "Each applies live and honors configured precedence.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "status and uploader filters still handle new rows with image improvements disabled",
+          "visibility checkboxes update live and do not accumulate row controls"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "FLT-05",
+      "area": "Filtering",
+      "priority": "P0",
+      "context": "Individual visibility override",
+      "steps": "Hide/show/reset an item, then edit global rules.",
+      "expected": "Override semantics and keyboard label stay consistent.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "tag whitelist overrides blacklist; Hard Pass and individual overrides are retained",
+          "visibility checkboxes update live and do not accumulate row controls"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Hiding representative 1 promoted 2; reveal and individual Show restored 1, group expansion preserved. Reset branch automated."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "FLT-06",
+      "area": "Filtering",
+      "priority": "P1",
+      "context": "Dynamic rows / tag list",
+      "steps": "Use contextual tag/title/uploader rules on newly added results.",
+      "expected": "Single menu, correctly escaped values, no accumulated listeners.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "right-click management handles current and dynamic tags; Shift preserves native menu",
+          "hostile list text is escaped in settings markup"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Native context menu on backfilled row 12; one menu; tag actions applied to all 14 panorama links. Title/uploader escaping separately automated."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "FLT-07",
+      "area": "Filtering",
+      "priority": "P1",
+      "context": "Active text draft",
+      "steps": "Type trailing spaces, move caret, use composition, and switch panels.",
+      "expected": "Draft/caret survive autosave; no premature IME submission.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "preferences save automatically without navigation or a second Apply action",
+          "typing filter rules autosaves and updates existing results without navigation"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "VER-01",
+      "area": "Versions",
+      "priority": "P0",
+      "context": "Resolution/codec variants",
+      "steps": "Load bracketed and bare technical descriptors.",
+      "expected": "Only compatible versions share an expandable group.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "technical resolution, codec and container differences identify the same release"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Native bracketed 720p/1080p/2160p variants group into one control. Distinct fixtures remain separate; bare descriptors automated."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "VER-02",
+      "area": "Versions",
+      "priority": "P0",
+      "context": "Similar but distinct releases",
+      "steps": "Vary date, part, studio, word order, censoring and fixes.",
+      "expected": "Distinct releases remain separate.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "dates, word order, parts, studios, cuts, fixes and censoring keep releases separate"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "VER-03",
+      "area": "Versions",
+      "priority": "P0",
+      "context": "Expanded group under filters",
+      "steps": "Filter representative, reveal filtered, restore Hard Pass row.",
+      "expected": "Eligible representative promoted; expansion and counts stay correct.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "version grouping respects live filtering and restores archived Hard Pass variants",
+          "filtering the representative promotes an eligible version; revealing filters keeps expansion state"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Expanded 3-version group promoted representative 2 after 1 hidden; restoration retained expanded state."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "VER-04",
+      "area": "Versions",
+      "priority": "P0",
+      "context": "Backfilled variants",
+      "steps": "Append a variant to an open group; hide/show it.",
+      "expected": "Original row metadata, links, warnings and previews remain usable.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "backfilled variants join the same expanded group with previews and tag highlights intact"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Backfill inserted version 7 alongside 1/2; native expand showed all three original rows and controls."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "VER-05",
+      "area": "Versions",
+      "priority": "P1",
+      "context": "Grouping disabled / multiple tables",
+      "steps": "Disable grouping after filtering/backfill; use unrelated tables/categories.",
+      "expected": "Original ordering restored; unrelated tables/categories never merge.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "group expansion preserves original links, tags, status and row handlers; disabling restores order",
+          "new rows join existing groups without stealing focus, and same names in other tables or categories stay separate"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "VER-06",
+      "area": "Versions",
+      "priority": "P1",
+      "context": "200+ rows / resize",
+      "steps": "Expand variants, hide categories, resize and disable grouping.",
+      "expected": "Measured proportions remain readable; native layout can be restored.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "large lists stabilize existing column proportions and restore native layout when grouping is disabled"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "1fabcdbe160128daa293b6c13db6106f18912520e660c741a50f9612e95498bf",
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d",
+        "evidence": [
+          "Native800-row iframe: expanded version group, resized560→360→560, hid category column, disabled grouping;800 shown restored. Narrow table screenshots in docs/qa."
+        ]
+      },
+      "notes": [
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "TAG-01",
+      "area": "Highlights",
+      "priority": "P0",
+      "context": "Favorite/Caution/blocked overlap",
+      "steps": "Choose Favorite, Caution, Clear; add a block.",
+      "expected": "One visual choice; visibility unchanged; block/Hard Pass remains clear.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "one contextual tag menu offers exclusive highlights without altering visibility rules",
+          "favorites, cautions and search matches coexist without changing filter visibility or original tooltips"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Native Caution then Clear on appended panorama tag updated 14 matching links; row visibility/count stayed at 16; single visual choice."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "TAG-02",
+      "area": "Highlights",
+      "priority": "P1",
+      "context": "Boolean and wildcard search",
+      "steps": "Use positive and negated grouped terms.",
+      "expected": "Only positive matching tags emphasized; no regexp backtracking.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "positive search highlighting handles boolean groups, negation and wildcards",
+          "wildcard search terms match literal tag segments without regular-expression evaluation"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "TAG-03",
+      "area": "Highlights",
+      "priority": "P1",
+      "context": "Tag DOM changes",
+      "steps": "Append, rename and remove tag elements.",
+      "expected": "Highlights follow current values; removed nodes leave the index.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "highlight changes use the tag index and removed rows release indexed elements"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "TAG-04",
+      "area": "Highlights",
+      "priority": "P0",
+      "context": "Stored highlights",
+      "steps": "Edit lists, reload, export/restore and Undo.",
+      "expected": "Choices persist and remain independent from visibility rules.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[BOOT-02] [PREF-01] [TAG-04] rules, highlight lists and customized settings survive a cloned-storage reload",
+          "highlight preferences survive unrelated settings changes, export/restore and preference Undo"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Caution choice persisted through full backup/file restore; favorite empty and caution handheld restored. Reload/Undo also covered automatically."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "SEA-01",
+      "area": "Saved searches",
+      "priority": "P0",
+      "context": "Complete search form",
+      "steps": "Save keywords/tags/categories/sort; reload; click saved name.",
+      "expected": "Saved shortcut remains primary and navigates with exact allowed criteria.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[SEA-01] saved complete criteria survive a reload with JSON-cloned manager storage",
+          "a primary shortcut runs exactly the saved criteria without replacing an unsaved form draft"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "evidence": [
+          "Candidate: full keyword/title/file/size/sort/category/freeleech search persisted across reload; primary shortcut performed GET refresh with exact criteria and no credential field."
+        ],
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "SEA-02",
+      "area": "Saved searches",
+      "priority": "P0",
+      "context": "Tag-only saved search",
+      "steps": "Open Edit search, modify and Cancel/Escape.",
+      "expected": "Prefilled editor stays in context; site form/results unchanged.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "Edit search opens saved criteria in its row without changing context or the site form",
+          "Cancel and Escape discard only the editor draft and keep the Searches panel open"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "evidence": [
+          "Candidate: stored tag-only/category-1 record opened prefilled against a different category-2 current form. Cancel/conflict-cancel preserved the current form and Searches context. Escape behavior also exercised."
+        ],
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "SEA-03",
+      "area": "Saved searches",
+      "priority": "P0",
+      "context": "Inline draft",
+      "steps": "Save changes; switch panes; render unrelated library changes.",
+      "expected": "Correct record updated; drafts retained; save conflict handled in place.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "saving an editor preserves changes to other searches and rejects stale edits to the same search",
+          "unrelated library redraws and panel switches keep the inline draft"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "evidence": [
+          "Candidate: draft survived Settings→Searches switch; save updated one record and preserved the native form draft."
+        ],
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "SEA-04",
+      "area": "Saved searches",
+      "priority": "P0",
+      "context": "Missing native controls",
+      "steps": "Edit unknown saved options, radio and multiselect fields.",
+      "expected": "Every stored criterion round-trips without accidental defaults.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "the saved-search editor retains fields and values absent from the current site form",
+          "radio and multiselect criteria round-trip without losing types or saved options"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "SEA-05",
+      "area": "Saved searches",
+      "priority": "P0",
+      "context": "Rename/delete/Undo",
+      "steps": "Rename; delete; undo; run the restored shortcut.",
+      "expected": "Storage and visible library agree; no silent loss.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[SEA-05] rename respects IME and Escape keeps the Searches panel open",
+          "saved searches migrate legacy format, rename, delete and undo"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "42312636975135822990be112030101d9efe308531a2f5ba6db725e10c995437",
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d",
+        "evidence": [
+          "Candidate browser: Rename/Cancel; successful rename; Delete and Undo restored the shortcut.",
+          "Native rename succeeded; delete then Undo restored shortcut, clicking restored Scenic performed exact tag/category GET refresh."
+        ]
+      },
+      "notes": [
+        "Earlier browser pass belongs to d34d704ea3c4; retest required for the new artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "SEA-06",
+      "area": "Saved searches",
+      "priority": "P0",
+      "context": "Storage write fails",
+      "steps": "Save new search, rename, delete and undo while writes fail.",
+      "expected": "Original durable data and UI remain consistent; draft and error retained.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[SEA-06] failed quick-save leaves durable searches, visible shortcuts and export state consistent",
+          "[SEA-06] failed rename, deletion and deletion Undo preserve the prior library and retry controls"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "42312636975135822990be112030101d9efe308531a2f5ba6db725e10c995437",
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d",
+        "evidence": [
+          "Candidate browser: failed quick-save, rename, delete and Undo all retained durable data and retry controls; no uncaught script errors.",
+          "Native injected failures in rename/delete/Undo/quick-save retained old names/library, drafts and retry controls. Retried each successfully; no uncaught errors."
+        ]
+      },
+      "notes": [
+        "Earlier browser pass belongs to d34d704ea3c4; retest required for the new artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "SEA-07",
+      "area": "Saved searches",
+      "priority": "P0",
+      "context": "Two tabs / same profile",
+      "steps": "Save/edit/delete the same and different searches in each tab.",
+      "expected": "No lost unrelated records; same-record conflicts are reported.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "saving an editor preserves changes to other searches and rejects stale edits to the same search",
+          "imports and changes from another tab update primary shortcuts, including the empty state"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "evidence": [
+          "Two real Chromium contexts shared persistent cloned GM data. Stale criteria save was rejected with draft retained; an unrelated peer-created record survived the other tab’s save."
+        ],
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "SEA-08",
+      "area": "Saved searches",
+      "priority": "P1",
+      "context": "Search exists; empty current form",
+      "steps": "Add saved criteria to native form, then Search now.",
+      "expected": "Merge is visible and results change only after explicit submission.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "Add to search form visibly combines criteria without changing results until Search now"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "evidence": [
+          "Candidate: Add to form merged tags and both categories without changing results. Search now performed a refresh with the merged values."
+        ],
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "PREF-01",
+      "area": "Preferences & backup",
+      "priority": "P0",
+      "context": "Customized values",
+      "steps": "Edit a common setting, close/reopen and reload.",
+      "expected": "Autosave persists all unrelated preferences.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[BOOT-02] [PREF-01] [TAG-04] rules, highlight lists and customized settings survive a cloned-storage reload",
+          "preferences save automatically without navigation or a second Apply action",
+          "advanced search reveals matching controls, restores disclosure state and preserves customized preferences on save"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Set thumbnail width to 88 and Dark Purple theme; inspected stored values and reloaded; both restored with no script errors.",
+          "Candidate fingerprint d34d704ea3c4 verified; existing width 88 and Dark Purple theme survived reload.",
+          "Empty profile width92 persisted across real reload; genuine old→new upgrade also preserved width104 and theme/rules."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 0f2ea981cae0; retest required for the new artifact.",
+        "Earlier browser pass belongs to d34d704ea3c4; retest required for the new artifact.",
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "PREF-02",
+      "area": "Preferences & backup",
+      "priority": "P0",
+      "context": "Advanced controls",
+      "steps": "Search for a setting; clear query; use invalid numeric value.",
+      "expected": "Searching never writes; disclosure restored; invalid input safely handled.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[PREF-02] numeric preference validation preserves other values and safely clamps on blur",
+          "advanced search reveals matching controls, restores disclosure state and preserves customized preferences on save"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Native advanced search cache exposed exactly two matching controls; clearing restored folded groups. Meta+S on999 marked invalid; blur clamped300."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "PREF-03",
+      "area": "Preferences & backup",
+      "priority": "P0",
+      "context": "Storage fails partway through autosave",
+      "steps": "Change filter and display values; inject a later storage failure.",
+      "expected": "No partial rule/settings update; draft remains retryable.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[PREF-03] a late autosave failure rolls back filter writes and keeps the draft retryable"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "PREF-04",
+      "area": "Preferences & backup",
+      "priority": "P0",
+      "context": "Full backup",
+      "steps": "Export JSON, alter rules/searches/highlights, restore snapshot.",
+      "expected": "All data round-trips and immediately applies.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "legacy fork preferences import, clamp and round-trip through Companion backups",
+          "highlight preferences survive unrelated settings changes, export/restore and preference Undo"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Native export captured JSON locally (no OS download); after changing width 88→112 and adding a block, file-input restore returned settings/searches/theme/rules exactly to the snapshot (docs/qa/backup-roundtrip.json)."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "PREF-05",
+      "area": "Preferences & backup",
+      "priority": "P0",
+      "context": "Invalid / oversized backup",
+      "steps": "Try invalid JSON, unknown keys, unsafe colors and oversized payload.",
+      "expected": "Validation rejects before writes; original data preserved.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "imports validate before changes; toolkit and NSE settings have separate namespaces",
+          "invalid filter imports report plain filter terminology without leaking internal keys",
+          "oversized highlight drafts are rejected before either filter or Companion preferences are written"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "PREF-06",
+      "area": "Preferences & backup",
+      "priority": "P0",
+      "context": "Import write failure",
+      "steps": "Fail midway through writes; then restore previous import.",
+      "expected": "Import rolls back and previous snapshot remains recoverable.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "transaction rolls back a storage write failure",
+          "restoring a filter export applies it immediately and updates the controls"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "PREF-07",
+      "area": "Preferences & backup",
+      "priority": "P0",
+      "context": "Recent edits plus newer saved search",
+      "steps": "Use preference Undo and legacy reset.",
+      "expected": "Preferences restore; unrelated newer saved searches survive.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "undoing preferences keeps searches saved after the automatic restore point",
+          "full NSE engine mounts, defaults to empty lists, and keeps companion data on reset"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "42312636975135822990be112030101d9efe308531a2f5ba6db725e10c995437",
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d",
+        "evidence": [
+          "Preference Undo restored width64 and retained both the newer saved search and restored Scenic shortcut. Legacy reset is separately automated; native reset confirmation branch was not rerun; filter-only reset isolation is covered by the automated bundle test."
+        ]
+      },
+      "notes": [
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "BFL-01",
+      "area": "Backfill",
+      "priority": "P0",
+      "context": "Overlapping pages",
+      "steps": "Load pages with duplicate IDs and missing explicit Next.",
+      "expected": "Unique IDs; next unread page; numbered-pager fallback.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "numbered pager fallback moves forward in order and skips already loaded pages",
+          "one click backfills five pages, deduplicates results and continues at the next unread page",
+          "backfill uses original pager fallback and continues beyond a duplicate-only page"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Native browser: overlapping pages yielded IDs 1–16 exactly once; end-of-pages state replaces Backfill. Numbered-pager fallback separately automated."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "BFL-02",
+      "area": "Backfill",
+      "priority": "P0",
+      "context": "Slow page in flight",
+      "steps": "Stop; click again; deliver old response out of order.",
+      "expected": "Old batch ignored; completed rows remain; one active batch.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "Stop discards late responses and a second click cannot run a parallel backfill"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Native browser: delayed page2, clicked Stop in same UI action batch; six initial rows stayed after late reply. Resume added remaining pages once, 16 unique IDs, no errors."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "BFL-03",
+      "area": "Backfill",
+      "priority": "P0",
+      "context": "Page 2 works; page 3 fails",
+      "steps": "Retry the batch after the fault clears.",
+      "expected": "Kept pages not fetched again; failed cursor retried.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "partial failure keeps completed pages and retries only the failed cursor"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Injected page 3 failure: page 2 kept, retry requested only page 3. Browser request log confirmed page sequence 2,3,3 with complete current criteria."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "BFL-04",
+      "area": "Backfill",
+      "priority": "P0",
+      "context": "Empty/final page, login or malformed response",
+      "steps": "Follow each response path.",
+      "expected": "End state correct or retryable error; no unsafe navigation.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "timed-out, login, non-HTML and redirected responses leave the cursor retryable",
+          "an empty results page stops backfill even if the original pager still lists later pages"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "BFL-05",
+      "area": "Backfill",
+      "priority": "P0",
+      "context": "Hostile fetched HTML",
+      "steps": "Include script, inline handler, frame, links and images.",
+      "expected": "No script execution, credential leak or hidden image request.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "appended preview data survives overlay-name collisions and media restarts without executing scripts",
+          "new rows respect active filters and Show filtered before thumbnail or native-image requests"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "BFL-06",
+      "area": "Backfill",
+      "priority": "P0",
+      "context": "Filters and media settings change",
+      "steps": "Change rules, disable media and reveal rows during/after batch.",
+      "expected": "New rows use current rules; metadata and image deferral survive.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "appended preview data survives overlay-name collisions and media restarts without executing scripts",
+          "backfill remains available with media disabled and stays off detail/other pages",
+          "backfill uses the full filtering engine, preserves Show filtered and restores removed rows on rule edits"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Backfilled rows participate in live block/allow, contextual highlight and group rules; no duplicate image controls after Hard Pass restore. Media-disabled branch is automated."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "PERF-01",
+      "area": "Performance",
+      "priority": "P0",
+      "context": "Steady state and 800 rows",
+      "steps": "Exercise image churn, scrolling, grouping and highlights.",
+      "expected": "No global regrouping for image updates; no idle scans; bounded interactive work.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "image source and style bursts perform one local scan and zero result regrouping",
+          "expanding one cached group does not scan the whole result list or tag collection",
+          "bursts of image health updates share one frame and settled pages do no scan work"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "42312636975135822990be112030101d9efe308531a2f5ba6db725e10c995437",
+        "evidence": [
+          "Final800-row/16000-tag browser run: image updates5.3ms total rAF callbacks, zero regrouping; zero idle scans; no long tasks on hover-independent steady-state phases. 50-row append retains one65.5ms callback/long task. docs/qa/performance-800-final.json."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "PERF-02",
+      "area": "Performance",
+      "priority": "P1",
+      "context": "Repeated native DOM removal",
+      "steps": "Add/remove rows, images, forms and tables repeatedly.",
+      "expected": "Observers/listeners/maps release obsolete nodes; no unbounded retention.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[PERF-02] removed native results release preview bindings and table-layout references",
+          "[PERF-02] repeated result insertion and removal keeps DOM-owning maps and active work bounded",
+          "highlight changes use the tag index and removed rows release indexed elements"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "PERF-03",
+      "area": "Performance",
+      "priority": "P0",
+      "context": "Request pool saturated",
+      "steps": "Fill small and ordinary-large slots, then hover a new result.",
+      "expected": "Interactive slot stays available; concurrency and retry bounds hold.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "two slow originals cannot block six small thumbnails or consume their slots",
+          "a hover has a reserved slot even while body recovery occupies both large-image slots"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "UI-01",
+      "area": "Usability & access",
+      "priority": "P0",
+      "context": "Default interface",
+      "steps": "Open Filters, Searches and Settings.",
+      "expected": "Three primary tools, two common settings, folded advanced controls; saved names visible.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "the simplified interface shows three task areas and only two common settings or tag fields",
+          "saved searches remain primary while management opens only on request and row options stay folded"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+        "evidence": [
+          "Real browser: three primary tools; only theme and width exposed in Settings; only Blocked/Allowed exposed in Filters; saved shortcut remains primary. Closed-details visibility checked explicitly.",
+          "Native empty/default profile: three tools, two common settings, two initial tag fields, Advanced folded; named-search profile shortcuts remain primary."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 0f2ea981cae0; retest required for the new artifact.",
+        "Earlier browser pass belongs to 22097468c5de; retest required for the new artifact.",
+        "Browser evidence carried forward from 22097468c5de after byte-for-byte impact review: final bundle differs only by resetting attempts after successful image.onload. Relevant cache/hover flows rerun separately on final artifact.",
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "UI-02",
+      "area": "Usability & access",
+      "priority": "P1",
+      "context": "Narrow viewport and long labels",
+      "steps": "Use long titles/rules/search names, theme changes and keyboard focus.",
+      "expected": "No clipped controls, viewport overflow or unreachable actions.",
+      "automation": {
+        "status": "not applicable",
+        "evidence": [
+          "Rendered clipping is verified in the real-browser lane; jsdom geometry is not used as proof."
+        ]
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "42312636975135822990be112030101d9efe308531a2f5ba6db725e10c995437",
+        "evidence": [
+          "Real Chromium 360px iframe: three tools and all More/editor controls reachable, long name plus unbroken segment wraps within panel; preview image and control rows fit viewport. Screenshot docs/qa/narrow-long-name.png. All theme combinations not exhaustive."
+        ],
+        "reviewedAgainst": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "notes": [
+        "Earlier browser pass belongs to 423126369751; retest required for the new artifact.",
+        "Change-impact review: browser evidence carried forward; final changes since the observed artifact are limited to image success-budget accounting and thumbnail candidate lane/deadline selection. This scenario’s UI/filter/search implementation is unchanged. Image fallback/queue regression rerun separately on final artifact.",
+        "Earlier browser pass belongs to 1fabcdbe1601; retest required for the new artifact.",
+        "2.7.4 change-impact review: prior browser evidence retained with its observed artifact hash. Source changes are limited to preview image display/status and preserving a connected successful image on cancellation. Full155-test regression passes; upgrade, rapid rehover, cache and pin/retry paths rerun separately.",
+        "Earlier browser pass belongs to 5e80e8a7f925; retest required for the new artifact.",
+        "2.7.5 change-impact review: prior browser evidence kept with its original artifact hash. Changed title tooltip/context-menu paths were rerun; source-model and built-bundle regression suite passes160 checks. Other UI/filter/search behavior is unchanged."
+      ]
+    },
+    {
+      "id": "UI-03",
+      "area": "Usability & access",
+      "priority": "P0",
+      "context": "Typing/composition and notification form",
+      "steps": "Use arrows/Save/Escape while typing; copy notification rules.",
+      "expected": "No accidental navigation or account-form submission.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "pagination ignores typing, composition and modifiers",
+          "notification rule imports use Companion controls and the current textarea value"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "SAFE-01",
+      "area": "Boundaries",
+      "priority": "P0",
+      "context": "Read-only account scope",
+      "steps": "Observe requests while testing the artifact.",
+      "expected": "No torrent downloads, account changes, external uploads or third-party execution.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "backfill URLs retain the search and reject downloads, details, other origins and other searches",
+          "built artifact is self-contained and restricted to Empornium",
+          "URL gate rejects downloads, credentials and non-images"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "notes": []
+    },
+    {
+      "id": "ENV-01",
+      "area": "Environment coverage",
+      "priority": "P0",
+      "context": "User Chrome + Tampermonkey",
+      "steps": "Install/update in the actual userscript sandbox; exercise reload/hover.",
+      "expected": "Real manager grants, isolation, persistence and event behavior verified.",
+      "automation": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "browser": {
+        "status": "blocked",
+        "evidence": [
+          "Browser inventory exposes in-app Chromium only; actual browser/manager sandbox remains unverified."
+        ]
+      },
+      "notes": []
+    },
+    {
+      "id": "ENV-02",
+      "area": "Environment coverage",
+      "priority": "P1",
+      "context": "Firefox + userscript manager",
+      "steps": "Repeat core workflows with native Firefox events and storage.",
+      "expected": "Cross-browser behavior verified separately.",
+      "automation": {
+        "status": "not applicable",
+        "evidence": []
+      },
+      "browser": {
+        "status": "blocked",
+        "evidence": [
+          "Browser inventory exposes in-app Chromium only; actual browser/manager sandbox remains unverified."
+        ]
+      },
+      "notes": []
+    },
+    {
+      "id": "TITLE-01",
+      "area": "Title interactions",
+      "priority": "P0",
+      "context": "Title link beside a thumbnail; title-only layout",
+      "steps": "Focus/hover/click title; mouse off; move to thumbnail; repeat without inline images.",
+      "expected": "Site-style transient tooltip shares thumbnail loading, no controls or extra original; ordinary focus/navigation; thumbnail upgrade remains available.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[TITLE-01] title hover is a temporary site-style tooltip using the ready thumbnail, with ordinary link focus and clicks",
+          "[TITLE-01] title-only layouts use the shared small-first loader and cancel abandoned work",
+          "[TITLE-01] moving between title tooltip and thumbnail keeps one upgrade path and normal title navigation",
+          "[TITLE-01] an open title tooltip keeps queued shared loading alive when inline thumbnails are disabled"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d",
+        "evidence": [
+          "Native Chromium final2.7.5: normal title focus stays closed; pointer hover shows160px thumbnail plus metadata with controls hidden; mouse-out closes immediately; no full1/full12 request. Title-only mode uses160px small source. Appended row12 same behavior. Title clicks navigate to?id=1. docs/qa/title-interactions-275.json."
+        ]
+      },
+      "notes": []
+    },
+    {
+      "id": "TITLE-02",
+      "area": "Title interactions",
+      "priority": "P0",
+      "context": "Legacy title-menu preference enabled",
+      "steps": "Right-click title; edit Filters → Title rules; right-click tag and uploader.",
+      "expected": "Native title menu; title phrase filtering retained in Filters; contextual tag/uploader editing unaffected; obsolete title-menu option absent.",
+      "automation": {
+        "status": "passed",
+        "evidence": [
+          "[TITLE-02] title links keep the native menu while title phrase filtering stays in Filters"
+        ],
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "browser": {
+        "status": "passed",
+        "artifactSha": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d",
+        "evidence": [
+          "Native final2.7.5: title contextmenu defaultPrevented=false, no rule menu or delayed popup; legacy title-menu preference true in bundle regression. Filters→Title rules blocked Mountain Walk rows1/2 while keeping row3; clearing restored them. Tag/uploader context menus still have kind tag/uploader. Appended title12 retains native menu."
+        ]
+      },
+      "notes": []
+    }
+  ],
+  "automation": {
+    "label": "2.7.5 verified artifact: pinned Node24 full regression",
+    "latestCount": 160,
+    "tests": [
+      {
+        "name": "[PREF-03] a late autosave failure rolls back filter writes and keeps the draft retryable",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.449344
+      },
+      {
+        "name": "[SEA-06] failed quick-save leaves durable searches, visible shortcuts and export state consistent",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.215474
+      },
+      {
+        "name": "[SEA-06] failed rename, deletion and deletion Undo preserve the prior library and retry controls",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.228275
+      },
+      {
+        "name": "[HOV-08] removing a hovered result closes the transient preview without another mouse movement",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.234899
+      },
+      {
+        "name": "[PERF-02] removed native results release preview bindings and table-layout references",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.198373
+      },
+      {
+        "name": "[HOV-08] a pinned preview retains working Retry and Close after its originating row is removed",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.196979
+      },
+      {
+        "name": "[BOOT-02] [PREF-01] [TAG-04] rules, highlight lists and customized settings survive a cloned-storage reload",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.347324
+      },
+      {
+        "name": "[SEA-01] saved complete criteria survive a reload with JSON-cloned manager storage",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.1538
+      },
+      {
+        "name": "[HOV-07] disabling inline thumbnails cancels transfers with no remaining consumer",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.169739
+      },
+      {
+        "name": "[SEA-05] rename respects IME and Escape keeps the Searches panel open",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.080362
+      },
+      {
+        "name": "[BOOT-04] unsupported origins stay untouched and the release declares no-frame execution",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.027717
+      },
+      {
+        "name": "[HOV-04] clicking the actual Unpin button does not bubble into re-pinning the enlargement",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.08308
+      },
+      {
+        "name": "[HOV-06] clicking another tool dismisses a transient keyboard preview before that tool handles the click",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.114126
+      },
+      {
+        "name": "[PREF-02] numeric preference validation preserves other values and safely clamps on blur",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.243633
+      },
+      {
+        "name": "[HOV-02] returning after original-cache eviction still displays the usable thumbnail",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.125725
+      },
+      {
+        "name": "[PERF-02] repeated result insertion and removal keeps DOM-owning maps and active work bounded",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 1.360605
+      },
+      {
+        "name": "captures and restores complete search controls without hidden credentials",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.068726
+      },
+      {
+        "name": "saved searches migrate legacy format, rename, delete and undo",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.103484
+      },
+      {
+        "name": "imports validate before changes; toolkit and NSE settings have separate namespaces",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.059963
+      },
+      {
+        "name": "transaction rolls back a storage write failure",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.05882
+      },
+      {
+        "name": "unopened gallery remains unrequested and is prepared for lazy reveal",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.04807
+      },
+      {
+        "name": "already failed image recovers to legacy original and stale recovery cannot overwrite a new source",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.088172
+      },
+      {
+        "name": "a native image that stalls offscreen recovers when scrolled into view",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.082443
+      },
+      {
+        "name": "collage covers share the pool and follow a changed background source",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.10888
+      },
+      {
+        "name": "dynamic rows get one thumbnail and keyboard preview shares its transfer",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.186137
+      },
+      {
+        "name": "slow old preview cannot replace the next title or image",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.037085
+      },
+      {
+        "name": "pagination ignores typing, composition and modifiers",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.036165
+      },
+      {
+        "name": "preferences save automatically without navigation or a second Apply action",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.641718
+      },
+      {
+        "name": "old two-slot default migrates and small thumbnails are preferred for supported hosts",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.041704
+      },
+      {
+        "name": "pinning an in-flight preview hands off its subscription without restarting it",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.040214
+      },
+      {
+        "name": "invalid filter imports report plain filter terminology without leaking internal keys",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.035204
+      },
+      {
+        "name": "size changes keep loaded thumbnails and current transfers intact",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.686972
+      },
+      {
+        "name": "quick Save search names and deduplicates without opening the library",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.039595
+      },
+      {
+        "name": "saved search shortcuts stay visible outside all panels and do not use a dropdown or drawer",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.092278
+      },
+      {
+        "name": "a primary shortcut runs exactly the saved criteria without replacing an unsaved form draft",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.039247
+      },
+      {
+        "name": "saved shortcuts can run from pages with no torrent search form",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.060731
+      },
+      {
+        "name": "Edit search opens saved criteria in its row without changing context or the site form",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.043679
+      },
+      {
+        "name": "Add to search form visibly combines criteria without changing results until Search now",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.042723
+      },
+      {
+        "name": "the saved-search editor retains fields and values absent from the current site form",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.039565
+      },
+      {
+        "name": "Cancel and Escape discard only the editor draft and keep the Searches panel open",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.042188
+      },
+      {
+        "name": "invalid editor names and storage failures keep the draft and original search intact",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.040017
+      },
+      {
+        "name": "saving an editor preserves changes to other searches and rejects stale edits to the same search",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.040127
+      },
+      {
+        "name": "unrelated library redraws and panel switches keep the inline draft",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.036678
+      },
+      {
+        "name": "radio and multiselect criteria round-trip without losing types or saved options",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.038035
+      },
+      {
+        "name": "imports and changes from another tab update primary shortcuts, including the empty state",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.03636
+      },
+      {
+        "name": "thumbnail hover shows a preview while keeping its trigger clickable",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.045837
+      },
+      {
+        "name": "thumbnail hover immediately enlarges the usable thumbnail and requests its larger version without controls",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.047314
+      },
+      {
+        "name": "returning to the same thumbnail restores its usable image while a cancelled original reloads",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.070173
+      },
+      {
+        "name": "repeated hover returns retain the thumbnail without spending retries or adding page scans",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.156211
+      },
+      {
+        "name": "moving off an enlarged thumbnail dismisses it immediately even if the small button has focus",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.050083
+      },
+      {
+        "name": "the enlarged image can receive the pointer, dismiss on exit, and pin on click without restarting its request",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.06099
+      },
+      {
+        "name": "keyboard focus offers preview controls and touch uses click instead of hover enlargement",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.059385
+      },
+      {
+        "name": "pointer cancellation and leaving the browser dismiss transient enlargement without affecting pinned controls",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.061343
+      },
+      {
+        "name": "pointer movement outside both images clears a transient enlargement after pointer capture",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.046513
+      },
+      {
+        "name": "one automatic recovery pass repairs a failed thumbnail and an already-open preview",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.039228
+      },
+      {
+        "name": "turning hover off preserves thumbnails and still permits click-to-pin",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.242273
+      },
+      {
+        "name": "undoing preferences keeps searches saved after the automatic restore point",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.084173
+      },
+      {
+        "name": "filtered-out image failures do not ask for attention during ordinary browsing",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.039701
+      },
+      {
+        "name": "all 50 result thumbnails warm without scrolling or an IntersectionObserver",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.844075
+      },
+      {
+        "name": "current and nearby rows overtake distant preloads; hidden and detached rows stay unrequested",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.124833
+      },
+      {
+        "name": "page warming waits for filters and foreground visibility, then resumes the whole list",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.191119
+      },
+      {
+        "name": "rows added far below the fold warm automatically while an unopened gallery stays deferred",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.084303
+      },
+      {
+        "name": "[HOV-09] hover keeps the thumbnail through incomplete and failed larger loads and names the upgrade",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.036715
+      },
+      {
+        "name": "[HOV-09] completed hover images are displayed from memory and stay usable through retry and cache reuse",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.038319
+      },
+      {
+        "name": "[HOV-09] a shared page image stays in place and a failed or stale display copy cannot replace the thumbnail",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.036872
+      },
+      {
+        "name": "[TITLE-01] title hover is a temporary site-style tooltip using the ready thumbnail, with ordinary link focus and clicks",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.126807
+      },
+      {
+        "name": "[TITLE-01] title-only layouts use the shared small-first loader and cancel abandoned work",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.04721
+      },
+      {
+        "name": "[TITLE-01] moving between title tooltip and thumbnail keeps one upgrade path and normal title navigation",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.103528
+      },
+      {
+        "name": "[TITLE-01] an open title tooltip keeps queued shared loading alive when inline thumbnails are disabled",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.048876
+      },
+      {
+        "name": "backfill URLs retain the search and reject downloads, details, other origins and other searches",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.019956
+      },
+      {
+        "name": "numbered pager fallback moves forward in order and skips already loaded pages",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.051482
+      },
+      {
+        "name": "one click backfills five pages, deduplicates results and continues at the next unread page",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.307443
+      },
+      {
+        "name": "backfill uses original pager fallback and continues beyond a duplicate-only page",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.109823
+      },
+      {
+        "name": "appended preview data survives overlay-name collisions and media restarts without executing scripts",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.164088
+      },
+      {
+        "name": "new rows respect active filters and Show filtered before thumbnail or native-image requests",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.12504
+      },
+      {
+        "name": "partial failure keeps completed pages and retries only the failed cursor",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.077719
+      },
+      {
+        "name": "Stop discards late responses and a second click cannot run a parallel backfill",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.061462
+      },
+      {
+        "name": "timed-out, login, non-HTML and redirected responses leave the cursor retryable",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.258939
+      },
+      {
+        "name": "legacy fork preferences import, clamp and round-trip through Companion backups",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.061414
+      },
+      {
+        "name": "backfill remains available with media disabled and stays off detail/other pages",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.179197
+      },
+      {
+        "name": "backfill preferences autosave and Undo restores them without fetching any pages",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.151693
+      },
+      {
+        "name": "an empty results page stops backfill even if the original pager still lists later pages",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.065305
+      },
+      {
+        "name": "a failed filter pass rolls back the new page and leaves its results retryable",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.0751
+      },
+      {
+        "name": "built artifact is self-contained and restricted to Empornium",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.003525
+      },
+      {
+        "name": "full NSE engine mounts, defaults to empty lists, and keeps companion data on reset",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.48958
+      },
+      {
+        "name": "tag whitelist overrides blacklist; Hard Pass and individual overrides are retained",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.187065
+      },
+      {
+        "name": "status and uploader filters still handle new rows with image improvements disabled",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.150551
+      },
+      {
+        "name": "right-click management handles current and dynamic tags; Shift preserves native menu",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.097535
+      },
+      {
+        "name": "hostile list text is escaped in settings markup",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.076708
+      },
+      {
+        "name": "Black Hole removal hides the corresponding collage card before media loading",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.088068
+      },
+      {
+        "name": "one workspace owns filters, searches, images, and settings without legacy panels",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.104626
+      },
+      {
+        "name": "show filtered reveals matching rows alongside visible rows and keeps preview eligibility",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.089378
+      },
+      {
+        "name": "open visible action works with right-click management disabled",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.089624
+      },
+      {
+        "name": "notification rule imports use Companion controls and the current textarea value",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.069851
+      },
+      {
+        "name": "Companion branding covers every pane, row tooltip, and context menu; attribution is retained",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.169336
+      },
+      {
+        "name": "filter confirmations and userscript-manager metadata use Companion terminology",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.085347
+      },
+      {
+        "name": "typing filter rules autosaves and updates existing results without navigation",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.750855
+      },
+      {
+        "name": "visibility checkboxes update live and do not accumulate row controls",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.172406
+      },
+      {
+        "name": "removing a Hard Pass rule restores archived rows without a refresh",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.721395
+      },
+      {
+        "name": "restoring a filter export applies it immediately and updates the controls",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.166132
+      },
+      {
+        "name": "invalid draft preferences do not partially overwrite stored filter lists",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.722223
+      },
+      {
+        "name": "detail-page rules can update repeatedly without duplicate controls or title wrappers",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.170158
+      },
+      {
+        "name": "backfill uses the full filtering engine, preserves Show filtered and restores removed rows on rule edits",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.304206
+      },
+      {
+        "name": "the simplified interface shows three task areas and only two common settings or tag fields",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.090455
+      },
+      {
+        "name": "advanced search reveals matching controls, restores disclosure state and preserves customized preferences on save",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.135061
+      },
+      {
+        "name": "collapsed rule summaries expose active rules and update without resetting their values",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.11576
+      },
+      {
+        "name": "saved searches remain primary while management opens only on request and row options stay folded",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.070468
+      },
+      {
+        "name": "irrelevant toolbar actions are quiet and filtered-result access appears when needed",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.165476
+      },
+      {
+        "name": "version grouping respects live filtering and restores archived Hard Pass variants",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.255114
+      },
+      {
+        "name": "backfilled variants join the same expanded group with previews and tag highlights intact",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.199108
+      },
+      {
+        "name": "one contextual tag menu offers exclusive highlights without altering visibility rules",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.223279
+      },
+      {
+        "name": "tag highlighting remains keyboard accessible and returns focus when the menu closes",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.069207
+      },
+      {
+        "name": "highlight lists autosave in the folded Filters section without adding primary controls",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.239572
+      },
+      {
+        "name": "opening visible results includes the representative and expanded versions only",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.078223
+      },
+      {
+        "name": "oversized highlight drafts are rejected before either filter or Companion preferences are written",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.13557
+      },
+      {
+        "name": "[TITLE-02] title links keep the native menu while title phrase filtering stays in Filters",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.156686
+      },
+      {
+        "name": "URL gate rejects downloads, credentials and non-images",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.001037
+      },
+      {
+        "name": "legacy fallback is restricted and preserves existing queries",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000501
+      },
+      {
+        "name": "overlay parser treats scripts and HTML as data",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000843
+      },
+      {
+        "name": "thumbnail modes prefer supplied variants and limit guessed variants",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000928
+      },
+      {
+        "name": "settings clamp values and distinguish hidden/unrequested/streaming images",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000253
+      },
+      {
+        "name": "manual retry cooldown and automatic URL budget survive repeat hovers",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000206
+      },
+      {
+        "name": "pool deduplicates requests and honors preview priority when a slot opens",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000944
+      },
+      {
+        "name": "never-answering image stalls then retries with bounded attempts",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.00055
+      },
+      {
+        "name": "legacy resize error moves to original and displays first frame before completion",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000236
+      },
+      {
+        "name": "explicit retry keeps subscribers and cross-tier reuse avoids a duplicate transfer",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000348
+      },
+      {
+        "name": "circuit breaker resumes deferred jobs without requiring another hover",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000572
+      },
+      {
+        "name": "decoded cache evicts idle entries and releases timers",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000259
+      },
+      {
+        "name": "two slow originals cannot block six small thumbnails or consume their slots",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.001074
+      },
+      {
+        "name": "a failed small candidate falls back immediately in the large-image lane",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000189
+      },
+      {
+        "name": "visible demand overtakes preloads and disconnected rows are not requested",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000259
+      },
+      {
+        "name": "direct inline image target is not transferred twice or erased by cache eviction",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000137
+      },
+      {
+        "name": "a hover has a reserved slot even while body recovery occupies both large-image slots",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000136
+      },
+      {
+        "name": "abandoned previews free their slot without spending the failure retry budget",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000304
+      },
+      {
+        "name": "automatic rescue allows one fresh attempt and cannot loop after another failure",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000283
+      },
+      {
+        "name": "[HOV-02] repeated successful reloads after cache eviction do not exhaust the failure budget",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000449
+      },
+      {
+        "name": "[IMG-01] a supplied small image hands off to a large fallback with the full image deadline",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000161
+      },
+      {
+        "name": "overlapping scan roots reduce to connected outer subtrees",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.054981
+      },
+      {
+        "name": "image source and style bursts perform one local scan and zero result regrouping",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.220855
+      },
+      {
+        "name": "nested result mutations are scanned once per subtree and title edits still regroup",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.302806
+      },
+      {
+        "name": "expanding one cached group does not scan the whole result list or tag collection",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.219781
+      },
+      {
+        "name": "highlight changes use the tag index and removed rows release indexed elements",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.276551
+      },
+      {
+        "name": "saving highlight-only preferences leaves media and version membership intact",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.194399
+      },
+      {
+        "name": "queued and completed thumbnails leave scroll observation while new results still warm",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.233255
+      },
+      {
+        "name": "replacement search forms are adopted even when no torrent rows change",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.1889
+      },
+      {
+        "name": "startup defers scans until filters finish, then processes the final page once",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.190609
+      },
+      {
+        "name": "bursts of image health updates share one frame and settled pages do no scan work",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.274672
+      },
+      {
+        "name": "large lists stabilize existing column proportions and restore native layout when grouping is disabled",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.314005
+      },
+      {
+        "name": "technical resolution, codec and container differences identify the same release",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.005653
+      },
+      {
+        "name": "dates, word order, parts, studios, cuts, fixes and censoring keep releases separate",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.00036
+      },
+      {
+        "name": "positive search highlighting handles boolean groups, negation and wildcards",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000946
+      },
+      {
+        "name": "wildcard search terms match literal tag segments without regular-expression evaluation",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000152
+      },
+      {
+        "name": "group expansion preserves original links, tags, status and row handlers; disabling restores order",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.147299
+      },
+      {
+        "name": "filtering the representative promotes an eligible version; revealing filters keeps expansion state",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.082328
+      },
+      {
+        "name": "new rows join existing groups without stealing focus, and same names in other tables or categories stay separate",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.133088
+      },
+      {
+        "name": "collapsed alternate thumbnails stay unrequested and expand through the existing pool",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.074965
+      },
+      {
+        "name": "favorites, cautions and search matches coexist without changing filter visibility or original tooltips",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.075283
+      },
+      {
+        "name": "highlight preferences survive unrelated settings changes, export/restore and preference Undo",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.083164
+      },
+      {
+        "name": "highlight selection handles storage failure without changing the appearance",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.062237
+      },
+      {
+        "name": "highlight settings normalize duplicates and resolve overlapping categories without evaluating tag text",
+        "file": "/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs",
+        "status": "passed",
+        "details": "",
+        "seconds": 0.000414
+      }
+    ],
+    "passed": 160,
+    "failed": 0
+  },
+  "activity": [
+    {
+      "time": "2026-10-20T06:33:48.700Z",
+      "text": "Final2.7.5 file remained identical to the tested artifact through browser verification and a pinned Node24 regression run. Updated source and generated script are consistent."
+    },
+    {
+      "time": "2026-10-20T06:33:21.201Z",
+      "text": "2.7.5 verified artifact: pinned Node24 full regression: 160 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T06:32:34.655Z",
+      "text": "2.7.5 native title/thumbnail, backfill, title-only mode, link navigation and filter-menu checks passed. Regenerated file matched tested SHA after an external2.7.4 overwrite; old file preserved."
+    },
+    {
+      "time": "2026-10-20T06:24:26.254Z",
+      "text": "2.7.5 final: title tooltip/native menu and pending-hover race checks: 160 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T06:22:44.492Z",
+      "text": "2.7.5 title interactions: complete regression including media-toggle handoff: 160 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T06:19:49.645Z",
+      "text": "2.7.5 title tooltips/native menus: full regression suite: 159 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T06:18:56.263Z",
+      "text": "Title interaction refinement: full regression run: 157 passed, 2 failed"
+    },
+    {
+      "time": "2026-10-20T06:18:49.410Z",
+      "text": "Title interactions: original2.7.4 requirement failures reproduced: 155 passed, 3 failed"
+    },
+    {
+      "time": "2026-10-20T06:04:58.458Z",
+      "text": "2.7.4 complete: thumbnail retained until larger-image success; explicit loading/failure status, loaded-node reuse, native slow/failure/cache/pin checks passed."
+    },
+    {
+      "time": "2026-10-20T05:58:33.804Z",
+      "text": "2.7.4 hover upgrade: full regression suite: 155 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T05:52:36.710Z",
+      "text": "Final report saved: docs/QA-REPORT.md. Rebuilt release has identical SHA-256; all QA routes/instrumentation excluded from the userscript."
+    },
+    {
+      "time": "2026-10-20T05:51:21.756Z",
+      "text": "Browser sessions complete: final rapid-hover, eviction and50-image warming regressions passed. Eight reproduced product defects fixed; original failure logs retained."
+    },
+    {
+      "time": "2026-10-20T05:49:42.683Z",
+      "text": "Final artifact stability 3 / 152 checks: 152 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T05:49:35.861Z",
+      "text": "Final artifact stability 2 / 152 checks: 152 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T05:49:29.088Z",
+      "text": "Final artifact stability 1 / 152 checks: 152 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T05:48:50.192Z",
+      "text": "Repeated DOM churn: ten batches / 100 inserted and removed results: 152 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T05:46:15.517Z",
+      "text": "Full regression after fallback deadline and explicit-thumbnail lane fixes: 151 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T05:45:56.019Z",
+      "text": "Slow fallback: reproduced wrong transfer lane/deadline: 150 passed, 1 failed"
+    },
+    {
+      "time": "2026-10-20T05:40:39.999Z",
+      "text": "2.7.3 final: successful cache reloads preserve retry budget: 150 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T05:40:25.866Z",
+      "text": "Cache-pressure regression: reproduced successful reload exhaustion: 149 passed, 1 failed"
+    },
+    {
+      "time": "2026-10-20T05:31:02.700Z",
+      "text": "Stability run 3: 149 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T05:30:56.096Z",
+      "text": "Stability run 2: 149 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T05:30:49.662Z",
+      "text": "Stability run 1: observable startup plus settled performance counters: 149 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T05:23:33.810Z",
+      "text": "2.7.3: full regression run 1 after interaction fixes: 148 passed, 1 failed"
+    },
+    {
+      "time": "2026-10-20T05:22:29.698Z",
+      "text": "Reproduced preview interception of another tool: 148 passed, 1 failed"
+    },
+    {
+      "time": "2026-10-20T05:14:30.307Z",
+      "text": "2.7.3 candidate: full suite pass 1: 148 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T05:10:19.589Z",
+      "text": "Observable-readiness full suite, run 1: 148 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T05:02:03.179Z",
+      "text": "Full suite after native Unpin fix: 146 passed, 1 failed"
+    },
+    {
+      "time": "2026-10-20T05:00:46.933Z",
+      "text": "Reproduced real Unpin click failure: 0 passed, 1 failed"
+    },
+    {
+      "time": "2026-10-20T05:00:46.145Z",
+      "text": "HOV-04 failed in real browser: Unpin repins immediately"
+    },
+    {
+      "time": "2026-10-20T04:56:20.686Z",
+      "text": "Full acceptance coverage run: 146 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T04:54:54.393Z",
+      "text": "Acceptance checks with production DOM image targets: 10 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T04:52:03.231Z",
+      "text": "Full regression suite with acceptance cases: 143 passed, 1 failed"
+    },
+    {
+      "time": "2026-10-20T04:50:41.143Z",
+      "text": "Storage and preview lifecycle fixes: acceptance retest: 8 passed, 0 failed"
+    },
+    {
+      "time": "2026-10-20T04:48:38.368Z",
+      "text": "Adversarial acceptance retest after fixes: 6 passed, 1 failed"
+    },
+    {
+      "time": "2026-10-20T04:44:12.921Z",
+      "text": "First adversarial acceptance pass: 2 passed, 5 failed"
+    },
+    {
+      "time": "2026-10-20T04:41:00.922Z",
+      "text": "Baseline 2.7.2: existing automated suite: 134 passed, 0 failed"
+    }
+  ],
+  "updatedAt": "2026-10-20T06:33:48.701Z",
+  "findings": [
+    {
+      "id": "QA-01",
+      "case": "PREF-03",
+      "status": "fixed",
+      "summary": "A late preference write failure leaves earlier filter writes committed.",
+      "resolution": "Transactional preference snapshot/rollback; failed draft remains retryable. Automated partial-write regression passes."
+    },
+    {
+      "id": "QA-02",
+      "case": "SEA-06",
+      "status": "fixed",
+      "summary": "Failed search writes escape handlers or leave in-memory library inconsistent with durable data.",
+      "resolution": "Write before publishing search library changes; handler errors retain draft/library/Undo. Native failure scenarios pass."
+    },
+    {
+      "id": "QA-03",
+      "case": "HOV-08",
+      "status": "fixed",
+      "summary": "Removing the hovered row leaves its transient preview open.",
+      "resolution": "Forget removed preview origins; transient closes, pinned controls retain metadata. Native removal checks pass."
+    },
+    {
+      "id": "QA-04",
+      "case": "PERF-02",
+      "status": "fixed",
+      "summary": "Removed native rows remain in the preview binding map.",
+      "resolution": "Removed preview bindings, obsolete layouts and unowned transfers are released. Ten insertion/removal batches (100 rows) returned DOM-owning maps, active slots and queue to baseline each time."
+    },
+    {
+      "id": "QA-05",
+      "case": "HOV-04",
+      "status": "fixed",
+      "summary": "Unpin button immediately repins through the enlargement click handler.",
+      "resolution": "Click-to-pin handler scoped to image frame; actual Unpin button tested."
+    },
+    {
+      "id": "QA-06",
+      "case": "HOV-06",
+      "status": "fixed",
+      "summary": "A transient keyboard preview can intercept a rapid click into another tool before its delayed dismissal.",
+      "resolution": "Outside pointerdown immediately dismisses transient preview; rapid tool click regression and native check pass."
+    },
+    {
+      "id": "QA-07",
+      "case": "HOV-02",
+      "status": "fixed",
+      "summary": "Successful image reloads after cache eviction consume a permanent failure budget; working originals eventually show unavailable.",
+      "evidence": "Native cacheEntries4 with five original images; return displayed thumbnail but failed status. Deterministic repeated-success regression fails on the fourth revisit.",
+      "resolution": "Successful onload clears the failure streak while preserving manual/rescue guards;15-load native eviction cycle passes."
+    },
+    {
+      "id": "QA-08",
+      "case": "IMG-01",
+      "status": "fixed",
+      "summary": "Large inline fallback inherits short small-image timeout; nonstandard supplied thumbnail URLs are misclassified for queue isolation.",
+      "evidence": "Native: broken-small5 responded503; full5 takes2200ms but was repeatedly canceled at1500ms. Deterministic pool deadline/lane test fails.",
+      "resolution": "Explicit supplied small variants use small lane; fallback originals use large lane and full deadline. Slow2200ms original succeeds after1500ms small-source failure."
+    }
+  ],
+  "runs": [
+    {
+      "label": "Storage and preview lifecycle fixes: acceptance retest",
+      "artifact": {
+        "version": "2.7.2",
+        "sha256": "eeb3d3e948b34f5bb0ace2a4fcc92cbe882e7e4f0670e883e563a9165ea4ae94"
+      },
+      "passed": 8,
+      "failed": 0,
+      "time": "2026-10-20T04:50:41.142Z"
+    },
+    {
+      "label": "Full regression suite with acceptance cases",
+      "artifact": {
+        "version": "2.7.2",
+        "sha256": "064d265ee8bdcbc13bf842ac518c4aff13fb1732817358b59081f3760c2f4dc9"
+      },
+      "passed": 143,
+      "failed": 1,
+      "time": "2026-10-20T04:52:03.230Z"
+    },
+    {
+      "label": "Acceptance checks with production DOM image targets",
+      "artifact": {
+        "version": "2.7.2",
+        "sha256": "064d265ee8bdcbc13bf842ac518c4aff13fb1732817358b59081f3760c2f4dc9"
+      },
+      "passed": 10,
+      "failed": 0,
+      "time": "2026-10-20T04:54:54.393Z"
+    },
+    {
+      "label": "Full acceptance coverage run",
+      "artifact": {
+        "version": "2.7.2",
+        "sha256": "064d265ee8bdcbc13bf842ac518c4aff13fb1732817358b59081f3760c2f4dc9"
+      },
+      "passed": 146,
+      "failed": 0,
+      "time": "2026-10-20T04:56:20.684Z"
+    },
+    {
+      "label": "Reproduced real Unpin click failure",
+      "artifact": {
+        "version": "2.7.2",
+        "sha256": "064d265ee8bdcbc13bf842ac518c4aff13fb1732817358b59081f3760c2f4dc9"
+      },
+      "passed": 0,
+      "failed": 1,
+      "time": "2026-10-20T05:00:46.933Z"
+    },
+    {
+      "label": "Full suite after native Unpin fix",
+      "artifact": {
+        "version": "2.7.2",
+        "sha256": "0f2ea981cae084c6cc018d31e7d7811c77a7b4d8b64a5723a173959ef3ed1564"
+      },
+      "passed": 146,
+      "failed": 1,
+      "time": "2026-10-20T05:02:03.176Z"
+    },
+    {
+      "label": "Observable-readiness full suite, run 1",
+      "artifact": {
+        "version": "2.7.2",
+        "sha256": "e8e344ec8ed61933edcb010bc698b1bfbacbf0d9d887b78e91770b88c29edc94"
+      },
+      "passed": 148,
+      "failed": 0,
+      "time": "2026-10-20T05:10:19.586Z"
+    },
+    {
+      "label": "2.7.3 candidate: full suite pass 1",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "d34d704ea3c4973e34c92d464616a8f06d9eca77db7c5771c5b24877b8ac7c03"
+      },
+      "passed": 148,
+      "failed": 0,
+      "time": "2026-10-20T05:14:30.305Z"
+    },
+    {
+      "label": "Reproduced preview interception of another tool",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "d34d704ea3c4973e34c92d464616a8f06d9eca77db7c5771c5b24877b8ac7c03"
+      },
+      "passed": 148,
+      "failed": 1,
+      "time": "2026-10-20T05:22:29.695Z"
+    },
+    {
+      "label": "2.7.3: full regression run 1 after interaction fixes",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3"
+      },
+      "passed": 148,
+      "failed": 1,
+      "time": "2026-10-20T05:23:33.807Z"
+    },
+    {
+      "label": "Stability run 1: observable startup plus settled performance counters",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3"
+      },
+      "passed": 149,
+      "failed": 0,
+      "time": "2026-10-20T05:30:49.659Z"
+    },
+    {
+      "label": "Stability run 2",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3"
+      },
+      "passed": 149,
+      "failed": 0,
+      "time": "2026-10-20T05:30:56.092Z"
+    },
+    {
+      "label": "Stability run 3",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3"
+      },
+      "passed": 149,
+      "failed": 0,
+      "time": "2026-10-20T05:31:02.697Z"
+    },
+    {
+      "label": "Cache-pressure regression: reproduced successful reload exhaustion",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3"
+      },
+      "passed": 149,
+      "failed": 1,
+      "time": "2026-10-20T05:40:25.863Z"
+    },
+    {
+      "label": "2.7.3 final: successful cache reloads preserve retry budget",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "42312636975135822990be112030101d9efe308531a2f5ba6db725e10c995437"
+      },
+      "passed": 150,
+      "failed": 0,
+      "time": "2026-10-20T05:40:39.996Z"
+    },
+    {
+      "label": "Slow fallback: reproduced wrong transfer lane/deadline",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "42312636975135822990be112030101d9efe308531a2f5ba6db725e10c995437"
+      },
+      "passed": 150,
+      "failed": 1,
+      "time": "2026-10-20T05:45:56.015Z"
+    },
+    {
+      "label": "Full regression after fallback deadline and explicit-thumbnail lane fixes",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "1fabcdbe160128daa293b6c13db6106f18912520e660c741a50f9612e95498bf"
+      },
+      "passed": 151,
+      "failed": 0,
+      "time": "2026-10-20T05:46:15.514Z"
+    },
+    {
+      "label": "Repeated DOM churn: ten batches / 100 inserted and removed results",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "1fabcdbe160128daa293b6c13db6106f18912520e660c741a50f9612e95498bf"
+      },
+      "passed": 152,
+      "failed": 0,
+      "time": "2026-10-20T05:48:50.189Z"
+    },
+    {
+      "label": "Final artifact stability 1 / 152 checks",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "1fabcdbe160128daa293b6c13db6106f18912520e660c741a50f9612e95498bf"
+      },
+      "passed": 152,
+      "failed": 0,
+      "time": "2026-10-20T05:49:29.085Z"
+    },
+    {
+      "label": "Final artifact stability 2 / 152 checks",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "1fabcdbe160128daa293b6c13db6106f18912520e660c741a50f9612e95498bf"
+      },
+      "passed": 152,
+      "failed": 0,
+      "time": "2026-10-20T05:49:35.858Z"
+    },
+    {
+      "label": "Final artifact stability 3 / 152 checks",
+      "artifact": {
+        "version": "2.7.3",
+        "sha256": "1fabcdbe160128daa293b6c13db6106f18912520e660c741a50f9612e95498bf"
+      },
+      "passed": 152,
+      "failed": 0,
+      "time": "2026-10-20T05:49:42.679Z"
+    },
+    {
+      "label": "2.7.4 hover upgrade: full regression suite",
+      "artifact": {
+        "version": "2.7.4",
+        "sha256": "5e80e8a7f9254c2432ece81f1c5d7c9167fc94ca16d71d0c186731ecaa363007"
+      },
+      "passed": 155,
+      "failed": 0,
+      "time": "2026-10-20T05:58:33.801Z"
+    },
+    {
+      "label": "Title interactions: original2.7.4 requirement failures reproduced",
+      "artifact": {
+        "version": "2.7.4",
+        "sha256": "5e80e8a7f9254c2432ece81f1c5d7c9167fc94ca16d71d0c186731ecaa363007"
+      },
+      "passed": 155,
+      "failed": 3,
+      "time": "2026-10-20T06:18:49.408Z"
+    },
+    {
+      "label": "Title interaction refinement: full regression run",
+      "artifact": {
+        "version": "2.7.4",
+        "sha256": "f3aef62e17567586645514022fc06aba4a626111fc09b304f2cdbfc06fa1cde6"
+      },
+      "passed": 157,
+      "failed": 2,
+      "time": "2026-10-20T06:18:56.260Z"
+    },
+    {
+      "label": "2.7.5 title tooltips/native menus: full regression suite",
+      "artifact": {
+        "version": "2.7.5",
+        "sha256": "5a58d715189a18d7d38a7e8b0340760c013995230cab2b2aa6492e2ab275da44"
+      },
+      "passed": 159,
+      "failed": 0,
+      "time": "2026-10-20T06:19:49.642Z"
+    },
+    {
+      "label": "2.7.5 title interactions: complete regression including media-toggle handoff",
+      "artifact": {
+        "version": "2.7.5",
+        "sha256": "64102c9e13bad2cd6fb00baa71d8d93c87b84db74d9001a1a0a941991d7f5b1c"
+      },
+      "passed": 160,
+      "failed": 0,
+      "time": "2026-10-20T06:22:44.489Z"
+    },
+    {
+      "label": "2.7.5 final: title tooltip/native menu and pending-hover race checks",
+      "artifact": {
+        "version": "2.7.5",
+        "sha256": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "passed": 160,
+      "failed": 0,
+      "time": "2026-10-20T06:24:26.251Z"
+    },
+    {
+      "label": "2.7.5 verified artifact: pinned Node24 full regression",
+      "artifact": {
+        "version": "2.7.5",
+        "sha256": "e4bdced10be1aaae9821086f1ca1eebffaa90582ad669b81d025559dd2643b4d"
+      },
+      "passed": 160,
+      "failed": 0,
+      "time": "2026-10-20T06:33:21.198Z"
+    }
+  ]
+}

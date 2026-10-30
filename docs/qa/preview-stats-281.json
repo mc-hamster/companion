@@ -1,0 +1,153 @@
+{
+  "loading": {
+    "ariaHidden": "true",
+    "color": "rgb(23, 33, 58)",
+    "message": "Loading larger image… · 2s · try 2",
+    "opacity": "0.65",
+    "stats": " · 2s · try 2",
+    "width": 160
+  },
+  "pinned": {
+    "mode": "controls",
+    "status": "Loading larger image… · 2s · try 2"
+  },
+  "ready": {
+    "stats": "",
+    "statusDisplay": "none",
+    "statusHidden": true,
+    "width": 960
+  },
+  "cached": {
+    "previewHidden": false,
+    "state": "ready",
+    "statsHidden": true,
+    "statusHidden": true,
+    "width": 960
+  },
+  "requests": [
+    {
+      "type": "image",
+      "path": "small-1.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-2.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-3.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-4.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-5.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-6.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-7.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-8.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-9.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-10.svg"
+    },
+    {
+      "type": "image",
+      "path": "full-flaky-1.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-11.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-12.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-13.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-14.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-15.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-16.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-17.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-18.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-19.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-20.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-21.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-22.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-23.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-24.svg"
+    },
+    {
+      "type": "image",
+      "path": "full-flaky-1.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-25.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-26.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-27.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-28.svg"
+    }
+  ],
+  "artifact": {
+    "version": "2.8.1",
+    "sha256": "f0c7e94347decee31568c26ec10f08d5cdeeea1520f65778bafe211c62b323d5"
+  }
+}

@@ -1,0 +1,347 @@
+{
+  "version": "2.8.3",
+  "artifactSha": "7ca610d3e85c31c6ea79838567ee198f4a6204f6515060a600c94179283d5cb8",
+  "environment": "Native in-app Chromium; mock GM storage; local neutral assets; actual Chrome/Tampermonkey not connected",
+  "evidence": [
+    {
+      "stage": "2.8.2 strict theme after reveal",
+      "data": {
+        "button": "Hide filtered",
+        "cards": [
+          {
+            "display": "block",
+            "id": "1"
+          },
+          {
+            "display": "block",
+            "id": "2"
+          },
+          {
+            "display": "block",
+            "id": "3"
+          },
+          {
+            "display": "block",
+            "id": "4"
+          }
+        ],
+        "rows": [
+          {
+            "class": "torrent rowa epc-category-keep",
+            "display": "table-row",
+            "id": "1"
+          },
+          {
+            "class": "torrent rowa epc-version-hidden epc-version-member epc-category-keep",
+            "display": "none",
+            "id": "3"
+          },
+          {
+            "class": "torrent rowa hidden epc-category-keep epc-revealed",
+            "display": "none",
+            "id": "2"
+          },
+          {
+            "class": "torrent rowa hidden epc-category-keep epc-revealed",
+            "display": "none",
+            "id": "4"
+          }
+        ],
+        "sha": "42fcd239d82e6ab4535e8bc1db4ff29fd2c7f7c8730a80dc9c547ec61e550b12"
+      }
+    },
+    {
+      "stage": "2.8.2 removed result after reveal",
+      "data": {
+        "button": "Hide filtered",
+        "cards": [
+          {
+            "display": "block",
+            "id": "1"
+          },
+          {
+            "display": "none",
+            "id": "2"
+          },
+          {
+            "display": "block",
+            "id": "3"
+          },
+          {
+            "display": "block",
+            "id": "4"
+          }
+        ],
+        "rows": [
+          {
+            "display": "table-row",
+            "id": "1"
+          },
+          {
+            "display": "none",
+            "id": "3"
+          },
+          {
+            "display": "none",
+            "id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "stage": "2.8.3 removed and ordinary after reveal",
+      "data": {
+        "button": "Hide filtered",
+        "cards": [
+          {
+            "display": "block",
+            "id": "1",
+            "image": 160
+          },
+          {
+            "display": "block",
+            "id": "2",
+            "image": 160
+          },
+          {
+            "display": "block",
+            "id": "3",
+            "image": 160
+          },
+          {
+            "display": "block",
+            "id": "4",
+            "image": 160
+          }
+        ],
+        "rows": [
+          {
+            "class": "torrent rowa epc-category-keep",
+            "display": "table-row",
+            "id": "1",
+            "image": 160
+          },
+          {
+            "class": "torrent rowa epc-version-hidden epc-version-member epc-category-keep",
+            "display": "none",
+            "id": "3",
+            "image": 0
+          },
+          {
+            "class": "torrent rowa nseHardPassRemove epc-revealed epc-category-keep",
+            "display": "table-row",
+            "id": "2",
+            "image": 160
+          },
+          {
+            "class": "torrent rowa epc-category-keep epc-revealed",
+            "display": "table-row",
+            "id": "4",
+            "image": 160
+          }
+        ],
+        "sha": "7ca610d3e85c31c6ea79838567ee198f4a6204f6515060a600c94179283d5cb8",
+        "summary": "3 shown · 1 grouped · 2 filtered"
+      }
+    },
+    {
+      "stage": "2.8.3 hide again",
+      "data": {
+        "cards": [
+          {
+            "display": "block",
+            "id": "1"
+          },
+          {
+            "display": "none",
+            "id": "2"
+          },
+          {
+            "display": "block",
+            "id": "3"
+          },
+          {
+            "display": "none",
+            "id": "4"
+          }
+        ],
+        "rows": [
+          {
+            "display": "table-row",
+            "id": "1"
+          },
+          {
+            "display": "none",
+            "id": "3"
+          },
+          {
+            "display": "none",
+            "id": "4"
+          }
+        ],
+        "summary": "1 shown · 1 grouped · 1 filtered · 1 removed"
+      }
+    },
+    {
+      "stage": "2.8.3 all removed initially",
+      "data": {
+        "button": "Show filtered",
+        "cards": 0,
+        "disabled": false,
+        "hidden": false,
+        "rows": 0
+      }
+    },
+    {
+      "stage": "2.8.3 all removed revealed",
+      "data": {
+        "cards": [
+          {
+            "display": "block",
+            "id": "1",
+            "image": 160
+          },
+          {
+            "display": "block",
+            "id": "2",
+            "image": 160
+          },
+          {
+            "display": "block",
+            "id": "3",
+            "image": 160
+          },
+          {
+            "display": "block",
+            "id": "4",
+            "image": 160
+          }
+        ],
+        "rows": [
+          {
+            "display": "table-row",
+            "id": "1",
+            "image": 160
+          },
+          {
+            "display": "table-row",
+            "id": "2",
+            "image": 160
+          },
+          {
+            "display": "table-row",
+            "id": "3",
+            "image": 160
+          },
+          {
+            "display": "table-row",
+            "id": "4",
+            "image": 160
+          }
+        ],
+        "summary": "4 shown · 4 filtered"
+      }
+    },
+    {
+      "stage": "2.8.3 rule refresh while revealed",
+      "data": {
+        "cards": 4,
+        "controls": 4,
+        "summary": "4 shown · 4 filtered",
+        "visible": 4
+      }
+    },
+    {
+      "stage": "2.8.3 remove rule while revealed",
+      "data": {
+        "buttonHidden": true,
+        "cards": 4,
+        "controls": 4,
+        "revealed": 0,
+        "rows": 4,
+        "summary": "2 shown · 2 grouped · 0 filtered"
+      }
+    },
+    {
+      "stage": "2.8.3 reveal cycle 1",
+      "data": {
+        "controls": 4,
+        "revealed": [
+          {
+            "display": "table-row",
+            "id": "2",
+            "image": 160
+          },
+          {
+            "display": "table-row",
+            "id": "4",
+            "image": 160
+          }
+        ],
+        "visibleCards": 4
+      }
+    },
+    {
+      "stage": "2.8.3 hide cycle 1",
+      "data": {
+        "rows": 3,
+        "summary": "1 shown · 1 grouped · 1 filtered · 1 removed",
+        "visibleCards": 2
+      }
+    },
+    {
+      "stage": "2.8.3 reveal cycle 2",
+      "data": {
+        "controls": 4,
+        "revealed": [
+          {
+            "display": "table-row",
+            "id": "2",
+            "image": 160
+          },
+          {
+            "display": "table-row",
+            "id": "4",
+            "image": 160
+          }
+        ],
+        "visibleCards": 4
+      }
+    },
+    {
+      "stage": "2.8.3 hide cycle 2",
+      "data": {
+        "rows": 3,
+        "summary": "1 shown · 1 grouped · 1 filtered · 1 removed",
+        "visibleCards": 2
+      }
+    },
+    {
+      "stage": "2.8.3 reveal cycle 3",
+      "data": {
+        "controls": 4,
+        "revealed": [
+          {
+            "display": "table-row",
+            "id": "2",
+            "image": 160
+          },
+          {
+            "display": "table-row",
+            "id": "4",
+            "image": 160
+          }
+        ],
+        "visibleCards": 4
+      }
+    },
+    {
+      "stage": "2.8.3 hide cycle 3",
+      "data": {
+        "rows": 3,
+        "summary": "1 shown · 1 grouped · 1 filtered · 1 removed",
+        "visibleCards": 2
+      }
+    }
+  ]
+}

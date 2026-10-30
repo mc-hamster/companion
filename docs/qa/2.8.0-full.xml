@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="[PREF-03] a late autosave failure rolls back filter writes and keeps the draft retryable" time="0.477823" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[SEA-06] failed quick-save leaves durable searches, visible shortcuts and export state consistent" time="0.160710" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[SEA-06] failed rename, deletion and deletion Undo preserve the prior library and retry controls" time="0.242133" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[HOV-08] removing a hovered result closes the transient preview without another mouse movement" time="0.239719" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[PERF-02] removed native results release preview bindings and table-layout references" time="0.251265" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[HOV-08] a pinned preview retains working Retry and Close after its originating row is removed" time="0.199734" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[BOOT-02] [PREF-01] [TAG-04] rules, highlight lists and customized settings survive a cloned-storage reload" time="0.338229" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[SEA-01] saved complete criteria survive a reload with JSON-cloned manager storage" time="0.132360" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[HOV-07] disabling inline thumbnails cancels transfers with no remaining consumer" time="0.170602" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[SEA-05] rename respects IME and Escape keeps the Searches panel open" time="0.070088" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[BOOT-04] unsupported origins stay untouched and the release declares no-frame execution" time="0.030157" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[HOV-04] clicking the actual Unpin button does not bubble into re-pinning the enlargement" time="0.084173" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[HOV-06] clicking another tool dismisses a transient keyboard preview before that tool handles the click" time="0.098367" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[PREF-02] numeric preference validation preserves other values and safely clamps on blur" time="0.243369" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[HOV-02] returning after original-cache eviction still displays the usable thumbnail" time="0.128026" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[PERF-02] repeated result insertion and removal keeps DOM-owning maps and active work bounded" time="1.522525" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs"/>
+	<testcase name="[HOST-01] responsive hosts start at two, grow gradually to six and retain the global ceiling" time="0.032034" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-02] latency growth backs off and stale successful completions cannot immediately reopen capacity" time="0.000454" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-03] errors cool down only the actual failing host and one wake timer resumes its queue" time="0.012307" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-03] variant fallback uses its destination host and cancellation neither penalizes nor trains hosts" time="0.004302" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-04] host backoff still reserves a large hover slot and respects cooldown without bypasses" time="0.000324" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-04] partial animation completion, instantaneous cache hits and hidden-page samples do not grow host limits" time="0.000413" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-04] page-local host history is bounded and a lower ceiling drains without cancelling active images" time="0.040668" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-04] learned limits persist in bounded batches without asset URLs, expire and survive storage failure" time="0.002640" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-03] a constrained host shares its reduced budget across small, fallback and hover work" time="0.000393" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-02] a stable serial RTT change can establish a new baseline and resume cautious growth" time="0.001594" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-04] switching away and returning does not turn interrupted timing into host slowdown" time="0.000243" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="[HOST-04] background watchdog expiry does not penalize a host but actual image errors still do" time="0.000154" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/adaptive-hosts.test.mjs"/>
+	<testcase name="captures and restores complete search controls without hidden credentials" time="0.132941" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="saved searches migrate legacy format, rename, delete and undo" time="0.102677" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="imports validate before changes; toolkit and NSE settings have separate namespaces" time="0.063702" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="transaction rolls back a storage write failure" time="0.056190" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="unopened gallery remains unrequested and is prepared for lazy reveal" time="0.041130" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="already failed image recovers to legacy original and stale recovery cannot overwrite a new source" time="0.097180" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="a native image that stalls offscreen recovers when scrolled into view" time="0.059830" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="collage covers share the pool and follow a changed background source" time="0.094308" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="dynamic rows get one thumbnail and keyboard preview shares its transfer" time="0.192948" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="slow old preview cannot replace the next title or image" time="0.037949" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="pagination ignores typing, composition and modifiers" time="0.043052" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="preferences save automatically without navigation or a second Apply action" time="0.667366" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="old two-slot default migrates and small thumbnails are preferred for supported hosts" time="0.040786" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="pinning an in-flight preview hands off its subscription without restarting it" time="0.036005" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="invalid filter imports report plain filter terminology without leaking internal keys" time="0.034794" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="size changes keep loaded thumbnails and current transfers intact" time="0.691034" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="quick Save search names and deduplicates without opening the library" time="0.037708" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="saved search shortcuts stay visible outside all panels and do not use a dropdown or drawer" time="0.092142" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="a primary shortcut runs exactly the saved criteria without replacing an unsaved form draft" time="0.036933" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="saved shortcuts can run from pages with no torrent search form" time="0.062152" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="Edit search opens saved criteria in its row without changing context or the site form" time="0.041732" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="Add to search form visibly combines criteria without changing results until Search now" time="0.038251" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="the saved-search editor retains fields and values absent from the current site form" time="0.035786" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="Cancel and Escape discard only the editor draft and keep the Searches panel open" time="0.042945" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="invalid editor names and storage failures keep the draft and original search intact" time="0.040962" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="saving an editor preserves changes to other searches and rejects stale edits to the same search" time="0.041485" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="unrelated library redraws and panel switches keep the inline draft" time="0.040001" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="radio and multiselect criteria round-trip without losing types or saved options" time="0.039583" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="imports and changes from another tab update primary shortcuts, including the empty state" time="0.032127" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="thumbnail hover shows a preview while keeping its trigger clickable" time="0.048658" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="thumbnail hover immediately enlarges the usable thumbnail and requests its larger version without controls" time="0.047474" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="returning to the same thumbnail restores its usable image while a cancelled original reloads" time="0.068801" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="repeated hover returns retain the thumbnail without spending retries or adding page scans" time="0.165997" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="moving off an enlarged thumbnail dismisses it immediately even if the small button has focus" time="0.047634" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="the enlarged image can receive the pointer, dismiss on exit, and pin on click without restarting its request" time="0.065589" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="keyboard focus offers preview controls and touch uses click instead of hover enlargement" time="0.059150" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="pointer cancellation and leaving the browser dismiss transient enlargement without affecting pinned controls" time="0.059442" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="pointer movement outside both images clears a transient enlargement after pointer capture" time="0.047133" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="one automatic recovery pass repairs a failed thumbnail and an already-open preview" time="0.041371" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="turning hover off preserves thumbnails and still permits click-to-pin" time="0.245199" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="undoing preferences keeps searches saved after the automatic restore point" time="0.084960" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="filtered-out image failures do not ask for attention during ordinary browsing" time="0.038170" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="all 50 result thumbnails warm without scrolling or an IntersectionObserver" time="1.139215" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="current and nearby rows overtake distant preloads; hidden and detached rows stay unrequested" time="0.126266" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="page warming waits for filters and foreground visibility, then resumes the whole list" time="0.251273" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="rows added far below the fold warm automatically while an unopened gallery stays deferred" time="0.085233" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="[HOV-09] hover keeps the thumbnail through incomplete and failed larger loads and names the upgrade" time="0.295696" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="[HOV-09] completed hover images are displayed from memory and stay usable through retry and cache reuse" time="0.038757" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="[HOV-09] a shared page image stays in place and a failed or stale display copy cannot replace the thumbnail" time="0.040245" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="[TITLE-01] title hover is a temporary site-style tooltip using the ready thumbnail, with ordinary link focus and clicks" time="0.136096" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="[TITLE-01] title-only layouts use the shared small-first loader and cancel abandoned work" time="0.044166" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="[TITLE-01] moving between title tooltip and thumbnail keeps one upgrade path and normal title navigation" time="0.102859" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="[TITLE-01] an open title tooltip keeps queued shared loading alive when inline thumbnails are disabled" time="0.047648" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs"/>
+	<testcase name="backfill URLs retain the search and reject downloads, details, other origins and other searches" time="0.014917" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="numbered pager fallback moves forward in order and skips already loaded pages" time="0.049350" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="one click backfills five pages, deduplicates results and continues at the next unread page" time="0.383855" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="backfill uses original pager fallback and continues beyond a duplicate-only page" time="0.087851" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="appended preview data survives overlay-name collisions and media restarts without executing scripts" time="0.125687" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="new rows respect active filters and Show filtered before thumbnail or native-image requests" time="0.160034" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="partial failure keeps completed pages and retries only the failed cursor" time="0.093680" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="Stop discards late responses and a second click cannot run a parallel backfill" time="0.062386" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="timed-out, login, non-HTML and redirected responses leave the cursor retryable" time="0.323473" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="legacy fork preferences import, clamp and round-trip through Companion backups" time="0.064425" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="backfill remains available with media disabled and stays off detail/other pages" time="0.182178" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="backfill preferences autosave and Undo restores them without fetching any pages" time="0.151557" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="an empty results page stops backfill even if the original pager still lists later pages" time="0.065120" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="a failed filter pass rolls back the new page and leaves its results retryable" time="0.071675" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/backfill.test.mjs"/>
+	<testcase name="built artifact is self-contained and restricted to Empornium" time="0.002340" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="full NSE engine mounts, defaults to empty lists, and keeps companion data on reset" time="0.484390" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="tag whitelist overrides blacklist; Hard Pass and individual overrides are retained" time="0.119844" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="status and uploader filters still handle new rows with image improvements disabled" time="0.160943" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="right-click management handles current and dynamic tags; Shift preserves native menu" time="0.106103" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="hostile list text is escaped in settings markup" time="0.085015" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="Black Hole removal hides the corresponding collage card before media loading" time="0.099030" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="one workspace owns filters, searches, images, and settings without legacy panels" time="0.190337" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="show filtered reveals matching rows alongside visible rows and keeps preview eligibility" time="0.088330" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="open visible action works with right-click management disabled" time="0.092041" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="notification rule imports use Companion controls and the current textarea value" time="0.069564" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="Companion branding covers every pane, row tooltip, and context menu; attribution is retained" time="0.159647" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="filter confirmations and userscript-manager metadata use Companion terminology" time="0.081149" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="typing filter rules autosaves and updates existing results without navigation" time="0.743916" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="visibility checkboxes update live and do not accumulate row controls" time="0.169042" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="removing a Hard Pass rule restores archived rows without a refresh" time="0.730145" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="restoring a filter export applies it immediately and updates the controls" time="0.163008" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="invalid draft preferences do not partially overwrite stored filter lists" time="0.725067" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="detail-page rules can update repeatedly without duplicate controls or title wrappers" time="0.176589" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="backfill uses the full filtering engine, preserves Show filtered and restores removed rows on rule edits" time="0.293576" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="the simplified interface shows three task areas and only two common settings or tag fields" time="0.085763" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="advanced search reveals matching controls, restores disclosure state and preserves customized preferences on save" time="0.133493" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="collapsed rule summaries expose active rules and update without resetting their values" time="0.121229" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="saved searches remain primary while management opens only on request and row options stay folded" time="0.069217" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="irrelevant toolbar actions are quiet and filtered-result access appears when needed" time="0.160849" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="version grouping respects live filtering and restores archived Hard Pass variants" time="0.248765" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="backfilled variants join the same expanded group with previews and tag highlights intact" time="0.203914" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="one contextual tag menu offers exclusive highlights without altering visibility rules" time="0.229380" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="tag highlighting remains keyboard accessible and returns focus when the menu closes" time="0.077997" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="highlight lists autosave in the folded Filters section without adding primary controls" time="0.249244" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="opening visible results includes the representative and expanded versions only" time="0.072599" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="oversized highlight drafts are rejected before either filter or Companion preferences are written" time="0.142424" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="[TITLE-02] title links keep the native menu while title phrase filtering stays in Filters" time="0.143480" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="[PERF-04] 6 experimental slots retain bounded work and reserved hover capacity" time="0.007874" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/concurrency.test.mjs"/>
+	<testcase name="[PERF-04] 8 experimental slots retain bounded work and reserved hover capacity" time="0.013548" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/concurrency.test.mjs"/>
+	<testcase name="[PERF-04] 12 experimental slots retain bounded work and reserved hover capacity" time="0.004973" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/concurrency.test.mjs"/>
+	<testcase name="[PERF-04] 16 experimental slots retain bounded work and reserved hover capacity" time="0.002361" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/concurrency.test.mjs"/>
+	<testcase name="URL gate rejects downloads, credentials and non-images" time="0.023101" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="legacy fallback is restricted and preserves existing queries" time="0.000337" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="overlay parser treats scripts and HTML as data" time="0.000562" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="thumbnail modes prefer supplied variants and limit guessed variants" time="0.000775" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="settings clamp values and distinguish hidden/unrequested/streaming images" time="0.000277" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="manual retry cooldown and automatic URL budget survive repeat hovers" time="0.000184" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="pool deduplicates requests and honors preview priority when a slot opens" time="0.001214" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="never-answering image stalls then retries with bounded attempts" time="0.000550" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="legacy resize error moves to original and displays first frame before completion" time="0.000259" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="explicit retry keeps subscribers and cross-tier reuse avoids a duplicate transfer" time="0.000371" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="circuit breaker resumes deferred jobs without requiring another hover" time="0.000607" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="decoded cache evicts idle entries and releases timers" time="0.000302" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="two slow originals cannot block independently paced small thumbnails or consume their slots" time="0.002119" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="a failed small candidate falls back after brief host cooldown in the large-image lane" time="0.002874" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="visible demand overtakes preloads and disconnected rows are not requested" time="0.002159" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="direct inline image target is not transferred twice or erased by cache eviction" time="0.000195" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="a hover has a reserved slot even while body recovery occupies both large-image slots" time="0.000152" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="abandoned previews free their slot without spending the failure retry budget" time="0.000319" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="automatic rescue allows one fresh attempt and cannot loop after another failure" time="0.000344" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="[HOV-02] repeated successful reloads after cache eviction do not exhaust the failure budget" time="0.000466" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="[IMG-01] a supplied small image hands off to a large fallback with the full image deadline" time="0.000172" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs"/>
+	<testcase name="[COV-01] cover art starts with two per-host slots and warms offscreen cards without original background assignments" time="0.740629" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/covers.test.mjs"/>
+	<testcase name="[COV-02] cover hover upgrades only after success, keeps small pixels on failure, and preserves link navigation" time="0.332139" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/covers.test.mjs"/>
+	<testcase name="[COV-03] hidden cover art remains unrequested and foreground recovery resumes queued work" time="0.156130" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/covers.test.mjs"/>
+	<testcase name="[COV-03] replacing or removing a cover releases listeners and stale requests; disabling restores native backgrounds" time="0.229116" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/covers.test.mjs"/>
+	<testcase name="[COV-01] supplied legacy 300px covers stay in the small lane instead of guessing unsupported thumbnail paths" time="0.035705" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/covers.test.mjs"/>
+	<testcase name="[COV-03] native absolute cover positioning survives management and preference changes" time="0.091269" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/covers.test.mjs"/>
+	<testcase name="[COV-02] hovering an absolute cover uses its pixels rather than its empty anchor for pointer geometry" time="0.132763" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/covers.test.mjs"/>
+	<testcase name="[COV-01] failed cover thumbnail falls back through the large lane and respects its full deadline" time="2.001182" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/covers.test.mjs"/>
+	<testcase name="[COV-02] neighboring cards under an enlargement cannot steal its hover or start an original transfer" time="0.184901" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/covers.test.mjs"/>
+	<testcase name="overlapping scan roots reduce to connected outer subtrees" time="0.073421" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs"/>
+	<testcase name="image source and style bursts perform one local scan and zero result regrouping" time="0.246226" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs"/>
+	<testcase name="nested result mutations are scanned once per subtree and title edits still regroup" time="0.281490" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs"/>
+	<testcase name="expanding one cached group does not scan the whole result list or tag collection" time="0.196639" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs"/>
+	<testcase name="highlight changes use the tag index and removed rows release indexed elements" time="0.281816" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs"/>
+	<testcase name="saving highlight-only preferences leaves media and version membership intact" time="0.198103" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs"/>
+	<testcase name="queued and completed thumbnails leave scroll observation while new results still warm" time="0.237089" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs"/>
+	<testcase name="replacement search forms are adopted even when no torrent rows change" time="0.188547" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs"/>
+	<testcase name="startup defers scans until filters finish, then processes the final page once" time="0.190796" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs"/>
+	<testcase name="bursts of image health updates share one frame and settled pages do no scan work" time="0.274011" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs"/>
+	<testcase name="large lists stabilize metadata widths with a flexible title and restore native layout when grouping is disabled" time="0.248110" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs"/>
+	<testcase name="[LAYOUT-02] hidden category and spanning title retain the correct metadata column positions" time="0.250817" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs"/>
+	<testcase name="[LAYOUT-02] a backfill batch measures the completed native table once and Stop restores layout" time="0.328737" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/performance.test.mjs"/>
+	<testcase name="technical resolution, codec and container differences identify the same release" time="0.002914" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs"/>
+	<testcase name="dates, word order, parts, studios, cuts, fixes and censoring keep releases separate" time="0.000265" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs"/>
+	<testcase name="positive search highlighting handles boolean groups, negation and wildcards" time="0.001010" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs"/>
+	<testcase name="wildcard search terms match literal tag segments without regular-expression evaluation" time="0.000179" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs"/>
+	<testcase name="group expansion preserves original links, tags, status and row handlers; disabling restores order" time="0.167648" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs"/>
+	<testcase name="filtering the representative promotes an eligible version; revealing filters keeps expansion state" time="0.089666" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs"/>
+	<testcase name="new rows join existing groups without stealing focus, and same names in other tables or categories stay separate" time="0.114571" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs"/>
+	<testcase name="collapsed alternate thumbnails stay unrequested and expand through the existing pool" time="0.104319" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs"/>
+	<testcase name="favorites, cautions and search matches coexist without changing filter visibility or original tooltips" time="0.058249" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs"/>
+	<testcase name="highlight preferences survive unrelated settings changes, export/restore and preference Undo" time="0.068953" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs"/>
+	<testcase name="highlight selection handles storage failure without changing the appearance" time="0.060257" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs"/>
+	<testcase name="highlight settings normalize duplicates and resolve overlapping categories without evaluating tag text" time="0.000196" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/result-tools.test.mjs"/>
+	<!-- tests 187 -->
+	<!-- suites 0 -->
+	<!-- pass 187 -->
+	<!-- fail 0 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 7039.484791 -->
+</testsuites>

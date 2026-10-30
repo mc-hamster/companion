@@ -1,0 +1,81 @@
+{
+  "scope": "Native in-app Chromium; real IndexedDB; neutral local images and mock GM transport. Fixture buttons advance Date.now only on the controlled clock page; production bundle is unchanged.",
+  "observations": [
+    {
+      "stage": "cold-load",
+      "card": "Image cache\nReset stats\nThumbnails\n8 · 3.9 KB\nPreviews\n0 · 0 B\n\n3.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tDownloads\n5 min\t0\t4\t4\n15 min\t0\t4\t4\n1 hour\t0\t4\t4\nAll history\t0\t4\t4",
+      "artifact": "bce56cf0a0b678ba7df5a055a4737e668f0ec04e8e08e5d34aa4264bda4450fa"
+    },
+    {
+      "stage": "after-refresh",
+      "card": "Image cache\nReset stats\nThumbnails\n8 · 3.9 KB\nPreviews\n0 · 0 B\n\n3.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tDownloads\n5 min\t4\t4\t4\n15 min\t4\t4\t4\n1 hour\t4\t4\t4\nAll history\t4\t4\t4"
+    },
+    {
+      "stage": "final-artifact-refresh",
+      "card": "Image cacheReset statsThumbnails—Previews—Reading saved images…PeriodHitsMissesDownloads5 min———15 min———1 hour———All history———",
+      "artifact": "7bf71f949ace30f8a181f311a644b9f4aac5b49f63ed12c42673c5e3fbb43d87"
+    },
+    {
+      "stage": "clock-baseline",
+      "card": "Image cache\nReset stats\nThumbnails\n8 · 3.9 KB\nPreviews\n0 · 0 B\n\n3.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tDownloads\n5 min\t12\t4\t4\n15 min\t12\t4\t4\n1 hour\t12\t4\t4\nAll history\t12\t4\t4",
+      "artifact": "7bf71f949ace30f8a181f311a644b9f4aac5b49f63ed12c42673c5e3fbb43d87"
+    },
+    {
+      "stage": "after-six-minutes-auto-aging",
+      "card": "Image cache\nReset stats\nThumbnails\n8 · 3.9 KB\nPreviews\n0 · 0 B\n\n3.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tDownloads\n5 min\t0\t0\t0\n15 min\t12\t4\t4\n1 hour\t12\t4\t4\nAll history\t12\t4\t4"
+    },
+    {
+      "stage": "360px-layout",
+      "metrics": {
+        "cardClientWidth": 284,
+        "cardScrollWidth": 284,
+        "cardWidth": 286,
+        "headers": [
+          {
+            "scrollWidth": 65,
+            "text": "Period",
+            "width": 65
+          },
+          {
+            "scrollWidth": 65,
+            "text": "Hits",
+            "width": 65
+          },
+          {
+            "scrollWidth": 65,
+            "text": "Misses",
+            "width": 65
+          },
+          {
+            "scrollWidth": 65,
+            "text": "Downloads",
+            "width": 65
+          }
+        ],
+        "tableScrollWidth": 260,
+        "tableWidth": 260
+      }
+    },
+    {
+      "stage": "after-sixteen-minutes-auto-aging",
+      "card": "Image cache\nReset stats\nThumbnails\n8 · 3.9 KB\nPreviews\n0 · 0 B\n\n3.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tDownloads\n5 min\t0\t0\t0\n15 min\t0\t0\t0\n1 hour\t12\t4\t4\nAll history\t12\t4\t4"
+    },
+    {
+      "stage": "after-seventy-six-minutes-auto-aging",
+      "card": "Image cache\nReset stats\nThumbnails\n8 · 3.9 KB\nPreviews\n0 · 0 B\n\n3.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tDownloads\n5 min\t0\t0\t0\n15 min\t0\t0\t0\n1 hour\t0\t0\t0\nAll history\t12\t4\t4"
+    },
+    {
+      "stage": "reset-all-windows",
+      "card": "Image cache\nReset stats\nThumbnails\n8 · 3.9 KB\nPreviews\n0 · 0 B\n\n3.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tDownloads\n5 min\t0\t0\t0\n15 min\t0\t0\t0\n1 hour\t0\t0\t0\nAll history\t0\t0\t0"
+    },
+    {
+      "stage": "reset-notification-narrow-other-page",
+      "card": "Image cache\nReset stats\nThumbnails\n8 · 3.9 KB\nPreviews\n0 · 0 B\n\n3.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tDownloads\n5 min\t0\t0\t0\n15 min\t0\t0\t0\n1 hour\t0\t0\t0\nAll history\t0\t0\t0"
+    },
+    {
+      "stage": "post-reset-refresh",
+      "card": "Image cache\nReset stats\nThumbnails\n8 · 3.9 KB\nPreviews\n0 · 0 B\n\n3.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tDownloads\n5 min\t4\t0\t0\n15 min\t4\t0\t0\n1 hour\t4\t0\t0\nAll history\t4\t0\t0",
+      "artifact": "7bf71f949ace30f8a181f311a644b9f4aac5b49f63ed12c42673c5e3fbb43d87"
+    }
+  ]
+}

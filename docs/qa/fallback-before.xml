@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="URL gate rejects downloads, credentials and non-images" time="0.001242" classname="test"/>
+	<testcase name="legacy fallback is restricted and preserves existing queries" time="0.000372" classname="test"/>
+	<testcase name="overlay parser treats scripts and HTML as data" time="0.000858" classname="test"/>
+	<testcase name="thumbnail modes prefer supplied variants and limit guessed variants" time="0.000913" classname="test"/>
+	<testcase name="settings clamp values and distinguish hidden/unrequested/streaming images" time="0.000235" classname="test"/>
+	<testcase name="manual retry cooldown and automatic URL budget survive repeat hovers" time="0.000226" classname="test"/>
+	<testcase name="pool deduplicates requests and honors preview priority when a slot opens" time="0.000830" classname="test"/>
+	<testcase name="never-answering image stalls then retries with bounded attempts" time="0.000702" classname="test"/>
+	<testcase name="legacy resize error moves to original and displays first frame before completion" time="0.000440" classname="test"/>
+	<testcase name="explicit retry keeps subscribers and cross-tier reuse avoids a duplicate transfer" time="0.000579" classname="test"/>
+	<testcase name="circuit breaker resumes deferred jobs without requiring another hover" time="0.000400" classname="test"/>
+	<testcase name="decoded cache evicts idle entries and releases timers" time="0.000252" classname="test"/>
+	<testcase name="two slow originals cannot block six small thumbnails or consume their slots" time="0.000548" classname="test"/>
+	<testcase name="a failed small candidate falls back immediately in the large-image lane" time="0.000143" classname="test"/>
+	<testcase name="visible demand overtakes preloads and disconnected rows are not requested" time="0.000192" classname="test"/>
+	<testcase name="direct inline image target is not transferred twice or erased by cache eviction" time="0.000111" classname="test"/>
+	<testcase name="a hover has a reserved slot even while body recovery occupies both large-image slots" time="0.000089" classname="test"/>
+	<testcase name="abandoned previews free their slot without spending the failure retry budget" time="0.000243" classname="test"/>
+	<testcase name="automatic rescue allows one fresh attempt and cannot loop after another failure" time="0.000220" classname="test"/>
+	<testcase name="[HOV-02] repeated successful reloads after cache eviction do not exhaust the failure budget" time="0.000456" classname="test"/>
+	<testcase name="[IMG-01] a supplied small image hands off to a large fallback with the full image deadline" time="0.000673" classname="test" failure="explicit small variants need no filename convention+ actual - expected+ 'large'- 'thumbnail'">
+		<failure type="testCodeFailure" message="explicit small variants need no filename convention+ actual - expected+ 'large'- 'thumbnail'">
+[Error [ERR_TEST_FAILURE]: explicit small variants need no filename convention
++ actual - expected
+
++ 'large'
+- 'thumbnail'
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: explicit small variants need no filename convention
+  + actual - expected
+  
+  + 'large'
+  - 'thumbnail'
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/core.test.mjs:191:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'large',
+    expected: 'thumbnail',
+    operator: 'strictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<!-- tests 21 -->
+	<!-- suites 0 -->
+	<!-- pass 20 -->
+	<!-- fail 1 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 377.751459 -->
+</testsuites>

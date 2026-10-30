@@ -1,0 +1,407 @@
+{
+  "before": {
+    "columns": [],
+    "errors": "",
+    "hash": "a9d9510c2bbb640cea7ab942cbda46ed76cfcb3d2d35ac21311f288abd57c7dc",
+    "headers": [
+      {
+        "client": 31,
+        "hidden": false,
+        "label": "",
+        "scroll": 31,
+        "span": 1,
+        "width": 31.328125
+      },
+      {
+        "client": 824,
+        "hidden": false,
+        "label": "Name",
+        "scroll": 824,
+        "span": 1,
+        "width": 823.609375
+      },
+      {
+        "client": 46,
+        "hidden": false,
+        "label": "Files",
+        "scroll": 46,
+        "span": 1,
+        "width": 45.9921875
+      },
+      {
+        "client": 60,
+        "hidden": false,
+        "label": "Comm",
+        "scroll": 60,
+        "span": 1,
+        "width": 60.3515625
+      },
+      {
+        "client": 73,
+        "hidden": false,
+        "label": "Time",
+        "scroll": 73,
+        "span": 1,
+        "width": 72.765625
+      },
+      {
+        "client": 60,
+        "hidden": false,
+        "label": "Size",
+        "scroll": 60,
+        "span": 1,
+        "width": 60.3125
+      },
+      {
+        "client": 23,
+        "hidden": false,
+        "label": "↻",
+        "scroll": 23,
+        "span": 1,
+        "width": 23.0859375
+      },
+      {
+        "client": 23,
+        "hidden": false,
+        "label": "↑",
+        "scroll": 23,
+        "span": 1,
+        "width": 22.734375
+      },
+      {
+        "client": 23,
+        "hidden": false,
+        "label": "↓",
+        "scroll": 23,
+        "span": 1,
+        "width": 22.734375
+      },
+      {
+        "client": 81,
+        "hidden": false,
+        "label": "Uploader",
+        "scroll": 81,
+        "span": 1,
+        "width": 81.0859375
+      }
+    ],
+    "minWidth": "",
+    "nameWidthAttribute": "100%",
+    "parentWidth": 1244,
+    "rows": 50,
+    "stable": false,
+    "tableWidth": 1244
+  },
+  "after": {
+    "columns": [
+      "31.33px",
+      "",
+      "45.99px",
+      "60.35px",
+      "72.77px",
+      "60.31px",
+      "23.09px",
+      "22.73px",
+      "22.73px",
+      "81.09px"
+    ],
+    "errors": "",
+    "hash": "a9d9510c2bbb640cea7ab942cbda46ed76cfcb3d2d35ac21311f288abd57c7dc",
+    "headers": [
+      {
+        "client": 31,
+        "hidden": false,
+        "label": "",
+        "scroll": 31,
+        "span": 1,
+        "width": 31.328125
+      },
+      {
+        "client": 824,
+        "hidden": false,
+        "label": "Name",
+        "scroll": 824,
+        "span": 1,
+        "width": 823.6484375
+      },
+      {
+        "client": 46,
+        "hidden": false,
+        "label": "Files",
+        "scroll": 46,
+        "span": 1,
+        "width": 45.984375
+      },
+      {
+        "client": 60,
+        "hidden": false,
+        "label": "Comm",
+        "scroll": 60,
+        "span": 1,
+        "width": 60.34375
+      },
+      {
+        "client": 73,
+        "hidden": false,
+        "label": "Time",
+        "scroll": 73,
+        "span": 1,
+        "width": 72.765625
+      },
+      {
+        "client": 60,
+        "hidden": false,
+        "label": "Size",
+        "scroll": 60,
+        "span": 1,
+        "width": 60.3046875
+      },
+      {
+        "client": 23,
+        "hidden": false,
+        "label": "↻",
+        "scroll": 23,
+        "span": 1,
+        "width": 23.0859375
+      },
+      {
+        "client": 23,
+        "hidden": false,
+        "label": "↑",
+        "scroll": 23,
+        "span": 1,
+        "width": 22.7265625
+      },
+      {
+        "client": 23,
+        "hidden": false,
+        "label": "↓",
+        "scroll": 23,
+        "span": 1,
+        "width": 22.7265625
+      },
+      {
+        "client": 81,
+        "hidden": false,
+        "label": "Uploader",
+        "scroll": 81,
+        "span": 1,
+        "width": 81.0859375
+      }
+    ],
+    "minWidth": "601px",
+    "nameWidthAttribute": "100%",
+    "parentWidth": 1244,
+    "rows": 295,
+    "stable": true,
+    "tableWidth": 1244
+  },
+  "narrow": {
+    "columns": [
+      "31.33px",
+      "",
+      "45.99px",
+      "60.35px",
+      "72.77px",
+      "60.31px",
+      "23.09px",
+      "22.73px",
+      "22.73px",
+      "81.09px"
+    ],
+    "errors": "",
+    "hash": "a9d9510c2bbb640cea7ab942cbda46ed76cfcb3d2d35ac21311f288abd57c7dc",
+    "headers": [
+      {
+        "client": 31,
+        "hidden": false,
+        "label": "",
+        "scroll": 31,
+        "span": 1,
+        "width": 31.328125
+      },
+      {
+        "client": 300,
+        "hidden": false,
+        "label": "Name",
+        "scroll": 300,
+        "span": 1,
+        "width": 299.6484375
+      },
+      {
+        "client": 46,
+        "hidden": false,
+        "label": "Files",
+        "scroll": 46,
+        "span": 1,
+        "width": 45.984375
+      },
+      {
+        "client": 60,
+        "hidden": false,
+        "label": "Comm",
+        "scroll": 60,
+        "span": 1,
+        "width": 60.34375
+      },
+      {
+        "client": 73,
+        "hidden": false,
+        "label": "Time",
+        "scroll": 73,
+        "span": 1,
+        "width": 72.765625
+      },
+      {
+        "client": 60,
+        "hidden": false,
+        "label": "Size",
+        "scroll": 60,
+        "span": 1,
+        "width": 60.3046875
+      },
+      {
+        "client": 23,
+        "hidden": false,
+        "label": "↻",
+        "scroll": 23,
+        "span": 1,
+        "width": 23.0859375
+      },
+      {
+        "client": 23,
+        "hidden": false,
+        "label": "↑",
+        "scroll": 23,
+        "span": 1,
+        "width": 22.7265625
+      },
+      {
+        "client": 23,
+        "hidden": false,
+        "label": "↓",
+        "scroll": 23,
+        "span": 1,
+        "width": 22.7265625
+      },
+      {
+        "client": 81,
+        "hidden": false,
+        "label": "Uploader",
+        "scroll": 81,
+        "span": 1,
+        "width": 81.0859375
+      }
+    ],
+    "minWidth": "601px",
+    "nameWidthAttribute": "100%",
+    "parentWidth": 720,
+    "rows": 295,
+    "stable": true,
+    "tableWidth": 720
+  },
+  "wide": {
+    "columns": [
+      "31.33px",
+      "",
+      "45.99px",
+      "60.35px",
+      "72.77px",
+      "60.31px",
+      "23.09px",
+      "22.73px",
+      "22.73px",
+      "81.09px"
+    ],
+    "errors": "",
+    "hash": "a9d9510c2bbb640cea7ab942cbda46ed76cfcb3d2d35ac21311f288abd57c7dc",
+    "headers": [
+      {
+        "client": 31,
+        "hidden": false,
+        "label": "",
+        "scroll": 31,
+        "span": 1,
+        "width": 31.328125
+      },
+      {
+        "client": 824,
+        "hidden": false,
+        "label": "Name",
+        "scroll": 824,
+        "span": 1,
+        "width": 823.6484375
+      },
+      {
+        "client": 46,
+        "hidden": false,
+        "label": "Files",
+        "scroll": 46,
+        "span": 1,
+        "width": 45.984375
+      },
+      {
+        "client": 60,
+        "hidden": false,
+        "label": "Comm",
+        "scroll": 60,
+        "span": 1,
+        "width": 60.34375
+      },
+      {
+        "client": 73,
+        "hidden": false,
+        "label": "Time",
+        "scroll": 73,
+        "span": 1,
+        "width": 72.765625
+      },
+      {
+        "client": 60,
+        "hidden": false,
+        "label": "Size",
+        "scroll": 60,
+        "span": 1,
+        "width": 60.3046875
+      },
+      {
+        "client": 23,
+        "hidden": false,
+        "label": "↻",
+        "scroll": 23,
+        "span": 1,
+        "width": 23.0859375
+      },
+      {
+        "client": 23,
+        "hidden": false,
+        "label": "↑",
+        "scroll": 23,
+        "span": 1,
+        "width": 22.7265625
+      },
+      {
+        "client": 23,
+        "hidden": false,
+        "label": "↓",
+        "scroll": 23,
+        "span": 1,
+        "width": 22.7265625
+      },
+      {
+        "client": 81,
+        "hidden": false,
+        "label": "Uploader",
+        "scroll": 81,
+        "span": 1,
+        "width": 81.0859375
+      }
+    ],
+    "minWidth": "601px",
+    "nameWidthAttribute": "100%",
+    "parentWidth": 1244,
+    "rows": 295,
+    "stable": true,
+    "tableWidth": 1244
+  }
+}

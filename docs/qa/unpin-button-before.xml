@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="[HOV-04] clicking the actual Unpin button does not bubble into re-pinning the enlargement" time="0.204525" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs" failure="Expected values to be strictly equal:&#10;&#10;'controls' !== 'zoom'&#10;">
+		<failure type="testCodeFailure" message="Expected values to be strictly equal:&#10;&#10;'controls' !== 'zoom'">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
+
+'controls' !== 'zoom'
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'controls' !== 'zoom'
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/acceptance.test.mjs:152:12)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'controls',
+    expected: 'zoom',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+}
+		</failure>
+	</testcase>
+	<!-- tests 1 -->
+	<!-- suites 0 -->
+	<!-- pass 0 -->
+	<!-- fail 1 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 437.447208 -->
+</testsuites>

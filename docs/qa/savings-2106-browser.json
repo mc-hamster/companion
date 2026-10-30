@@ -1,0 +1,75 @@
+{
+  "scope": "Native in-app Chromium; real IndexedDB; neutral local images and mock GM transport. Saved is reused payload size, not measured network traffic.",
+  "observations": [
+    {
+      "stage": "cold-load",
+      "card": "Image cache\nReset stats\nThumbnails\n16 · 7.9 KB\nPreviews\n0 · 0 B\n\n7.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tHit rate\tDownloads\tSaved\n5 min\t0\t4\t0%\t4\t0 B\n15 min\t0\t4\t0%\t4\t0 B\n1 hour\t0\t4\t0%\t4\t0 B\nAll history\t0\t4\t0%\t4\t0 B\n\nSaved estimates image data reused.",
+      "artifact": "80ddc03862828a83dabad3d474112d78749742912039baf4f64a736b0c9e524d"
+    },
+    {
+      "stage": "cache-reuse-after-refresh",
+      "card": "Image cache\nReset stats\nThumbnails\n16 · 7.9 KB\nPreviews\n0 · 0 B\n\n7.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tHit rate\tDownloads\tSaved\n5 min\t4\t4\t50%\t4\t2.0 KB\n15 min\t4\t4\t50%\t4\t2.0 KB\n1 hour\t4\t4\t50%\t4\t2.0 KB\nAll history\t4\t4\t50%\t4\t2.0 KB\n\nSaved estimates image data reused."
+    },
+    {
+      "stage": "360px-layout-and-next-page-reuse",
+      "card": "Image cache\nReset stats\nThumbnails\n16 · 7.9 KB\nPreviews\n0 · 0 B\n\n7.9 KB of 512 MB used\n\nPeriod\tHits\tMisses\tHit rate\tDownloads\tSaved\n5 min\t8\t4\t66.7%\t4\t3.9 KB\n15 min\t8\t4\t66.7%\t4\t3.9 KB\n1 hour\t8\t4\t66.7%\t4\t3.9 KB\nAll history\t8\t4\t66.7%\t4\t3.9 KB\n\nSaved estimates image data reused.",
+      "metrics": {
+        "cardClientWidth": 284,
+        "cardScrollWidth": 284,
+        "cardWidth": 286,
+        "headers": [
+          {
+            "height": 23,
+            "scrollWidth": 48,
+            "text": "Period",
+            "width": 48.234375
+          },
+          {
+            "height": 23,
+            "scrollWidth": 26,
+            "text": "Hits",
+            "width": 26.3125
+          },
+          {
+            "height": 23,
+            "scrollWidth": 42,
+            "text": "Misses",
+            "width": 41.9453125
+          },
+          {
+            "height": 23,
+            "scrollWidth": 45,
+            "text": "Hit rate",
+            "width": 45.0859375
+          },
+          {
+            "height": 23,
+            "scrollWidth": 64,
+            "text": "Downloads",
+            "width": 64.1328125
+          },
+          {
+            "height": 23,
+            "scrollWidth": 42,
+            "text": "Saved",
+            "width": 42.2890625
+          }
+        ],
+        "tableScrollWidth": 268,
+        "tableWidth": 268
+      }
+    },
+    {
+      "stage": "larger-preview-download-then-memory-reuse",
+      "card": "Image cache\nReset stats\nThumbnails\n16 · 7.9 KB\nPreviews\n1 · 509 B\n\n8.4 KB of 512 MB used\n\nPeriod\tHits\tMisses\tHit rate\tDownloads\tSaved\n5 min\t9\t5\t64.3%\t5\t4.4 KB\n15 min\t9\t5\t64.3%\t5\t4.4 KB\n1 hour\t9\t5\t64.3%\t5\t4.4 KB\nAll history\t9\t5\t64.3%\t5\t4.4 KB\n\nSaved estimates image data reused."
+    },
+    {
+      "stage": "reset-clears-savings-preserves-files",
+      "card": "Image cache\nReset stats\nThumbnails\n16 · 7.9 KB\nPreviews\n1 · 509 B\n\n8.4 KB of 512 MB used\n\nPeriod\tHits\tMisses\tHit rate\tDownloads\tSaved\n5 min\t0\t0\t—\t0\t0 B\n15 min\t0\t0\t—\t0\t0 B\n1 hour\t0\t0\t—\t0\t0 B\nAll history\t0\t0\t—\t0\t0 B\n\nSaved estimates image data reused."
+    },
+    {
+      "stage": "reset-notification-other-page",
+      "card": "Image cache\nReset stats\nThumbnails\n16 · 7.9 KB\nPreviews\n1 · 509 B\n\n8.4 KB of 512 MB used\n\nPeriod\tHits\tMisses\tHit rate\tDownloads\tSaved\n5 min\t0\t0\t—\t0\t0 B\n15 min\t0\t0\t—\t0\t0 B\n1 hour\t0\t0\t—\t0\t0 B\nAll history\t0\t0\t—\t0\t0 B\n\nSaved estimates image data reused."
+    }
+  ]
+}

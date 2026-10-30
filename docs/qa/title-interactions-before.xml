@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="[TITLE-01] title hover is a temporary site-style tooltip using the ready thumbnail, with ordinary link focus and clicks" time="0.159945" classname="test" failure="normal link focus must not open preview controlstrue !== false">
+		<failure type="testCodeFailure" message="normal link focus must not open preview controlstrue !== false">
+[Error [ERR_TEST_FAILURE]: normal link focus must not open preview controls
+
+true !== false
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: normal link focus must not open preview controls
+  
+  true !== false
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs:802:42)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:297:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="[TITLE-01] title-only layouts use the shared small-first loader and cancel abandoned work" time="0.054627" classname="test" failure="Expected values to be strictly equal:+ actual - expected+ 'controls'- 'tooltip'">
+		<failure type="testCodeFailure" message="Expected values to be strictly equal:+ actual - expected+ 'controls'- 'tooltip'">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
++ actual - expected
+
++ 'controls'
+- 'tooltip'
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'controls'
+  - 'tooltip'
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs:818:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'controls',
+    expected: 'tooltip',
+    operator: 'strictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="[TITLE-02] title links keep the native menu while title phrase filtering stays in Filters" time="0.172750" classname="test" failure="imported legacy title-menu preference must not hijack link actionstrue !== false">
+		<failure type="testCodeFailure" message="imported legacy title-menu preference must not hijack link actionstrue !== false">
+[Error [ERR_TEST_FAILURE]: imported legacy title-menu preference must not hijack link actions
+
+true !== false
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: imported legacy title-menu preference must not hijack link actions
+  
+  true !== false
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs:536:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:297:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<!-- tests 3 -->
+	<!-- suites 0 -->
+	<!-- pass 0 -->
+	<!-- fail 3 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 621.5545 -->
+</testsuites>

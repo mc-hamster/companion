@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="[CACHE-01] actual image bytes survive closing/reopening the database without expiry" time="0.006822" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-01] one network miss produces a reusable payload; subsequent navigation-style loads make no request" time="0.002068" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-02] LRU byte pressure removes oldest bytes, touches protect recent images and replacements do not inflate accounting" time="0.002986" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-02] concurrent tab-style writers preserve atomic byte/count totals" time="0.006158" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] clear invalidates in-flight generations and never accepts stale writes" time="0.012922" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] unavailable storage and permission/network failures fall back without breaking loading" time="0.000848" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-02] a quota failure prunes old data and retries once, then disables writes if quota remains exhausted" time="0.002203" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] cancellation ignores late transport callbacks and cache reads; unsafe/unknown destinations do not use privileged requests" time="0.057767" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-01] media pool stores only decoded successes and reads data URLs without re-training the host" time="0.024233" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] corrupted cached bytes are invalidated and a forced retry bypasses saved images" time="0.023754" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<!-- tests 10 -->
+	<!-- suites 0 -->
+	<!-- pass 10 -->
+	<!-- fail 0 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 558.071541 -->
+</testsuites>

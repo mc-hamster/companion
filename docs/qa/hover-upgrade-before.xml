@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="captures and restores complete search controls without hidden credentials" time="0.051713" classname="test"/>
+	<testcase name="saved searches migrate legacy format, rename, delete and undo" time="0.066907" classname="test"/>
+	<testcase name="imports validate before changes; toolkit and NSE settings have separate namespaces" time="0.041124" classname="test"/>
+	<testcase name="transaction rolls back a storage write failure" time="0.035869" classname="test"/>
+	<testcase name="unopened gallery remains unrequested and is prepared for lazy reveal" time="0.034423" classname="test"/>
+	<testcase name="already failed image recovers to legacy original and stale recovery cannot overwrite a new source" time="0.084183" classname="test"/>
+	<testcase name="a native image that stalls offscreen recovers when scrolled into view" time="0.054014" classname="test"/>
+	<testcase name="collage covers share the pool and follow a changed background source" time="0.089670" classname="test"/>
+	<testcase name="dynamic rows get one thumbnail and keyboard preview shares its transfer" time="0.164285" classname="test"/>
+	<testcase name="slow old preview cannot replace the next title or image" time="0.038630" classname="test"/>
+	<testcase name="pagination ignores typing, composition and modifiers" time="0.034191" classname="test"/>
+	<testcase name="preferences save automatically without navigation or a second Apply action" time="0.637184" classname="test"/>
+	<testcase name="old two-slot default migrates and small thumbnails are preferred for supported hosts" time="0.035825" classname="test"/>
+	<testcase name="pinning an in-flight preview hands off its subscription without restarting it" time="0.032456" classname="test"/>
+	<testcase name="invalid filter imports report plain filter terminology without leaking internal keys" time="0.034664" classname="test"/>
+	<testcase name="size changes keep loaded thumbnails and current transfers intact" time="0.682357" classname="test"/>
+	<testcase name="quick Save search names and deduplicates without opening the library" time="0.033129" classname="test"/>
+	<testcase name="saved search shortcuts stay visible outside all panels and do not use a dropdown or drawer" time="0.085255" classname="test"/>
+	<testcase name="a primary shortcut runs exactly the saved criteria without replacing an unsaved form draft" time="0.032690" classname="test"/>
+	<testcase name="saved shortcuts can run from pages with no torrent search form" time="0.057253" classname="test"/>
+	<testcase name="Edit search opens saved criteria in its row without changing context or the site form" time="0.037446" classname="test"/>
+	<testcase name="Add to search form visibly combines criteria without changing results until Search now" time="0.035197" classname="test"/>
+	<testcase name="the saved-search editor retains fields and values absent from the current site form" time="0.037434" classname="test"/>
+	<testcase name="Cancel and Escape discard only the editor draft and keep the Searches panel open" time="0.038983" classname="test"/>
+	<testcase name="invalid editor names and storage failures keep the draft and original search intact" time="0.036670" classname="test"/>
+	<testcase name="saving an editor preserves changes to other searches and rejects stale edits to the same search" time="0.037179" classname="test"/>
+	<testcase name="unrelated library redraws and panel switches keep the inline draft" time="0.034794" classname="test"/>
+	<testcase name="radio and multiselect criteria round-trip without losing types or saved options" time="0.033869" classname="test"/>
+	<testcase name="imports and changes from another tab update primary shortcuts, including the empty state" time="0.032322" classname="test"/>
+	<testcase name="thumbnail hover shows a preview while keeping its trigger clickable" time="0.045018" classname="test"/>
+	<testcase name="thumbnail hover immediately enlarges the usable thumbnail and requests its larger version without controls" time="0.046042" classname="test"/>
+	<testcase name="returning to the same thumbnail restores its usable image while a cancelled original reloads" time="0.066409" classname="test"/>
+	<testcase name="repeated hover returns retain the thumbnail without spending retries or adding page scans" time="0.149618" classname="test"/>
+	<testcase name="moving off an enlarged thumbnail dismisses it immediately even if the small button has focus" time="0.045094" classname="test"/>
+	<testcase name="the enlarged image can receive the pointer, dismiss on exit, and pin on click without restarting its request" time="0.054691" classname="test"/>
+	<testcase name="keyboard focus offers preview controls and touch uses click instead of hover enlargement" time="0.054945" classname="test"/>
+	<testcase name="pointer cancellation and leaving the browser dismiss transient enlargement without affecting pinned controls" time="0.057614" classname="test"/>
+	<testcase name="pointer movement outside both images clears a transient enlargement after pointer capture" time="0.043902" classname="test"/>
+	<testcase name="one automatic recovery pass repairs a failed thumbnail and an already-open preview" time="0.036351" classname="test"/>
+	<testcase name="turning hover off preserves thumbnails and still permits click-to-pin" time="0.242291" classname="test"/>
+	<testcase name="undoing preferences keeps searches saved after the automatic restore point" time="0.080341" classname="test"/>
+	<testcase name="filtered-out image failures do not ask for attention during ordinary browsing" time="0.033699" classname="test"/>
+	<testcase name="all 50 result thumbnails warm without scrolling or an IntersectionObserver" time="0.785031" classname="test"/>
+	<testcase name="current and nearby rows overtake distant preloads; hidden and detached rows stay unrequested" time="0.113573" classname="test"/>
+	<testcase name="page warming waits for filters and foreground visibility, then resumes the whole list" time="0.189664" classname="test"/>
+	<testcase name="rows added far below the fold warm automatically while an unopened gallery stays deferred" time="0.079360" classname="test"/>
+	<testcase name="[HOV-09] hover keeps the thumbnail through incomplete and failed larger loads and names the upgrade" time="0.032477" classname="test" failure="The input did not match the regular expression /Loading larger image/. Input:'Loading image…'">
+		<failure type="testCodeFailure" message="The input did not match the regular expression /Loading larger image/. Input:'Loading image…'">
+[Error [ERR_TEST_FAILURE]: The input did not match the regular expression /Loading larger image/. Input:
+
+'Loading image…'
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: The input did not match the regular expression /Loading larger image/. Input:
+  
+  'Loading image…'
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs:751:42)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'Loading image…',
+    expected: /Loading larger image/,
+    operator: 'match'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="[HOV-09] completed hover images are displayed from memory and stay usable through retry and cache reuse" time="0.034610" classname="test" failure="adopt the successful detached image instead of assigning its URL again+ actual - expected  HTMLImageElement {    decoding: 'async',-   fetchPriority: 'high',-   succeed: [Function (anonymous)]  }">
+		<failure type="testCodeFailure" message="adopt the successful detached image instead of assigning its URL again+ actual - expected  HTMLImageElement {    decoding: 'async',-   fetchPriority: 'high',-   succeed: [Function (anonymous)]  }">
+[Error [ERR_TEST_FAILURE]: adopt the successful detached image instead of assigning its URL again
++ actual - expected
+
+  HTMLImageElement {
+    decoding: 'async',
+-   fetchPriority: 'high',
+-   succeed: [Function (anonymous)]
+  }
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: adopt the successful detached image instead of assigning its URL again
+  + actual - expected
+  
+    HTMLImageElement {
+      decoding: 'async',
+  -   fetchPriority: 'high',
+  -   succeed: [Function (anonymous)]
+    }
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/app.test.mjs:772:48)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [HTMLImageElement],
+    expected: [HTMLImageElement],
+    operator: 'strictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<!-- tests 48 -->
+	<!-- suites 0 -->
+	<!-- pass 46 -->
+	<!-- fail 2 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 5219.125041 -->
+</testsuites>

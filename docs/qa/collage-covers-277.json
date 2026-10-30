@@ -1,0 +1,1360 @@
+{
+  "small": {
+    "covers": [
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-1.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 354.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-2.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 354.9921875,
+        "width": 192.3359375
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-3.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 354.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-4.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 354.9921875,
+        "width": 192.3359375
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-5.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 354.9921875,
+        "width": 192.3359375
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-6.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 354.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-7.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 637.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-8.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 637.9921875,
+        "width": 192.3359375
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-9.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 637.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-10.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 637.9921875,
+        "width": 192.3359375
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-11.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 637.9921875,
+        "width": 192.3359375
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-12.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 637.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-13.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 920.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-14.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 920.9921875,
+        "width": 192.3359375
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-15.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 920.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-16.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 920.9921875,
+        "width": 192.3359375
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-17.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 920.9921875,
+        "width": 192.3359375
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-18.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 920.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-19.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 1203.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-20.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 1203.9921875,
+        "width": 192.3359375
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-21.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 1203.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-22.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 1203.9921875,
+        "width": 192.3359375
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-23.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 1203.9921875,
+        "width": 192.3359375
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-24.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 1203.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-25.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 1486.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-26.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 1486.9921875,
+        "width": 192.3359375
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-27.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 1486.9921875,
+        "width": 192.328125
+      },
+      {
+        "background": "none",
+        "height": 194,
+        "img": "http://127.0.0.1:8765/qa-image/cov277-new1/small-28.svg",
+        "natural": 160,
+        "position": "absolute",
+        "top": 1486.9921875,
+        "width": 192.3359375
+      }
+    ],
+    "errors": "",
+    "metrics": {
+      "elapsed": "425",
+      "full": "0",
+      "scroll": "0",
+      "small": "28"
+    },
+    "requests": [
+      {
+        "duration": 64,
+        "ms": 106,
+        "path": "small-1.svg"
+      },
+      {
+        "duration": 64,
+        "ms": 106,
+        "path": "small-3.svg"
+      },
+      {
+        "duration": 64,
+        "ms": 106,
+        "path": "small-2.svg"
+      },
+      {
+        "duration": 64,
+        "ms": 107,
+        "path": "small-4.svg"
+      },
+      {
+        "duration": 64,
+        "ms": 107,
+        "path": "small-5.svg"
+      },
+      {
+        "duration": 126,
+        "ms": 169,
+        "path": "small-6.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 175,
+        "path": "small-7.svg"
+      },
+      {
+        "duration": 61,
+        "ms": 176,
+        "path": "small-8.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 177,
+        "path": "small-9.svg"
+      },
+      {
+        "duration": 61,
+        "ms": 177,
+        "path": "small-10.svg"
+      },
+      {
+        "duration": 114,
+        "ms": 230,
+        "path": "small-11.svg"
+      },
+      {
+        "duration": 67,
+        "ms": 237,
+        "path": "small-12.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 239,
+        "path": "small-13.svg"
+      },
+      {
+        "duration": 64,
+        "ms": 243,
+        "path": "small-14.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 243,
+        "path": "small-15.svg"
+      },
+      {
+        "duration": 112,
+        "ms": 293,
+        "path": "small-16.svg"
+      },
+      {
+        "duration": 66,
+        "ms": 299,
+        "path": "small-17.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 301,
+        "path": "small-18.svg"
+      },
+      {
+        "duration": 63,
+        "ms": 305,
+        "path": "small-19.svg"
+      },
+      {
+        "duration": 63,
+        "ms": 308,
+        "path": "small-20.svg"
+      },
+      {
+        "duration": 109,
+        "ms": 354,
+        "path": "small-21.svg"
+      },
+      {
+        "duration": 67,
+        "ms": 361,
+        "path": "small-22.svg"
+      },
+      {
+        "duration": 61,
+        "ms": 362,
+        "path": "small-23.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 365,
+        "path": "small-24.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 369,
+        "path": "small-25.svg"
+      },
+      {
+        "duration": 107,
+        "ms": 417,
+        "path": "small-26.svg"
+      },
+      {
+        "duration": 66,
+        "ms": 422,
+        "path": "small-27.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 425,
+        "path": "small-28.svg"
+      }
+    ]
+  },
+  "baseline": {
+    "cover": "url(\"http://127.0.0.1:8765/qa-image/cov277-old1/full-1.svg\")",
+    "errors": "",
+    "managed": 0,
+    "metrics": {
+      "elapsed": "0",
+      "full": "0",
+      "scroll": "0",
+      "small": "0"
+    },
+    "requests": [
+      {
+        "type": "image",
+        "path": "full-1.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-2.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-3.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-4.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-5.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-8.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-7.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-12.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-10.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-11.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-9.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-6.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-13.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-14.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-15.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-16.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-17.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-18.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-19.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-20.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-21.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-22.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-23.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-24.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-25.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-26.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-27.svg"
+      },
+      {
+        "type": "image",
+        "path": "full-28.svg"
+      }
+    ]
+  },
+  "geometryBefore": {
+    "symptom": "Native absolute cover in zero-size anchor; pointermove dismissed the loading preview",
+    "fixed": "Pointer containment and popup positioning use the cover rectangle"
+  },
+  "loading": {
+    "metrics": {
+      "elapsed": "405",
+      "full": "0",
+      "scroll": "0",
+      "small": "28"
+    },
+    "preview": {
+      "hidden": false,
+      "mode": "zoom",
+      "rect": {
+        "bottom": 636.6171875,
+        "height": 287.625,
+        "left": 12,
+        "right": 452,
+        "top": 348.9921875,
+        "width": 440,
+        "x": 12,
+        "y": 348.9921875
+      },
+      "src": "http://127.0.0.1:8765/qa-image/cov277-new2/small-1.svg",
+      "state": "loading",
+      "status": "Loading larger image…",
+      "width": 160
+    }
+  },
+  "ready": {
+    "hidden": false,
+    "src": "http://127.0.0.1:8765/qa-image/cov277-new2/full-1.svg",
+    "state": "ready",
+    "status": "",
+    "width": 960
+  },
+  "leave": {
+    "hidden": true,
+    "mode": "zoom"
+  },
+  "rehover": {
+    "hidden": false,
+    "state": "ready",
+    "width": 960
+  },
+  "moveOnto": {
+    "details": "http://127.0.0.1:8765/torrents.php?id=1",
+    "hidden": false,
+    "src": "http://127.0.0.1:8765/qa-image/cov277-new2/full-1.svg",
+    "state": "ready"
+  },
+  "successRequests": [
+    {
+      "type": "image",
+      "path": "small-1.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-2.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-3.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-4.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-5.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-6.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-7.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-8.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-9.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-10.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-11.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-12.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-13.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-14.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-15.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-16.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-17.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-18.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-19.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-20.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-21.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-22.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-23.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-24.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-25.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-26.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-27.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-28.svg"
+    },
+    {
+      "type": "image",
+      "path": "full-1.svg"
+    },
+    {
+      "type": "image",
+      "path": "full-2.svg"
+    }
+  ],
+  "navigation": {
+    "href": "http://127.0.0.1:8765/torrents.php?id=1"
+  },
+  "failed": {
+    "hidden": false,
+    "last": null,
+    "metrics": {
+      "elapsed": "293",
+      "full": "0",
+      "scroll": "0",
+      "small": "20"
+    },
+    "src": "http://127.0.0.1:8765/qa-image/cov277-fail-final/small-1.svg",
+    "state": "ready",
+    "status": "Larger image unavailable. Showing thumbnail.",
+    "width": 160
+  },
+  "revealed": {
+    "last": "http://127.0.0.1:8765/qa-image/cov277-fail-final/small-28.svg",
+    "metrics": {
+      "elapsed": "533",
+      "full": "0",
+      "scroll": "0",
+      "small": "28"
+    },
+    "natural": 160
+  },
+  "changed": {
+    "background": "url(\"/qa-image/cov277-fail-final/full-changed.svg\")",
+    "images": 1,
+    "source": "http://127.0.0.1:8765/qa-image/cov277-fail-final/small-changed.svg"
+  },
+  "removed": {
+    "cards": 27,
+    "first": "2",
+    "managed": 27
+  },
+  "disabled": {
+    "background": "url(\"http://127.0.0.1:8765/qa-image/cov277-fail-final/full-2.svg\")",
+    "gate": false,
+    "images": 0,
+    "position": "absolute"
+  },
+  "enabled": {
+    "background": "none",
+    "gate": true,
+    "images": 27,
+    "position": "absolute"
+  },
+  "hoverOff": {
+    "covers": 27,
+    "hidden": true
+  },
+  "hoverOn": {
+    "covers": 27,
+    "hidden": false,
+    "mode": "zoom"
+  },
+  "performance": {
+    "rows": 800,
+    "variant": "current",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+    "methods": {
+      "initial": {
+        "DOM observer callbacks": {
+          "calls": 865,
+          "ms": 7.2,
+          "maxMs": 6.5
+        },
+        "VersionGroups.refresh": {
+          "calls": 1,
+          "ms": 22.2,
+          "maxMs": 22.2
+        },
+        "CompanionApp.syncGridFilters": {
+          "calls": 1,
+          "ms": 29.4,
+          "maxMs": 29.4
+        },
+        "CompanionApp.ensureSavedSearchUI": {
+          "calls": 1,
+          "ms": 0.7,
+          "maxMs": 0.7
+        },
+        "PageMedia.prepareThumbnails": {
+          "calls": 4,
+          "ms": 0.2,
+          "maxMs": 0.1
+        },
+        "TagHighlights.refresh": {
+          "calls": 3,
+          "ms": 26.6,
+          "maxMs": 17
+        },
+        "PageMedia.scan": {
+          "calls": 3,
+          "ms": 25,
+          "maxMs": 15.7
+        },
+        "PreviewController.scan": {
+          "calls": 3,
+          "ms": 9.2,
+          "maxMs": 7.9
+        },
+        "Animation frame callbacks": {
+          "calls": 8,
+          "ms": 64.9,
+          "maxMs": 43.6
+        },
+        "CompanionApp.updateHealth": {
+          "calls": 2,
+          "ms": 0.2,
+          "maxMs": 0.1
+        }
+      },
+      "idle": {
+        "Animation frame callbacks": {
+          "calls": 2,
+          "ms": 0,
+          "maxMs": 0
+        }
+      },
+      "image-updates": {
+        "DOM observer callbacks": {
+          "calls": 60,
+          "ms": 0.9,
+          "maxMs": 0.1
+        },
+        "Animation frame callbacks": {
+          "calls": 122,
+          "ms": 3.6,
+          "maxMs": 0.2
+        },
+        "TagHighlights.refresh": {
+          "calls": 30,
+          "ms": 0,
+          "maxMs": 0
+        },
+        "PageMedia.scan": {
+          "calls": 30,
+          "ms": 0.9,
+          "maxMs": 0.1
+        },
+        "PreviewController.scan": {
+          "calls": 30,
+          "ms": 0.1,
+          "maxMs": 0.1
+        },
+        "CompanionApp.updateHealth": {
+          "calls": 30,
+          "ms": 1.5,
+          "maxMs": 0.1
+        }
+      },
+      "scroll": {
+        "Animation frame callbacks": {
+          "calls": 92,
+          "ms": 0.6,
+          "maxMs": 0.2
+        },
+        "PageMedia.prepareThumbnails": {
+          "calls": 30,
+          "ms": 0.2,
+          "maxMs": 0.1
+        }
+      },
+      "group-toggle": {
+        "PageMedia.prepareThumbnails": {
+          "calls": 5,
+          "ms": 0,
+          "maxMs": 0
+        },
+        "DOM observer callbacks": {
+          "calls": 20,
+          "ms": 0.2,
+          "maxMs": 0.1
+        },
+        "CompanionApp.updateHealth": {
+          "calls": 10,
+          "ms": 0.4,
+          "maxMs": 0.1
+        },
+        "Animation frame callbacks": {
+          "calls": 32,
+          "ms": 0.4,
+          "maxMs": 0.1
+        }
+      },
+      "tag-change": {
+        "TagHighlights.refresh": {
+          "calls": 6,
+          "ms": 13.3,
+          "maxMs": 2.6
+        },
+        "DOM observer callbacks": {
+          "calls": 6,
+          "ms": 0,
+          "maxMs": 0
+        },
+        "Animation frame callbacks": {
+          "calls": 14,
+          "ms": 0,
+          "maxMs": 0
+        }
+      },
+      "append-50": {
+        "DOM observer callbacks": {
+          "calls": 3,
+          "ms": 0.1,
+          "maxMs": 0.1
+        },
+        "CompanionApp.ensureSavedSearchUI": {
+          "calls": 1,
+          "ms": 0,
+          "maxMs": 0
+        },
+        "VersionGroups.refresh": {
+          "calls": 1,
+          "ms": 12.6,
+          "maxMs": 12.6
+        },
+        "CompanionApp.syncGridFilters": {
+          "calls": 1,
+          "ms": 18.1,
+          "maxMs": 18.1
+        },
+        "TagHighlights.refresh": {
+          "calls": 1,
+          "ms": 10.8,
+          "maxMs": 10.8
+        },
+        "PageMedia.prepareThumbnails": {
+          "calls": 1,
+          "ms": 0,
+          "maxMs": 0
+        },
+        "PageMedia.scan": {
+          "calls": 1,
+          "ms": 9.9,
+          "maxMs": 9.9
+        },
+        "PreviewController.scan": {
+          "calls": 1,
+          "ms": 1.7,
+          "maxMs": 1.7
+        },
+        "Animation frame callbacks": {
+          "calls": 4,
+          "ms": 50.8,
+          "maxMs": 50.7
+        },
+        "CompanionApp.updateHealth": {
+          "calls": 1,
+          "ms": 0.1,
+          "maxMs": 0.1
+        }
+      },
+      "idle-after": {
+        "Animation frame callbacks": {
+          "calls": 2,
+          "ms": 0,
+          "maxMs": 0
+        }
+      }
+    },
+    "phases": [
+      {
+        "phase": "idle",
+        "elapsedMs": 1058,
+        "longTasks": 0
+      },
+      {
+        "phase": "image-updates",
+        "elapsedMs": 559,
+        "longTasks": 0
+      },
+      {
+        "phase": "scroll",
+        "elapsedMs": 558,
+        "longTasks": 0
+      },
+      {
+        "phase": "group-toggle",
+        "elapsedMs": 309,
+        "longTasks": 0
+      },
+      {
+        "phase": "tag-change",
+        "elapsedMs": 174,
+        "longTasks": 0
+      },
+      {
+        "phase": "append-50",
+        "elapsedMs": 134,
+        "longTasks": 1
+      },
+      {
+        "phase": "idle-after",
+        "elapsedMs": 1057,
+        "longTasks": 0
+      }
+    ]
+  },
+  "finalSmall": {
+    "errors": "",
+    "lastWidth": 160,
+    "metrics": {
+      "elapsed": "401",
+      "full": "0",
+      "scroll": "0",
+      "small": "28"
+    },
+    "ready": 28,
+    "requests": [
+      {
+        "duration": 63,
+        "ms": 90,
+        "path": "small-1.svg"
+      },
+      {
+        "duration": 63,
+        "ms": 90,
+        "path": "small-2.svg"
+      },
+      {
+        "duration": 63,
+        "ms": 90,
+        "path": "small-3.svg"
+      },
+      {
+        "duration": 63,
+        "ms": 90,
+        "path": "small-4.svg"
+      },
+      {
+        "duration": 63,
+        "ms": 90,
+        "path": "small-5.svg"
+      },
+      {
+        "duration": 123,
+        "ms": 150,
+        "path": "small-6.svg"
+      },
+      {
+        "duration": 61,
+        "ms": 155,
+        "path": "small-7.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 157,
+        "path": "small-8.svg"
+      },
+      {
+        "duration": 61,
+        "ms": 157,
+        "path": "small-9.svg"
+      },
+      {
+        "duration": 61,
+        "ms": 157,
+        "path": "small-10.svg"
+      },
+      {
+        "duration": 116,
+        "ms": 213,
+        "path": "small-11.svg"
+      },
+      {
+        "duration": 64,
+        "ms": 216,
+        "path": "small-12.svg"
+      },
+      {
+        "duration": 61,
+        "ms": 219,
+        "path": "small-13.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 223,
+        "path": "small-14.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 223,
+        "path": "small-15.svg"
+      },
+      {
+        "duration": 114,
+        "ms": 275,
+        "path": "small-16.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 277,
+        "path": "small-17.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 279,
+        "path": "small-18.svg"
+      },
+      {
+        "duration": 63,
+        "ms": 285,
+        "path": "small-19.svg"
+      },
+      {
+        "duration": 62,
+        "ms": 288,
+        "path": "small-20.svg"
+      },
+      {
+        "duration": 110,
+        "ms": 336,
+        "path": "small-21.svg"
+      },
+      {
+        "duration": 61,
+        "ms": 338,
+        "path": "small-22.svg"
+      },
+      {
+        "duration": 61,
+        "ms": 340,
+        "path": "small-23.svg"
+      },
+      {
+        "duration": 65,
+        "ms": 347,
+        "path": "small-24.svg"
+      },
+      {
+        "duration": 63,
+        "ms": 349,
+        "path": "small-25.svg"
+      },
+      {
+        "duration": 107,
+        "ms": 398,
+        "path": "small-26.svg"
+      },
+      {
+        "duration": 61,
+        "ms": 399,
+        "path": "small-27.svg"
+      },
+      {
+        "duration": 61,
+        "ms": 401,
+        "path": "small-28.svg"
+      }
+    ]
+  },
+  "finalLoading": {
+    "hidden": false,
+    "src": "http://127.0.0.1:8765/qa-image/cov277-success-final/small-1.svg",
+    "state": "loading",
+    "status": "Loading larger image…",
+    "width": 160
+  },
+  "finalReady": {
+    "hidden": false,
+    "mode": "zoom",
+    "src": "http://127.0.0.1:8765/qa-image/cov277-success-final/full-1.svg",
+    "state": "ready",
+    "width": 960
+  },
+  "finalCycles": [
+    {
+      "dismissed": true,
+      "hidden": false,
+      "state": "ready",
+      "width": 960
+    },
+    {
+      "dismissed": true,
+      "hidden": false,
+      "state": "ready",
+      "width": 960
+    },
+    {
+      "dismissed": true,
+      "hidden": false,
+      "state": "ready",
+      "width": 960
+    },
+    {
+      "dismissed": true,
+      "hidden": false,
+      "state": "ready",
+      "width": 960
+    }
+  ],
+  "finalPin": {
+    "details": "http://127.0.0.1:8765/torrents.php?id=1",
+    "mode": "controls",
+    "pin": "true"
+  },
+  "finalRequests": [
+    {
+      "type": "image",
+      "path": "small-1.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-2.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-3.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-4.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-5.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-6.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-7.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-8.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-9.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-10.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-11.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-12.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-13.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-14.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-15.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-16.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-17.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-18.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-19.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-20.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-21.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-22.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-23.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-24.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-25.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-26.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-27.svg"
+    },
+    {
+      "type": "image",
+      "path": "small-28.svg"
+    },
+    {
+      "type": "image",
+      "path": "full-1.svg"
+    },
+    {
+      "type": "image",
+      "path": "full-2.svg"
+    }
+  ],
+  "finalNavigation": {
+    "href": "http://127.0.0.1:8765/torrents.php?id=1"
+  },
+  "listLoading": {
+    "hidden": false,
+    "mode": "zoom",
+    "status": "Loading larger image…",
+    "width": 160
+  },
+  "listTitle": {
+    "hidden": false,
+    "mode": "tooltip",
+    "width": 160
+  },
+  "listReturn": {
+    "hidden": false,
+    "mode": "zoom",
+    "status": "Loading larger image…",
+    "width": 160
+  },
+  "listReady": {
+    "hidden": false,
+    "mode": "zoom",
+    "state": "ready",
+    "width": 960
+  },
+  "artifact": {
+    "version": "2.7.7",
+    "sha256": "cfc674325cc9fb67da2e3dcb5da8cce4c4aca209e2437e35fb863d84c158baad"
+  },
+  "scope": "Native in-app Chromium with neutral local SVG responses and mock JSON-cloned GM persistence. Production markup inspected read-only; actual Chrome/Tampermonkey and Firefox unverified. Initial small/ready probes used earlier candidates; finalSmall/finalLoading/finalReady/finalCycles/finalPin/finalRequests/finalNavigation/failure/preferences/list/performance reflect final product paths. First original requested once across cached rehover; second cover request occurred during control/pointer transition."
+}

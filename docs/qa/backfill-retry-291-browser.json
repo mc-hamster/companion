@@ -1,0 +1,262 @@
+{
+  "version": "2.9.1",
+  "artifactSha": "08e54d7e7f1a2bdb226ca209cc4c1b9dfe29f7f580abafbf937244aac4482d62",
+  "environment": "Native in-app Chromium; neutral local six-page/260-row fixture; actual Chrome/Tampermonkey not connected. Original failure code unrecorded; comparison reproduces the symptom using injected503 responses.",
+  "evidence": [
+    {
+      "stage": "503 backoff after pages2/3",
+      "data": {
+        "button": "Stop backfill",
+        "included": [
+          "51-100",
+          "101-150"
+        ],
+        "rows": 150,
+        "sha": "08e54d7e7f1a2bdb226ca209cc4c1b9dfe29f7f580abafbf937244aac4482d62",
+        "status": "Page 4: The server returned HTTP 503. Retrying in 3s (attempt 2/3)."
+      }
+    },
+    {
+      "stage": "429 server-directed cooldown",
+      "data": {
+        "rows": 150,
+        "sha": "08e54d7e7f1a2bdb226ca209cc4c1b9dfe29f7f580abafbf937244aac4482d62",
+        "status": "Page 4: The server returned HTTP 429. Retrying in 13s (attempt 2/3)."
+      }
+    },
+    {
+      "stage": "503 recovery completed all260",
+      "data": {
+        "included": [
+          "51-100",
+          "101-150",
+          "151-200",
+          "201-250",
+          "251-260"
+        ],
+        "rows": 260,
+        "status": "210 results added from 5 pages · No more pages",
+        "unique": 260
+      }
+    },
+    {
+      "stage": "429 recovery completed all260",
+      "data": {
+        "rows": 260,
+        "status": "210 results added from 5 pages · No more pages"
+      }
+    },
+    {
+      "stage": "429 actual server request times",
+      "data": {
+        "pages": [
+          {
+            "type": "page",
+            "page": 1,
+            "attempt": 1,
+            "status": 200,
+            "at": 1793342517206
+          },
+          {
+            "type": "page",
+            "page": 2,
+            "attempt": 1,
+            "status": 200,
+            "at": 1793342517296
+          },
+          {
+            "type": "page",
+            "page": 3,
+            "attempt": 1,
+            "status": 200,
+            "at": 1793342518348
+          },
+          {
+            "type": "page",
+            "page": 4,
+            "attempt": 1,
+            "status": 429,
+            "at": 1793342519393
+          },
+          {
+            "type": "page",
+            "page": 4,
+            "attempt": 2,
+            "status": 200,
+            "at": 1793342531894
+          },
+          {
+            "type": "page",
+            "page": 5,
+            "attempt": 1,
+            "status": 200,
+            "at": 1793342532934
+          },
+          {
+            "type": "page",
+            "page": 6,
+            "attempt": 1,
+            "status": 200,
+            "at": 1793342533982
+          }
+        ],
+        "intervals": [
+          90,
+          1052,
+          1045,
+          12501,
+          1040,
+          1048
+        ]
+      }
+    },
+    {
+      "stage": "503 actual server request times",
+      "data": {
+        "pages": [
+          {
+            "type": "page",
+            "page": 1,
+            "attempt": 1,
+            "status": 200,
+            "at": 1793342513509
+          },
+          {
+            "type": "page",
+            "page": 2,
+            "attempt": 1,
+            "status": 200,
+            "at": 1793342513601
+          },
+          {
+            "type": "page",
+            "page": 3,
+            "attempt": 1,
+            "status": 200,
+            "at": 1793342514652
+          },
+          {
+            "type": "page",
+            "page": 4,
+            "attempt": 1,
+            "status": 503,
+            "at": 1793342515686
+          },
+          {
+            "type": "page",
+            "page": 4,
+            "attempt": 2,
+            "status": 503,
+            "at": 1793342517991
+          },
+          {
+            "type": "page",
+            "page": 4,
+            "attempt": 3,
+            "status": 200,
+            "at": 1793342522299
+          },
+          {
+            "type": "page",
+            "page": 5,
+            "attempt": 1,
+            "status": 200,
+            "at": 1793342523332
+          },
+          {
+            "type": "page",
+            "page": 6,
+            "attempt": 1,
+            "status": 200,
+            "at": 1793342524374
+          }
+        ],
+        "intervals": [
+          92,
+          1051,
+          1034,
+          2305,
+          4308,
+          1033,
+          1042
+        ]
+      }
+    },
+    {
+      "stage": "Permanent error shown with inspection link",
+      "data": {
+        "button": "Backfill results",
+        "link": "http://127.0.0.1:8765/torrents.php?fail403=1&native-pager=1&page=4&qa=retry291-permanent&welcome=1",
+        "rows": 150,
+        "status": "2 pages kept. Could not load page 4: The server returned HTTP 403. Try Backfill results again. Open page 4"
+      }
+    },
+    {
+      "stage": "Stop during retry delay",
+      "data": {
+        "buttonDisabled": true,
+        "rows": 150,
+        "status": "Backfill stopped. Loaded results are kept."
+      }
+    },
+    {
+      "stage": "Stopped retry remains stopped",
+      "data": {
+        "rows": 150,
+        "status": "Backfill stopped. Loaded results are kept."
+      }
+    },
+    {
+      "stage": "No new requests after Stop",
+      "data": {
+        "pages": [
+          {
+            "type": "page",
+            "page": 1,
+            "attempt": 1,
+            "status": 200,
+            "at": 1793342764746
+          },
+          {
+            "type": "page",
+            "page": 2,
+            "attempt": 1,
+            "status": 200,
+            "at": 1793342764833
+          },
+          {
+            "type": "page",
+            "page": 3,
+            "attempt": 1,
+            "status": 200,
+            "at": 1793342765889
+          },
+          {
+            "type": "page",
+            "page": 4,
+            "attempt": 1,
+            "status": 503,
+            "at": 1793342766923
+          }
+        ],
+        "intervals": [
+          87,
+          1056,
+          1034
+        ]
+      }
+    },
+    {
+      "stage": "Old2.9.0 reproduces the partial pager and generic error",
+      "data": {
+        "included": [
+          "51-100",
+          "101-150"
+        ],
+        "rows": 150,
+        "sha": "9f84211b194c7e67e043917b6939bb63e2c8d95f891fa32e7ac91affcb9583ba",
+        "status": "2 pages kept. Could not load page 4. Try Backfill results again."
+      }
+    }
+  ]
+}

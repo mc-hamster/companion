@@ -1,0 +1,1337 @@
+{
+  "artifact": "22097468c5deb84684864396da9aa73c04e38d8c26bbdda31288b512c28d41f3",
+  "before": {
+    "nseFilterAllButtonEnabled": true,
+    "nseIndividualUploadHidingBlacklist": [],
+    "nseWhitelist": "",
+    "nseHardPassTaglist": "",
+    "nseEmojiEnabled": true,
+    "nseHideSeedingEnabled": false,
+    "ep.mediaRevision": 2,
+    "nseHardPassEnabled": false,
+    "nseTaglist": "",
+    "nseHideLeechingEnabled": false,
+    "nseObliviousModeEnabled": false,
+    "nseUpdateToastsEnabled": true,
+    "nseBlacklistColor": "#F00",
+    "nseHardPassColor": "#A00",
+    "nseRussianRouletteEnabled": false,
+    "nseTextAreaFont": "Monospace",
+    "ep.preferenceUndo": {
+      "time": 1792474504872,
+      "settings": {
+        "enabled": true,
+        "previews": true,
+        "inlineThumbnails": true,
+        "thumbnailPlacement": "title",
+        "categoryDisplay": "keep",
+        "thumbnailMode": "auto",
+        "thumbnailSize": 88,
+        "previewWidth": 440,
+        "hoverDelay": 140,
+        "hideDelay": 240,
+        "concurrency": 6,
+        "maxRetries": 2,
+        "stallMs": 1000,
+        "timeoutMs": 4000,
+        "thumbnailTimeoutMs": 1500,
+        "cacheEntries": 24,
+        "cacheMegapixels": 48,
+        "preloadScreens": 0.8,
+        "recoverImages": true,
+        "recoverBackgrounds": true,
+        "legacyFallback": true,
+        "prepareGalleries": true,
+        "reserveImageSpace": true,
+        "compactBodyImages": false,
+        "progressBar": true,
+        "globalArrowNavigation": false,
+        "navigationScope": "off",
+        "diagnostics": false,
+        "backfillEnabled": true,
+        "backfillPages": 5,
+        "groupVersions": true,
+        "favoriteTags": "panorama",
+        "cautionTags": "handheld"
+      },
+      "nse": {
+        "nseFilterAllButtonEnabled": true,
+        "nseIndividualUploadHidingBlacklist": [],
+        "nseWhitelist": "",
+        "nseHardPassTaglist": "",
+        "nseEmojiEnabled": true,
+        "nseHideSeedingEnabled": false,
+        "nseHardPassEnabled": false,
+        "nseTaglist": "",
+        "nseHideLeechingEnabled": false,
+        "nseObliviousModeEnabled": false,
+        "nseUpdateToastsEnabled": true,
+        "nseBlacklistColor": "#F00",
+        "nseHardPassColor": "#A00",
+        "nseRussianRouletteEnabled": false,
+        "nseTextAreaFont": "Monospace",
+        "nseRCMTitlesEnabled": true,
+        "nseHideUnseededEnabled": false,
+        "nseUploaders": "",
+        "nseBypassWhitelistsEnabled": false,
+        "nseHideSnatchedEnabled": false,
+        "nseIndividualUploadHidingEnabled": true,
+        "nseArrowNavigationEnabled": false,
+        "nseWhitelistTitles": "",
+        "nseHideGrabbedEnabled": false,
+        "nseWhitelistUploaders": "",
+        "nseUIFont": "Helvetica",
+        "nseBackfillButtonEnabled": true,
+        "nseHideReportedEnabled": false,
+        "nseOpenAllGoNextEnabled": false,
+        "nseOpenAllButtonEnabled": true,
+        "nseCustomCSS": "/* With great power comes great responsibility */",
+        "nseHideBookmarkedEnabled": false,
+        "nseWhitelistColor": "#0F0",
+        "nseRCMTagsEnabled": true,
+        "nseBackfillPageLimit": 5,
+        "nseRightClickManagementEnabled": true,
+        "nseCustomTheme": {
+          "backgroundColor": "#fff",
+          "backgroundHighlightColor": "#cfe7ff",
+          "foregroundColor": "#000",
+          "accentColor": "#0af",
+          "highlightColor": "#0071b0",
+          "hiddenBackgroundColor": "#aaf"
+        },
+        "nseHideCategoryIconsEnabled": false,
+        "nseRemoveHardPassResults": false,
+        "nseScrollToNSEEnabled": false,
+        "nseSelectedTheme": "nseThemeDarkPurple",
+        "nseFloatingToggleButtonEnabled": true,
+        "nseIndividualUploadHidingWhitelist": [
+          "127"
+        ],
+        "nseHardPassTitles": "",
+        "nseCustomCSSEnabled": false,
+        "nseTimeout": 1500,
+        "nseRCMUploadersEnabled": true,
+        "nseHideWarnedEnabled": false,
+        "nseBlacklistTitles": "",
+        "nseHideAnonUploadsEnabled": false,
+        "nseRenumberTorrentsEnabled": true,
+        "nseSavedVersion": 20802
+      }
+    },
+    "nseRCMTitlesEnabled": true,
+    "nseHideUnseededEnabled": false,
+    "nseUploaders": "",
+    "nseBypassWhitelistsEnabled": false,
+    "nseHideSnatchedEnabled": false,
+    "nseIndividualUploadHidingEnabled": true,
+    "nseArrowNavigationEnabled": false,
+    "nseWhitelistTitles": "",
+    "nseHideGrabbedEnabled": false,
+    "ep.settings": {
+      "enabled": true,
+      "previews": true,
+      "inlineThumbnails": true,
+      "thumbnailPlacement": "title",
+      "categoryDisplay": "keep",
+      "thumbnailMode": "auto",
+      "thumbnailSize": 88,
+      "previewWidth": 440,
+      "hoverDelay": 140,
+      "hideDelay": 240,
+      "concurrency": 6,
+      "maxRetries": 2,
+      "stallMs": 1000,
+      "timeoutMs": 4000,
+      "thumbnailTimeoutMs": 1500,
+      "cacheEntries": 24,
+      "cacheMegapixels": 48,
+      "preloadScreens": 0.8,
+      "recoverImages": true,
+      "recoverBackgrounds": true,
+      "legacyFallback": true,
+      "prepareGalleries": true,
+      "reserveImageSpace": true,
+      "compactBodyImages": false,
+      "progressBar": true,
+      "globalArrowNavigation": false,
+      "navigationScope": "off",
+      "diagnostics": false,
+      "backfillEnabled": true,
+      "backfillPages": 5,
+      "groupVersions": true,
+      "favoriteTags": "",
+      "cautionTags": "handheld"
+    },
+    "nseWhitelistUploaders": "",
+    "nseUIFont": "Helvetica",
+    "nseBackfillButtonEnabled": true,
+    "nseHideReportedEnabled": false,
+    "nseOpenAllGoNextEnabled": false,
+    "nseOpenAllButtonEnabled": true,
+    "nseCustomCSS": "/* With great power comes great responsibility */",
+    "nseHideBookmarkedEnabled": false,
+    "nseWhitelistColor": "#0F0",
+    "nseRCMTagsEnabled": true,
+    "nseBackfillPageLimit": 5,
+    "nseRightClickManagementEnabled": true,
+    "nseCustomTheme": {
+      "backgroundColor": "#fff",
+      "backgroundHighlightColor": "#cfe7ff",
+      "foregroundColor": "#000",
+      "accentColor": "#0af",
+      "highlightColor": "#0071b0",
+      "hiddenBackgroundColor": "#aaf"
+    },
+    "nseHideCategoryIconsEnabled": false,
+    "nseRemoveHardPassResults": false,
+    "nseScrollToNSEEnabled": false,
+    "nseSelectedTheme": "nseThemeDarkPurple",
+    "nseFloatingToggleButtonEnabled": true,
+    "nseIndividualUploadHidingWhitelist": [
+      "127"
+    ],
+    "nseHardPassTitles": "",
+    "nseCustomCSSEnabled": false,
+    "nseTimeout": 1500,
+    "nseRCMUploadersEnabled": true,
+    "nseHideWarnedEnabled": false,
+    "ep.searchDrawerOpen": false,
+    "nseBlacklistTitles": "",
+    "nseHideAnonUploadsEnabled": false,
+    "nseRenumberTorrentsEnabled": true,
+    "nseSavedVersion": 20802,
+    "ep.searches": [
+      {
+        "id": "landscape",
+        "title": "Cross-tab scenic",
+        "date": "",
+        "fields": [
+          {
+            "name": "taglist",
+            "value": "verified scenic tags",
+            "type": "textarea",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[1]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          }
+        ]
+      },
+      {
+        "id": "e22e35a8-992f-45d0-8649-8d88db58c371",
+        "title": "Complete criteria",
+        "date": "2026-10-20T05:16:14.952Z",
+        "fields": [
+          {
+            "name": "searchtext",
+            "value": "Complete criteria",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "title",
+            "value": "Valley",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "sizeall",
+            "value": "2.5",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "sizerange",
+            "value": "",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "filelist",
+            "value": "movie.mp4",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "taglist",
+            "value": "morning landscape",
+            "type": "textarea",
+            "checked": false
+          },
+          {
+            "name": "sizetype",
+            "value": "gb",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "order_by",
+            "value": "size",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "order_way",
+            "value": "asc",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[1]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[2]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          },
+          {
+            "name": "filter_freeleech",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          },
+          {
+            "name": "limit_matches",
+            "value": "1",
+            "type": "checkbox",
+            "checked": false
+          }
+        ]
+      },
+      {
+        "id": "53865f49-d596-4951-98bd-79118c444557",
+        "title": "Peer record",
+        "date": "2026-10-20T05:18:44.667Z",
+        "fields": [
+          {
+            "name": "searchtext",
+            "value": "Peer record",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "title",
+            "value": "Valley",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "sizeall",
+            "value": "2.5",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "sizerange",
+            "value": "",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "filelist",
+            "value": "movie.mp4",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "taglist",
+            "value": "peer.new",
+            "type": "textarea",
+            "checked": false
+          },
+          {
+            "name": "sizetype",
+            "value": "gb",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "order_by",
+            "value": "size",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "order_way",
+            "value": "asc",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[1]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[2]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          },
+          {
+            "name": "filter_freeleech",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          },
+          {
+            "name": "limit_matches",
+            "value": "1",
+            "type": "checkbox",
+            "checked": false
+          }
+        ]
+      },
+      {
+        "id": "758b73d9-227c-41ff-b766-0055f644606c",
+        "title": "Peer second record",
+        "date": "2026-10-20T05:28:02.368Z",
+        "fields": [
+          {
+            "name": "searchtext",
+            "value": "Peer second record",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "title",
+            "value": "Valley",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "sizeall",
+            "value": "2.5",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "sizerange",
+            "value": "",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "filelist",
+            "value": "movie.mp4",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "taglist",
+            "value": "peer.extra",
+            "type": "textarea",
+            "checked": false
+          },
+          {
+            "name": "sizetype",
+            "value": "gb",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "order_by",
+            "value": "size",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "order_way",
+            "value": "asc",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[1]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[2]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          },
+          {
+            "name": "filter_freeleech",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          },
+          {
+            "name": "limit_matches",
+            "value": "1",
+            "type": "checkbox",
+            "checked": false
+          }
+        ]
+      }
+    ]
+  },
+  "after": {
+    "nseFilterAllButtonEnabled": true,
+    "nseIndividualUploadHidingBlacklist": [],
+    "nseWhitelist": "",
+    "nseHardPassTaglist": "",
+    "nseEmojiEnabled": true,
+    "nseHideSeedingEnabled": false,
+    "ep.mediaRevision": 2,
+    "nseHardPassEnabled": false,
+    "nseTaglist": "",
+    "nseHideLeechingEnabled": false,
+    "nseObliviousModeEnabled": false,
+    "nseUpdateToastsEnabled": true,
+    "nseBlacklistColor": "#F00",
+    "nseHardPassColor": "#A00",
+    "nseRussianRouletteEnabled": false,
+    "nseTextAreaFont": "Monospace",
+    "ep.preferenceUndo": {
+      "time": 1792474543684,
+      "settings": {
+        "enabled": true,
+        "previews": true,
+        "inlineThumbnails": true,
+        "thumbnailPlacement": "title",
+        "categoryDisplay": "keep",
+        "thumbnailMode": "auto",
+        "thumbnailSize": 88,
+        "previewWidth": 440,
+        "hoverDelay": 140,
+        "hideDelay": 240,
+        "concurrency": 6,
+        "maxRetries": 2,
+        "stallMs": 1000,
+        "timeoutMs": 4000,
+        "thumbnailTimeoutMs": 1500,
+        "cacheEntries": 24,
+        "cacheMegapixels": 48,
+        "preloadScreens": 0.8,
+        "recoverImages": true,
+        "recoverBackgrounds": true,
+        "legacyFallback": true,
+        "prepareGalleries": true,
+        "reserveImageSpace": true,
+        "compactBodyImages": false,
+        "progressBar": true,
+        "globalArrowNavigation": false,
+        "navigationScope": "off",
+        "diagnostics": false,
+        "backfillEnabled": true,
+        "backfillPages": 5,
+        "groupVersions": true,
+        "favoriteTags": "",
+        "cautionTags": "handheld"
+      },
+      "nse": {
+        "nseFilterAllButtonEnabled": true,
+        "nseIndividualUploadHidingBlacklist": [],
+        "nseWhitelist": "",
+        "nseHardPassTaglist": "",
+        "nseEmojiEnabled": true,
+        "nseHideSeedingEnabled": false,
+        "nseHardPassEnabled": false,
+        "nseTaglist": "",
+        "nseHideLeechingEnabled": false,
+        "nseObliviousModeEnabled": false,
+        "nseUpdateToastsEnabled": true,
+        "nseBlacklistColor": "#F00",
+        "nseHardPassColor": "#A00",
+        "nseRussianRouletteEnabled": false,
+        "nseTextAreaFont": "Monospace",
+        "nseRCMTitlesEnabled": true,
+        "nseHideUnseededEnabled": false,
+        "nseUploaders": "",
+        "nseBypassWhitelistsEnabled": false,
+        "nseHideSnatchedEnabled": false,
+        "nseIndividualUploadHidingEnabled": true,
+        "nseArrowNavigationEnabled": false,
+        "nseWhitelistTitles": "",
+        "nseHideGrabbedEnabled": false,
+        "nseWhitelistUploaders": "",
+        "nseUIFont": "Helvetica",
+        "nseBackfillButtonEnabled": true,
+        "nseHideReportedEnabled": false,
+        "nseOpenAllGoNextEnabled": false,
+        "nseOpenAllButtonEnabled": true,
+        "nseCustomCSS": "/* With great power comes great responsibility */",
+        "nseHideBookmarkedEnabled": false,
+        "nseWhitelistColor": "#0F0",
+        "nseRCMTagsEnabled": true,
+        "nseBackfillPageLimit": 5,
+        "nseRightClickManagementEnabled": true,
+        "nseCustomTheme": {
+          "backgroundColor": "#fff",
+          "backgroundHighlightColor": "#cfe7ff",
+          "foregroundColor": "#000",
+          "accentColor": "#0af",
+          "highlightColor": "#0071b0",
+          "hiddenBackgroundColor": "#aaf"
+        },
+        "nseHideCategoryIconsEnabled": false,
+        "nseRemoveHardPassResults": false,
+        "nseScrollToNSEEnabled": false,
+        "nseSelectedTheme": "nseThemeDarkPurple",
+        "nseFloatingToggleButtonEnabled": true,
+        "nseIndividualUploadHidingWhitelist": [
+          "127"
+        ],
+        "nseHardPassTitles": "",
+        "nseCustomCSSEnabled": false,
+        "nseTimeout": 1500,
+        "nseRCMUploadersEnabled": true,
+        "nseHideWarnedEnabled": false,
+        "nseBlacklistTitles": "",
+        "nseHideAnonUploadsEnabled": false,
+        "nseRenumberTorrentsEnabled": true,
+        "nseSavedVersion": 20802
+      }
+    },
+    "nseRCMTitlesEnabled": true,
+    "nseHideUnseededEnabled": false,
+    "nseUploaders": "",
+    "nseBypassWhitelistsEnabled": false,
+    "nseHideSnatchedEnabled": false,
+    "nseIndividualUploadHidingEnabled": true,
+    "nseArrowNavigationEnabled": false,
+    "nseWhitelistTitles": "",
+    "nseHideGrabbedEnabled": false,
+    "ep.settings": {
+      "enabled": true,
+      "previews": true,
+      "inlineThumbnails": true,
+      "thumbnailPlacement": "title",
+      "categoryDisplay": "keep",
+      "thumbnailMode": "auto",
+      "thumbnailSize": 88,
+      "previewWidth": 440,
+      "hoverDelay": 140,
+      "hideDelay": 240,
+      "concurrency": 6,
+      "maxRetries": 2,
+      "stallMs": 1000,
+      "timeoutMs": 4000,
+      "thumbnailTimeoutMs": 1500,
+      "cacheEntries": 24,
+      "cacheMegapixels": 48,
+      "preloadScreens": 0.8,
+      "recoverImages": true,
+      "recoverBackgrounds": true,
+      "legacyFallback": true,
+      "prepareGalleries": true,
+      "reserveImageSpace": true,
+      "compactBodyImages": false,
+      "progressBar": true,
+      "globalArrowNavigation": false,
+      "navigationScope": "off",
+      "diagnostics": false,
+      "backfillEnabled": true,
+      "backfillPages": 5,
+      "groupVersions": true,
+      "favoriteTags": "",
+      "cautionTags": "handheld"
+    },
+    "nseWhitelistUploaders": "",
+    "nseUIFont": "Helvetica",
+    "nseBackfillButtonEnabled": true,
+    "nseHideReportedEnabled": false,
+    "nseOpenAllGoNextEnabled": false,
+    "nseOpenAllButtonEnabled": true,
+    "nseCustomCSS": "/* With great power comes great responsibility */",
+    "nseHideBookmarkedEnabled": false,
+    "nseWhitelistColor": "#0F0",
+    "nseRCMTagsEnabled": true,
+    "nseBackfillPageLimit": 5,
+    "nseRightClickManagementEnabled": true,
+    "nseCustomTheme": {
+      "backgroundColor": "#fff",
+      "backgroundHighlightColor": "#cfe7ff",
+      "foregroundColor": "#000",
+      "accentColor": "#0af",
+      "highlightColor": "#0071b0",
+      "hiddenBackgroundColor": "#aaf"
+    },
+    "nseHideCategoryIconsEnabled": false,
+    "nseRemoveHardPassResults": false,
+    "nseScrollToNSEEnabled": false,
+    "nseSelectedTheme": "nseThemeDarkPurple",
+    "nseFloatingToggleButtonEnabled": true,
+    "nseIndividualUploadHidingWhitelist": [
+      "127"
+    ],
+    "nseHardPassTitles": "",
+    "nseCustomCSSEnabled": false,
+    "ep.previousImport": {
+      "format": "empornium-companion",
+      "version": 1,
+      "createdAt": "2026-10-20T05:35:44.424Z",
+      "settings": {
+        "enabled": true,
+        "previews": true,
+        "inlineThumbnails": true,
+        "thumbnailPlacement": "title",
+        "categoryDisplay": "keep",
+        "thumbnailMode": "auto",
+        "thumbnailSize": 112,
+        "previewWidth": 440,
+        "hoverDelay": 140,
+        "hideDelay": 240,
+        "concurrency": 6,
+        "maxRetries": 2,
+        "stallMs": 1000,
+        "timeoutMs": 4000,
+        "thumbnailTimeoutMs": 1500,
+        "cacheEntries": 24,
+        "cacheMegapixels": 48,
+        "preloadScreens": 0.8,
+        "recoverImages": true,
+        "recoverBackgrounds": true,
+        "legacyFallback": true,
+        "prepareGalleries": true,
+        "reserveImageSpace": true,
+        "compactBodyImages": false,
+        "progressBar": true,
+        "globalArrowNavigation": false,
+        "navigationScope": "off",
+        "diagnostics": false,
+        "backfillEnabled": true,
+        "backfillPages": 5,
+        "groupVersions": true,
+        "favoriteTags": "",
+        "cautionTags": "handheld"
+      },
+      "searches": [
+        {
+          "id": "landscape",
+          "title": "Cross-tab scenic",
+          "date": "",
+          "fields": [
+            {
+              "name": "taglist",
+              "value": "verified scenic tags",
+              "type": "textarea",
+              "checked": false
+            },
+            {
+              "name": "filter_cat[1]",
+              "value": "1",
+              "type": "checkbox",
+              "checked": true
+            }
+          ]
+        },
+        {
+          "id": "e22e35a8-992f-45d0-8649-8d88db58c371",
+          "title": "Complete criteria",
+          "date": "2026-10-20T05:16:14.952Z",
+          "fields": [
+            {
+              "name": "searchtext",
+              "value": "Complete criteria",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "title",
+              "value": "Valley",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "sizeall",
+              "value": "2.5",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "sizerange",
+              "value": "",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "filelist",
+              "value": "movie.mp4",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "taglist",
+              "value": "morning landscape",
+              "type": "textarea",
+              "checked": false
+            },
+            {
+              "name": "sizetype",
+              "value": "gb",
+              "type": "select-one",
+              "checked": false
+            },
+            {
+              "name": "order_by",
+              "value": "size",
+              "type": "select-one",
+              "checked": false
+            },
+            {
+              "name": "order_way",
+              "value": "asc",
+              "type": "select-one",
+              "checked": false
+            },
+            {
+              "name": "filter_cat[1]",
+              "value": "1",
+              "type": "checkbox",
+              "checked": false
+            },
+            {
+              "name": "filter_cat[2]",
+              "value": "1",
+              "type": "checkbox",
+              "checked": true
+            },
+            {
+              "name": "filter_freeleech",
+              "value": "1",
+              "type": "checkbox",
+              "checked": true
+            },
+            {
+              "name": "limit_matches",
+              "value": "1",
+              "type": "checkbox",
+              "checked": false
+            }
+          ]
+        },
+        {
+          "id": "53865f49-d596-4951-98bd-79118c444557",
+          "title": "Peer record",
+          "date": "2026-10-20T05:18:44.667Z",
+          "fields": [
+            {
+              "name": "searchtext",
+              "value": "Peer record",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "title",
+              "value": "Valley",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "sizeall",
+              "value": "2.5",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "sizerange",
+              "value": "",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "filelist",
+              "value": "movie.mp4",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "taglist",
+              "value": "peer.new",
+              "type": "textarea",
+              "checked": false
+            },
+            {
+              "name": "sizetype",
+              "value": "gb",
+              "type": "select-one",
+              "checked": false
+            },
+            {
+              "name": "order_by",
+              "value": "size",
+              "type": "select-one",
+              "checked": false
+            },
+            {
+              "name": "order_way",
+              "value": "asc",
+              "type": "select-one",
+              "checked": false
+            },
+            {
+              "name": "filter_cat[1]",
+              "value": "1",
+              "type": "checkbox",
+              "checked": false
+            },
+            {
+              "name": "filter_cat[2]",
+              "value": "1",
+              "type": "checkbox",
+              "checked": true
+            },
+            {
+              "name": "filter_freeleech",
+              "value": "1",
+              "type": "checkbox",
+              "checked": true
+            },
+            {
+              "name": "limit_matches",
+              "value": "1",
+              "type": "checkbox",
+              "checked": false
+            }
+          ]
+        },
+        {
+          "id": "758b73d9-227c-41ff-b766-0055f644606c",
+          "title": "Peer second record",
+          "date": "2026-10-20T05:28:02.368Z",
+          "fields": [
+            {
+              "name": "searchtext",
+              "value": "Peer second record",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "title",
+              "value": "Valley",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "sizeall",
+              "value": "2.5",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "sizerange",
+              "value": "",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "filelist",
+              "value": "movie.mp4",
+              "type": "text",
+              "checked": false
+            },
+            {
+              "name": "taglist",
+              "value": "peer.extra",
+              "type": "textarea",
+              "checked": false
+            },
+            {
+              "name": "sizetype",
+              "value": "gb",
+              "type": "select-one",
+              "checked": false
+            },
+            {
+              "name": "order_by",
+              "value": "size",
+              "type": "select-one",
+              "checked": false
+            },
+            {
+              "name": "order_way",
+              "value": "asc",
+              "type": "select-one",
+              "checked": false
+            },
+            {
+              "name": "filter_cat[1]",
+              "value": "1",
+              "type": "checkbox",
+              "checked": false
+            },
+            {
+              "name": "filter_cat[2]",
+              "value": "1",
+              "type": "checkbox",
+              "checked": true
+            },
+            {
+              "name": "filter_freeleech",
+              "value": "1",
+              "type": "checkbox",
+              "checked": true
+            },
+            {
+              "name": "limit_matches",
+              "value": "1",
+              "type": "checkbox",
+              "checked": false
+            }
+          ]
+        }
+      ],
+      "searchDrawerOpen": false,
+      "nse": {
+        "nseFilterAllButtonEnabled": true,
+        "nseIndividualUploadHidingBlacklist": [],
+        "nseWhitelist": "",
+        "nseHardPassTaglist": "",
+        "nseEmojiEnabled": true,
+        "nseHideSeedingEnabled": false,
+        "nseHardPassEnabled": false,
+        "nseTaglist": "landscape",
+        "nseHideLeechingEnabled": false,
+        "nseObliviousModeEnabled": false,
+        "nseUpdateToastsEnabled": true,
+        "nseBlacklistColor": "#F00",
+        "nseHardPassColor": "#A00",
+        "nseRussianRouletteEnabled": false,
+        "nseTextAreaFont": "Monospace",
+        "nseRCMTitlesEnabled": true,
+        "nseHideUnseededEnabled": false,
+        "nseUploaders": "",
+        "nseBypassWhitelistsEnabled": false,
+        "nseHideSnatchedEnabled": false,
+        "nseIndividualUploadHidingEnabled": true,
+        "nseArrowNavigationEnabled": false,
+        "nseWhitelistTitles": "",
+        "nseHideGrabbedEnabled": false,
+        "nseWhitelistUploaders": "",
+        "nseUIFont": "Helvetica",
+        "nseBackfillButtonEnabled": true,
+        "nseHideReportedEnabled": false,
+        "nseOpenAllGoNextEnabled": false,
+        "nseOpenAllButtonEnabled": true,
+        "nseCustomCSS": "/* With great power comes great responsibility */",
+        "nseHideBookmarkedEnabled": false,
+        "nseWhitelistColor": "#0F0",
+        "nseRCMTagsEnabled": true,
+        "nseBackfillPageLimit": 5,
+        "nseRightClickManagementEnabled": true,
+        "nseCustomTheme": {
+          "backgroundColor": "#fff",
+          "backgroundHighlightColor": "#cfe7ff",
+          "foregroundColor": "#000",
+          "accentColor": "#0af",
+          "highlightColor": "#0071b0",
+          "hiddenBackgroundColor": "#aaf"
+        },
+        "nseHideCategoryIconsEnabled": false,
+        "nseRemoveHardPassResults": false,
+        "nseScrollToNSEEnabled": false,
+        "nseSelectedTheme": "nseThemeDarkPurple",
+        "nseFloatingToggleButtonEnabled": true,
+        "nseIndividualUploadHidingWhitelist": [
+          "127"
+        ],
+        "nseHardPassTitles": "",
+        "nseCustomCSSEnabled": false,
+        "nseTimeout": 1500,
+        "nseRCMUploadersEnabled": true,
+        "nseHideWarnedEnabled": false,
+        "nseBlacklistTitles": "",
+        "nseHideAnonUploadsEnabled": false,
+        "nseRenumberTorrentsEnabled": true,
+        "nseSavedVersion": 20802
+      }
+    },
+    "nseTimeout": 1500,
+    "nseRCMUploadersEnabled": true,
+    "nseHideWarnedEnabled": false,
+    "ep.searchDrawerOpen": false,
+    "nseBlacklistTitles": "",
+    "nseHideAnonUploadsEnabled": false,
+    "nseRenumberTorrentsEnabled": true,
+    "nseSavedVersion": 20802,
+    "ep.searches": [
+      {
+        "id": "landscape",
+        "title": "Cross-tab scenic",
+        "date": "",
+        "fields": [
+          {
+            "name": "taglist",
+            "value": "verified scenic tags",
+            "type": "textarea",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[1]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          }
+        ]
+      },
+      {
+        "id": "e22e35a8-992f-45d0-8649-8d88db58c371",
+        "title": "Complete criteria",
+        "date": "2026-10-20T05:16:14.952Z",
+        "fields": [
+          {
+            "name": "searchtext",
+            "value": "Complete criteria",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "title",
+            "value": "Valley",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "sizeall",
+            "value": "2.5",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "sizerange",
+            "value": "",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "filelist",
+            "value": "movie.mp4",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "taglist",
+            "value": "morning landscape",
+            "type": "textarea",
+            "checked": false
+          },
+          {
+            "name": "sizetype",
+            "value": "gb",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "order_by",
+            "value": "size",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "order_way",
+            "value": "asc",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[1]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[2]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          },
+          {
+            "name": "filter_freeleech",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          },
+          {
+            "name": "limit_matches",
+            "value": "1",
+            "type": "checkbox",
+            "checked": false
+          }
+        ]
+      },
+      {
+        "id": "53865f49-d596-4951-98bd-79118c444557",
+        "title": "Peer record",
+        "date": "2026-10-20T05:18:44.667Z",
+        "fields": [
+          {
+            "name": "searchtext",
+            "value": "Peer record",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "title",
+            "value": "Valley",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "sizeall",
+            "value": "2.5",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "sizerange",
+            "value": "",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "filelist",
+            "value": "movie.mp4",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "taglist",
+            "value": "peer.new",
+            "type": "textarea",
+            "checked": false
+          },
+          {
+            "name": "sizetype",
+            "value": "gb",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "order_by",
+            "value": "size",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "order_way",
+            "value": "asc",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[1]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[2]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          },
+          {
+            "name": "filter_freeleech",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          },
+          {
+            "name": "limit_matches",
+            "value": "1",
+            "type": "checkbox",
+            "checked": false
+          }
+        ]
+      },
+      {
+        "id": "758b73d9-227c-41ff-b766-0055f644606c",
+        "title": "Peer second record",
+        "date": "2026-10-20T05:28:02.368Z",
+        "fields": [
+          {
+            "name": "searchtext",
+            "value": "Peer second record",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "title",
+            "value": "Valley",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "sizeall",
+            "value": "2.5",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "sizerange",
+            "value": "",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "filelist",
+            "value": "movie.mp4",
+            "type": "text",
+            "checked": false
+          },
+          {
+            "name": "taglist",
+            "value": "peer.extra",
+            "type": "textarea",
+            "checked": false
+          },
+          {
+            "name": "sizetype",
+            "value": "gb",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "order_by",
+            "value": "size",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "order_way",
+            "value": "asc",
+            "type": "select-one",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[1]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": false
+          },
+          {
+            "name": "filter_cat[2]",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          },
+          {
+            "name": "filter_freeleech",
+            "value": "1",
+            "type": "checkbox",
+            "checked": true
+          },
+          {
+            "name": "limit_matches",
+            "value": "1",
+            "type": "checkbox",
+            "checked": false
+          }
+        ]
+      }
+    ]
+  }
+}

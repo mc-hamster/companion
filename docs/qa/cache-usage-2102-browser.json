@@ -1,0 +1,56 @@
+{
+  "version": "2.10.2",
+  "artifactSha": "d5328a965efa00167fffa49183391059d1db1a6b68e6b937219ae41f61958f1f",
+  "environment": "Native in-app Chromium, real IndexedDB, neutral fixtures, mock manager transport. Actual Chrome/Tampermonkey sandbox unverified.",
+  "review": "First two observations execute d590195d974a; final change only fixes singular cache-hit wording. Reload/hit/Clear/narrow checks execute finald5328a965efa.",
+  "evidence": [
+    {
+      "stage": "Settings summary after initial image downloads",
+      "data": {
+        "busy": "false",
+        "sha": "d590195d974afe44b3af870270d34c61bdc8da540cb52dda4c46add94467bf96",
+        "summary": "Image cacheThumbnails9 · 4.4 KBPreviews0 · 0 B4.4 KB of 512 MB usedThis page: 0 cache hits · 4 downloads"
+      }
+    },
+    {
+      "stage": "Preview download updates visible Settings automatically",
+      "data": {
+        "preview": "ready",
+        "summary": "Image cacheThumbnails9 · 4.4 KBPreviews1 · 509 B4.9 KB of 512 MB usedThis page: 0 cache hits · 5 downloads"
+      }
+    },
+    {
+      "stage": "Memory reuse updates cache-hit counter",
+      "data": {
+        "summary": "Image cacheThumbnails9 · 4.4 KBPreviews1 · 509 B4.9 KB of 512 MB usedThis page: 1 cache hits · 5 downloads"
+      }
+    },
+    {
+      "stage": "Reload resets page counters while saved counts persist",
+      "data": {
+        "sha": "d5328a965efa00167fffa49183391059d1db1a6b68e6b937219ae41f61958f1f",
+        "summary": "Image cacheThumbnails9 · 4.4 KBPreviews1 · 509 B4.9 KB of 512 MB usedThis page: 4 cache hits · 0 downloads"
+      }
+    },
+    {
+      "stage": "Saved preview hit updates Settings with no download",
+      "data": {
+        "summary": "Image cacheThumbnails9 · 4.4 KBPreviews1 · 509 B4.9 KB of 512 MB usedThis page: 5 cache hits · 0 downloads"
+      }
+    },
+    {
+      "stage": "Clear updates saved usage and keeps page activity",
+      "data": {
+        "summary": "Image cacheThumbnails0 · 0 BPreviews0 · 0 B0 B of 512 MB usedThis page: 5 cache hits · 0 downloads"
+      }
+    },
+    {
+      "stage": "Narrow Settings summary",
+      "data": {
+        "overflow": false,
+        "text": "Image cacheThumbnails0 · 0 BPreviews0 · 0 B0 B of 512 MB usedThis page: 0 cache hits · 0 downloads",
+        "width": 286
+      }
+    }
+  ]
+}

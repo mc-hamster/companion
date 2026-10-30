@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="[CACHE-05] Settings shows one concise usage card with file sizes, budget and explicitly cumulative counters" time="0.406491" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/cache-settings.test.mjs"/>
+	<testcase name="[CACHE-05] visible cache changes coalesce and Clear refreshes counts without resetting activity" time="0.569110" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/cache-settings.test.mjs"/>
+	<testcase name="[CACHE-05] closing/switching Settings ignores stale reads and unavailable storage is not reported as an empty cache" time="0.093623" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/cache-settings.test.mjs"/>
+	<testcase name="[CACHE-05] cache byte formatting is compact at zero, KB, MB and GB" time="0.000183" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/cache-settings.test.mjs"/>
+	<testcase name="[CACHE-06] Reset stats clears only usage counters and keeps the existing saved-file summary" time="0.070129" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/cache-settings.test.mjs"/>
+	<testcase name="[CACHE-07] one four-window activity table shows hits, misses and downloads without extra controls" time="0.047649" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/cache-settings.test.mjs"/>
+	<testcase name="[CACHE-07] rolling totals age from a local snapshot without database polling and stop when closed" time="0.044173" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/cache-settings.test.mjs"/>
+	<testcase name="[CACHE-07] unavailable usage hides stale totals and legacy tracking is explained" time="0.042708" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/cache-settings.test.mjs"/>
+	<testcase name="[CACHE-01] actual image bytes survive closing/reopening the database without expiry" time="0.008346" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-01] one network miss produces a reusable payload; subsequent navigation-style loads make no request" time="0.002779" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-02] LRU byte pressure removes oldest bytes, touches protect recent images and replacements do not inflate accounting" time="0.003549" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-02] concurrent tab-style writers preserve atomic byte/count totals" time="0.006349" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] clear invalidates in-flight generations and never accepts stale writes" time="0.012593" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] unavailable storage and permission/network failures fall back without breaking loading" time="0.000964" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-02] a quota failure prunes old data and retries once, then disables writes if quota remains exhausted" time="0.001997" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] cancellation ignores late transport callbacks and cache reads; unsafe/unknown destinations do not use privileged requests" time="0.057437" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-01] media pool stores only decoded successes and reads data URLs without re-training the host" time="0.022463" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] corrupted cached bytes are invalidated and a forced retry bypasses saved images" time="0.024399" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] disabling persistence skips cache transport and blocked image policy preserves native loading" time="0.000818" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] a transport failure switches that host to native loading for the rest of the page" time="0.000666" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-02] replacement writes at capacity keep accurate size/counts and disabled writes leave old files readable" time="0.000979" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] an empty older database upgrades to a complete usable cache" time="0.000552" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] privileged image transport upgrades legacy HTTP URLs and never accepts a plaintext final response" time="0.000956" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] duplicate transport completion/error callbacks deliver one result and abort errors stay contained" time="0.058014" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-01] a missing small variant does not disable caching the successful original fallback" time="0.023086" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-03] document navigation aborts manager transfers while BFCache keeps the existing page usable" time="0.213193" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-01] successful variant hints flush before navigation instead of waiting for the debounce" time="0.039272" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-04] newer large previews are evicted before older small thumbnails" time="0.002903" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-04] an oversized preview is declined without evicting thumbnails or other useful previews" time="0.002081" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-04] a large file labeled as a thumbnail does not receive small-thumbnail protection" time="0.000850" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-04] quota pressure from a preview preserves thumbnails and leaves thumbnail writes enabled" time="0.001465" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-04] an image used as a small thumbnail stays protected when also used as a preview" time="0.001641" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-04] shrinking the cache removes previews first and thumbnails only as the last resort" time="0.001719" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-04] the v1 cache upgrades metadata in place without deleting old image bytes" time="0.002038" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-05] usage summary counts actual thumbnail and preview files/bytes without reading image Blobs" time="0.002067" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-05] replacements, role changes, pruning, removal and clear keep summary counters consistent" time="0.003195" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-05] hit/download activity counts decoded disk/network and memory reuse, not inspection reads" time="0.025737" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-05] schema upgrade reconstructs summary counts from old metadata without altering cached files" time="0.001620" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-06] cumulative batches survive reopening and repeated summaries never count them twice" time="0.001862" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-06] two tab writers accumulate exact totals without lost increments" time="0.001422" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-06] pagehide starts a write-only journal synchronously and the next page replays interrupted compaction" time="0.001274" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-06] Clear saved images keeps history; Reset stats keeps images and starts a new persisted history" time="0.003161" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-06] reset epochs discard stale-tab journals and notifications discard pending old usage" time="0.001956" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-06] a journal abort restores its delta once and retries only on a later explicit flush" time="0.001054" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-06] failed reset preserves saved files, prior history and unsaved deltas" time="0.001477" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-06] event bursts use one batch timer and leave no idle stats timer" time="0.000775" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-06] failed compaction retains the journal for one exact replay on the next page" time="0.001088" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-06] resetting during an in-flight batch cannot resurrect pre-reset history" time="0.001093" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-07] misses count unsuccessful managed lookups independently of successful transfers" time="0.001788" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-07] rolling windows expire buckets independently and never expire all-history totals" time="0.000221" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-07] per-window hit/miss/download counts persist across pages and combine concurrent tabs" time="0.001310" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-07] schema 4 history keeps old totals without fabricating misses or recent timestamps" time="0.002047" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-07] recent storage is bounded to one hour while all history remains complete" time="0.069142" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-07] aborted journal replay restores miss timestamps and counts only once" time="0.001264" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-07] Reset stats clears every window and stale miss batches while preserving saved images" time="0.001930" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<testcase name="[CACHE-07] unusable cached bytes count a miss but cache inspection and canceled reads do not" time="0.059752" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/image-cache.test.mjs"/>
+	<!-- tests 56 -->
+	<!-- suites 0 -->
+	<!-- pass 56 -->
+	<!-- fail 0 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 1503.151875 -->
+</testsuites>

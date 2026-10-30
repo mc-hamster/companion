@@ -1,0 +1,188 @@
+{
+  "version": "2.9.2",
+  "artifactSha": "ae0082fdcc7331aa03d4eb63d12c5328e4dc608e1a006d7f262ecf13c4cfd0c4",
+  "environment": "Native in-app Chromium; neutral local fixtures and mock GM storage. Actual Chrome/Tampermonkey unverified.",
+  "review": "Early cover/retry/list observations execute cc54798c6bcf. Candidate21383534c6a8 avoids redundant scheduler pumping. Releaseae0082fdcc73 also prioritizes retained originals over ordinary idle thumbnails during eviction. Request policy, callbacks, retry budgets and cache ceilings otherwise unchanged; release cover completion/rehover re-executed. Cache pressure and many-item sweeps are model-tested.",
+  "evidence": [
+    {
+      "stage": "Cover hover begins original",
+      "data": {
+        "open": true,
+        "requests": [],
+        "status": "Loading larger image…",
+        "width": 160
+      }
+    },
+    {
+      "stage": "Mouse off hides only the popup",
+      "data": {
+        "closed": true,
+        "displaySrc": null,
+        "status": "28/28 small covers ready · 0 original responses · 713 ms · scroll 0px"
+      }
+    },
+    {
+      "stage": "Original completed while popup stayed closed",
+      "data": {
+        "closed": true,
+        "requests": [
+          {
+            "duration": 4003,
+            "ms": 17494,
+            "path": "full-1.svg"
+          }
+        ]
+      }
+    },
+    {
+      "stage": "Rehover reuses full-size pixels without another transfer",
+      "data": {
+        "requests": [
+          {
+            "duration": 4003,
+            "ms": 17494,
+            "path": "full-1.svg"
+          }
+        ],
+        "source": "http://127.0.0.1:8765/qa-image/hover292-kept/full-1.svg?delay=4000",
+        "state": "ready",
+        "status": "",
+        "width": 960
+      }
+    },
+    {
+      "stage": "Popup dismissed during failed-original recovery",
+      "data": {
+        "closed": true,
+        "metrics": "28/28 small covers ready · 1 original responses · 877 ms · scroll 0px"
+      }
+    },
+    {
+      "stage": "Retry completed while dismissed",
+      "data": {
+        "closed": true,
+        "requests": [
+          {
+            "duration": 33,
+            "ms": 427,
+            "path": "full-flaky-1.svg"
+          },
+          {
+            "duration": 4006,
+            "ms": 5136,
+            "path": "full-flaky-1.svg"
+          }
+        ]
+      }
+    },
+    {
+      "stage": "Rehover after offscreen retry",
+      "data": {
+        "requests": [
+          {
+            "duration": 33,
+            "ms": 427,
+            "path": "full-flaky-1.svg"
+          },
+          {
+            "duration": 4006,
+            "ms": 5136,
+            "path": "full-flaky-1.svg"
+          }
+        ],
+        "state": "ready",
+        "width": 960
+      }
+    },
+    {
+      "stage": "List thumbnail mouse-out",
+      "data": {
+        "closed": true,
+        "sha": "cc54798c6bcf4bba18cad58933360dd1c9eb44b5aeb566764994d9f89ecf80cc"
+      }
+    },
+    {
+      "stage": "List rehover after original completed",
+      "data": {
+        "source": "http://127.0.0.1:8765/qa-image/hover292-list/full-1.svg",
+        "state": "ready",
+        "width": 960
+      }
+    },
+    {
+      "stage": "List original request count",
+      "data": [
+        {
+          "type": "image",
+          "path": "full-1.svg"
+        }
+      ]
+    },
+    {
+      "stage": "Final build original completed after mouse-out",
+      "artifactSha": "21383534c6a8a919e1aaed735f955a6ea06b34d479f49cc77a229d7ea6be10ca",
+      "data": {
+        "closed": true,
+        "requests": [
+          {
+            "duration": 4042,
+            "ms": 4422,
+            "path": "full-1.svg"
+          }
+        ]
+      }
+    },
+    {
+      "stage": "Final build rehover",
+      "artifactSha": "21383534c6a8a919e1aaed735f955a6ea06b34d479f49cc77a229d7ea6be10ca",
+      "data": {
+        "requests": [
+          {
+            "duration": 4042,
+            "ms": 4422,
+            "path": "full-1.svg"
+          }
+        ],
+        "state": "ready",
+        "width": 960
+      }
+    },
+    {
+      "stage": "Release build mouse-out during loading",
+      "artifactSha": "ae0082fdcc7331aa03d4eb63d12c5328e4dc608e1a006d7f262ecf13c4cfd0c4",
+      "data": {
+        "closed": true,
+        "metrics": "28/28 small covers ready · 0 original responses · 743 ms · scroll 0px"
+      }
+    },
+    {
+      "stage": "Release original finished while dismissed",
+      "artifactSha": "ae0082fdcc7331aa03d4eb63d12c5328e4dc608e1a006d7f262ecf13c4cfd0c4",
+      "data": {
+        "closed": true,
+        "requests": [
+          {
+            "duration": 4003,
+            "ms": 4292,
+            "path": "full-1.svg"
+          }
+        ]
+      }
+    },
+    {
+      "stage": "Release cached rehover",
+      "artifactSha": "ae0082fdcc7331aa03d4eb63d12c5328e4dc608e1a006d7f262ecf13c4cfd0c4",
+      "data": {
+        "requests": [
+          {
+            "duration": 4003,
+            "ms": 4292,
+            "path": "full-1.svg"
+          }
+        ],
+        "state": "ready",
+        "width": 960
+      }
+    }
+  ]
+}

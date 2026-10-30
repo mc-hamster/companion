@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="built artifact is self-contained and restricted to Empornium" time="0.001718" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="full NSE engine mounts, defaults to empty lists, and keeps companion data on reset" time="0.349242" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="tag whitelist overrides blacklist; Hard Pass and individual overrides are retained" time="0.101219" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="status and uploader filters still handle new rows with image improvements disabled" time="0.140490" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="right-click management handles current and dynamic tags; Shift preserves native menu" time="0.086674" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="hostile list text is escaped in settings markup" time="0.064921" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="Black Hole removal hides the corresponding collage card before media loading" time="0.075504" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="one workspace owns filters, searches, images, and settings without legacy panels" time="0.090702" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="show filtered reveals matching rows alongside visible rows and keeps preview eligibility" time="0.072151" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="[FLT-08] Show filtered reveals a blocked alternate version instead of immediately collapsing it again" time="0.125110" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs" failure="explicitly revealed variant must actually be visible&#10;+ actual - expected&#10;&#10;+ 'none'&#10;- 'table-row'&#10;">
+		<failure type="testCodeFailure" message="explicitly revealed variant must actually be visible&#10;+ actual - expected&#10;&#10;+ 'none'&#10;- 'table-row'">
+[Error [ERR_TEST_FAILURE]: explicitly revealed variant must actually be visible
++ actual - expected
+
++ 'none'
+- 'table-row'
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: explicitly revealed variant must actually be visible
+  + actual - expected
+  
+  + 'none'
+  - 'table-row'
+  
+      at TestContext.&lt;anonymous> (file:///Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs:149:12)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'none',
+    expected: 'table-row',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="open visible action works with right-click management disabled" time="0.072948" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="notification rule imports use Companion controls and the current textarea value" time="0.058421" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="Companion branding covers every pane, row tooltip, and context menu; attribution is retained" time="0.145505" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="filter confirmations and userscript-manager metadata use Companion terminology" time="0.069048" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="typing filter rules autosaves and updates existing results without navigation" time="0.737988" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="visibility checkboxes update live and do not accumulate row controls" time="0.159143" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="removing a Hard Pass rule restores archived rows without a refresh" time="0.715488" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="restoring a filter export applies it immediately and updates the controls" time="0.163994" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="invalid draft preferences do not partially overwrite stored filter lists" time="0.733374" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="detail-page rules can update repeatedly without duplicate controls or title wrappers" time="0.176402" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="backfill uses the full filtering engine, preserves Show filtered and restores removed rows on rule edits" time="0.279939" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="the simplified interface shows three task areas and only two common settings or tag fields" time="0.076155" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="advanced search reveals matching controls, restores disclosure state and preserves customized preferences on save" time="0.122413" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="collapsed rule summaries expose active rules and update without resetting their values" time="0.114771" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="saved searches remain primary while management opens only on request and row options stay folded" time="0.063267" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="irrelevant toolbar actions are quiet and filtered-result access appears when needed" time="0.155574" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="version grouping respects live filtering and restores archived Hard Pass variants" time="0.239338" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="backfilled variants join the same expanded group with previews and tag highlights intact" time="0.188421" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="one contextual tag menu offers exclusive highlights without altering visibility rules" time="0.219268" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="tag highlighting remains keyboard accessible and returns focus when the menu closes" time="0.063775" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="highlight lists autosave in the folded Filters section without adding primary controls" time="0.240999" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="opening visible results includes the representative and expanded versions only" time="0.076557" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="oversized highlight drafts are rejected before either filter or Companion preferences are written" time="0.137227" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<testcase name="[TITLE-02] title links keep the native menu while title phrase filtering stays in Filters" time="0.133106" classname="test" file="/Users/jmcasler/Documents/ChatGPT/ep/test/bundle.test.mjs"/>
+	<!-- tests 34 -->
+	<!-- suites 0 -->
+	<!-- pass 33 -->
+	<!-- fail 1 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 6557.515584 -->
+</testsuites>

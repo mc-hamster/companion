@@ -1,0 +1,245 @@
+{
+  "rows": 800,
+  "variant": "current",
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+  "methods": {
+    "initial": {
+      "DOM observer callbacks": {
+        "calls": 865,
+        "ms": 7.2,
+        "maxMs": 6.5
+      },
+      "VersionGroups.refresh": {
+        "calls": 1,
+        "ms": 22.2,
+        "maxMs": 22.2
+      },
+      "CompanionApp.syncGridFilters": {
+        "calls": 1,
+        "ms": 29.4,
+        "maxMs": 29.4
+      },
+      "CompanionApp.ensureSavedSearchUI": {
+        "calls": 1,
+        "ms": 0.7,
+        "maxMs": 0.7
+      },
+      "PageMedia.prepareThumbnails": {
+        "calls": 4,
+        "ms": 0.2,
+        "maxMs": 0.1
+      },
+      "TagHighlights.refresh": {
+        "calls": 3,
+        "ms": 26.6,
+        "maxMs": 17
+      },
+      "PageMedia.scan": {
+        "calls": 3,
+        "ms": 25,
+        "maxMs": 15.7
+      },
+      "PreviewController.scan": {
+        "calls": 3,
+        "ms": 9.2,
+        "maxMs": 7.9
+      },
+      "Animation frame callbacks": {
+        "calls": 8,
+        "ms": 64.9,
+        "maxMs": 43.6
+      },
+      "CompanionApp.updateHealth": {
+        "calls": 2,
+        "ms": 0.2,
+        "maxMs": 0.1
+      }
+    },
+    "idle": {
+      "Animation frame callbacks": {
+        "calls": 2,
+        "ms": 0,
+        "maxMs": 0
+      }
+    },
+    "image-updates": {
+      "DOM observer callbacks": {
+        "calls": 60,
+        "ms": 0.9,
+        "maxMs": 0.1
+      },
+      "Animation frame callbacks": {
+        "calls": 122,
+        "ms": 3.6,
+        "maxMs": 0.2
+      },
+      "TagHighlights.refresh": {
+        "calls": 30,
+        "ms": 0,
+        "maxMs": 0
+      },
+      "PageMedia.scan": {
+        "calls": 30,
+        "ms": 0.9,
+        "maxMs": 0.1
+      },
+      "PreviewController.scan": {
+        "calls": 30,
+        "ms": 0.1,
+        "maxMs": 0.1
+      },
+      "CompanionApp.updateHealth": {
+        "calls": 30,
+        "ms": 1.5,
+        "maxMs": 0.1
+      }
+    },
+    "scroll": {
+      "Animation frame callbacks": {
+        "calls": 92,
+        "ms": 0.6,
+        "maxMs": 0.2
+      },
+      "PageMedia.prepareThumbnails": {
+        "calls": 30,
+        "ms": 0.2,
+        "maxMs": 0.1
+      }
+    },
+    "group-toggle": {
+      "PageMedia.prepareThumbnails": {
+        "calls": 5,
+        "ms": 0,
+        "maxMs": 0
+      },
+      "DOM observer callbacks": {
+        "calls": 20,
+        "ms": 0.2,
+        "maxMs": 0.1
+      },
+      "CompanionApp.updateHealth": {
+        "calls": 10,
+        "ms": 0.4,
+        "maxMs": 0.1
+      },
+      "Animation frame callbacks": {
+        "calls": 32,
+        "ms": 0.4,
+        "maxMs": 0.1
+      }
+    },
+    "tag-change": {
+      "TagHighlights.refresh": {
+        "calls": 6,
+        "ms": 13.3,
+        "maxMs": 2.6
+      },
+      "DOM observer callbacks": {
+        "calls": 6,
+        "ms": 0,
+        "maxMs": 0
+      },
+      "Animation frame callbacks": {
+        "calls": 14,
+        "ms": 0,
+        "maxMs": 0
+      }
+    },
+    "append-50": {
+      "DOM observer callbacks": {
+        "calls": 3,
+        "ms": 0.1,
+        "maxMs": 0.1
+      },
+      "CompanionApp.ensureSavedSearchUI": {
+        "calls": 1,
+        "ms": 0,
+        "maxMs": 0
+      },
+      "VersionGroups.refresh": {
+        "calls": 1,
+        "ms": 12.6,
+        "maxMs": 12.6
+      },
+      "CompanionApp.syncGridFilters": {
+        "calls": 1,
+        "ms": 18.1,
+        "maxMs": 18.1
+      },
+      "TagHighlights.refresh": {
+        "calls": 1,
+        "ms": 10.8,
+        "maxMs": 10.8
+      },
+      "PageMedia.prepareThumbnails": {
+        "calls": 1,
+        "ms": 0,
+        "maxMs": 0
+      },
+      "PageMedia.scan": {
+        "calls": 1,
+        "ms": 9.9,
+        "maxMs": 9.9
+      },
+      "PreviewController.scan": {
+        "calls": 1,
+        "ms": 1.7,
+        "maxMs": 1.7
+      },
+      "Animation frame callbacks": {
+        "calls": 4,
+        "ms": 50.8,
+        "maxMs": 50.7
+      },
+      "CompanionApp.updateHealth": {
+        "calls": 1,
+        "ms": 0.1,
+        "maxMs": 0.1
+      }
+    },
+    "idle-after": {
+      "Animation frame callbacks": {
+        "calls": 2,
+        "ms": 0,
+        "maxMs": 0
+      }
+    }
+  },
+  "phases": [
+    {
+      "phase": "idle",
+      "elapsedMs": 1058,
+      "longTasks": 0
+    },
+    {
+      "phase": "image-updates",
+      "elapsedMs": 559,
+      "longTasks": 0
+    },
+    {
+      "phase": "scroll",
+      "elapsedMs": 558,
+      "longTasks": 0
+    },
+    {
+      "phase": "group-toggle",
+      "elapsedMs": 309,
+      "longTasks": 0
+    },
+    {
+      "phase": "tag-change",
+      "elapsedMs": 174,
+      "longTasks": 0
+    },
+    {
+      "phase": "append-50",
+      "elapsedMs": 134,
+      "longTasks": 1
+    },
+    {
+      "phase": "idle-after",
+      "elapsedMs": 1057,
+      "longTasks": 0
+    }
+  ]
+}
