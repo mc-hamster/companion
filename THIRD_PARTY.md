@@ -26,13 +26,13 @@ Version 2.2 ports the contribution into Companion's toolbar and controllers: fiv
 
 [Project](https://openuserjs.org/scripts/node/whatcd_gazelle_direct_thumbnails), by node, reference version 12. OpenUserJS lists MIT.
 
-Thumbnail behavior was independently reimplemented. Its runtime source and unrelated-site adapters are not in the generated script. The vendor file is a local research reference.
+Thumbnail behavior was independently reimplemented. Its runtime source and unrelated-site adapters are not in the generated script. The research reference is not distributed in this repository or used by the build.
 
 ## empornium saved searches
 
 [Project](https://github.com/ehfraim/emporniumuserscripts/blob/master/empornium_save_search.user.js), source author ephraim, version 4.2. Reference blob: f8746a2c487e407c587c3d786603f39c9d388b64.
 
-No explicit license was found in the inspected file. Behavior and storage compatibility were independently reimplemented; none of its code is incorporated into the generated script. The vendor file is a local research reference.
+No explicit license was found in the inspected file. Behavior and storage compatibility were independently reimplemented; none of its code is incorporated into the generated script. The research reference is not distributed in this repository or used by the build.
 
 ## Version grouping design references
 
@@ -50,4 +50,4 @@ Reviewed visual categories, priority, category deduplication and contextual edit
 
 ## Development dependency
 
-jsdom 26.1.0 is MIT-licensed and used only for tests, not bundled into the userscript.
+jsdom 26.1.0 and fake-indexeddb 6.2.5 are MIT-licensed and used only for tests, not bundled into the userscript.

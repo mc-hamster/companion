@@ -4,9 +4,19 @@ import { readFile } from 'node:fs/promises';
 import { domFixture, fixtureHTML, rowHTML, overlayHTML, memoryStorage, fakeClock, settle, until } from './helpers.mjs';
 const bundle = await readFile(new URL('../dist/EmporniumCompanion.user.js', import.meta.url), 'utf8');
 test('release metadata and versioned installable match the package and tested canonical artifact', async () => {
-  const {version}=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
+  const {version,repository,homepage}=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
   assert.ok(bundle.split('\n').includes('// @version      '+version));
   assert.equal(await readFile(new URL('../dist/EmporniumCompanion-'+version+'.user.js',import.meta.url),'utf8'),bundle);
+  const header=bundle.slice(0,bundle.indexOf('// ==/UserScript==')+'// ==/UserScript=='.length)+'\n';
+  assert.equal(await readFile(new URL('../dist/EmporniumCompanion.meta.js',import.meta.url),'utf8'),header);
+  const repoURL=repository.url.replace(/^git\+/, '').replace(/\.git$/, '');
+  const downloadBase=repoURL.replace('https://github.com/', 'https://raw.githubusercontent.com/')+'/main/dist/';
+  assert.ok(header.split('\n').includes('// @updateURL    '+downloadBase+'EmporniumCompanion.meta.js'));
+  assert.ok(header.split('\n').includes('// @downloadURL  '+downloadBase+'EmporniumCompanion.user.js'));
+  assert.ok(header.split('\n').includes('// @homepageURL  '+homepage));
+  assert.ok(header.split('\n').includes('// @supportURL   '+repoURL+'/issues'));
+  const readme=await readFile(new URL('../README.md',import.meta.url),'utf8');
+  assert.ok(readme.includes('('+downloadBase+'EmporniumCompanion.user.js)'));
 });
 const branding = /\bnse\w*|noshitempornium/i;
 function authoredInterfaceText(doc) {

@@ -1,3 +1,15 @@
 node_modules/
 .DS_Store
 test/artifacts/
+
+# Local credentials and editor files
+.env
+.env.*
+!.env.example
+*.log
+.vscode/
+.idea/
+
+# Research-only references, unused by the build or tests
+/vendor/direct-thumbnails.user.js
+/vendor/empornium_save_search.user.js

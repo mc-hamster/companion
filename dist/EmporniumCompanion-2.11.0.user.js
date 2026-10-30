@@ -2,6 +2,11 @@
 // @name         Empornium Companion
 // @namespace    empornium-companion.local
 // @version      2.11.0
+// @homepageURL  https://github.com/mc-hamster/companion#readme
+// @supportURL   https://github.com/mc-hamster/companion/issues
+// @source       https://github.com/mc-hamster/companion
+// @updateURL    https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.meta.js
+// @downloadURL  https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js
 // @description  Reliable images, alternate versions, tag highlights, filters, and saved searches.
 // @author       Empornium Companion contributors; filtering engine by ceodoe
 // @license      GPL-3.0-or-later

@@ -5,7 +5,12 @@ import { IMAGE_CACHE_HOSTS } from '../src/image-cache.mjs';
 
 const root = new URL('../', import.meta.url);
 const read = path => readFile(new URL(path, root), 'utf8');
-const releaseVersion = JSON.parse(await read('package.json')).version;
+const packageInfo = JSON.parse(await read('package.json'));
+const releaseVersion = packageInfo.version;
+const repository = /^git\+https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\.git$/.exec(packageInfo.repository?.url || '')?.[1];
+if (!repository) throw new Error('A GitHub repository URL is required for install and update links.');
+const repositoryURL = 'https://github.com/' + repository;
+const downloadBase = 'https://raw.githubusercontent.com/' + repository + '/main/dist/';
 if (!/^\d+\.\d+\.\d+$/.test(releaseVersion)) throw new Error('Invalid release version.');
 const upstream = await read('vendor/noshitempornium/NoShitEmpornium.user.js');
 const expectedHash = '75fd5dff4919ba07a3e7135a9ab86fb764cd427e';
@@ -146,6 +151,11 @@ const header = [
   '// @name         Empornium Companion',
   '// @namespace    empornium-companion.local',
   '// @version      ' + releaseVersion,
+  '// @homepageURL  ' + packageInfo.homepage,
+  '// @supportURL   ' + repositoryURL + '/issues',
+  '// @source       ' + repositoryURL,
+  '// @updateURL    ' + downloadBase + 'EmporniumCompanion.meta.js',
+  '// @downloadURL  ' + downloadBase + 'EmporniumCompanion.user.js',
   '// @description  Reliable images, alternate versions, tag highlights, filters, and saved searches.',
   '// @author       Empornium Companion contributors; filtering engine by ceodoe',
   '// @license      GPL-3.0-or-later',
@@ -163,6 +173,7 @@ const bootstrap = (await read('src/bootstrap.inc.js'))
   .replace('/*NSE_BODY*/', nse);
 await mkdir(new URL('dist/', root), { recursive: true });
 const artifact = header + '\n\n(function () {\n"use strict";\n' + core + '\n' + imageCache + '\n' + preferences + '\n' + backfill + '\n' + onboarding + '\n' + searchEditor + '\n' + resultTools + '\n' + scheduling + '\n' + workspace + '\n' + app + '\n' + settings + '\n' + bootstrap + '\n})();\n';
+await writeFile(new URL('dist/EmporniumCompanion.meta.js', root), header + '\n');
 await writeFile(new URL('dist/EmporniumCompanion.user.js', root), artifact);
 await writeFile(new URL('dist/EmporniumCompanion-' + releaseVersion + '.user.js', root), artifact);
 await writeFile(new URL('dist/nse-schema.json', root), JSON.stringify(schema, null, 2) + '\n');

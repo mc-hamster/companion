@@ -13,5 +13,18 @@
   "devDependencies": {
     "fake-indexeddb": "6.2.5",
     "jsdom": "26.1.0"
+  },
+  "description": "A Tampermonkey userscript for Empornium with image recovery, filters, previews, and saved searches.",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mc-hamster/companion.git"
+  },
+  "homepage": "https://github.com/mc-hamster/companion#readme",
+  "bugs": {
+    "url": "https://github.com/mc-hamster/companion/issues"
   }
 }

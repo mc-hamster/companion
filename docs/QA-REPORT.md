@@ -6,7 +6,14 @@ Version 2.11.0 enables collage backfill and reorganizes Settings. **301 automate
 
 Final installable: `dist/EmporniumCompanion-2.11.0.user.js` (identical canonical copy).
 
-SHA-256: `46a746dc81d5b1413ab6d6500fb9a45be2dfb908ea4946cf8e07c3c39e39e059`
+SHA-256 (publication build): `e724228eb5e652416dfac6aaa9a2771a0fbade940c08b5816a0385f54ecc03d2`
+
+## GitHub publication preparation, October 30, 2026
+
+The publication build adds homepage, issue-report, source, update-metadata and stable-download URLs to the userscript header. The runtime after the metadata block is byte-for-byte identical to the previously audited 2.11.0 artifact (`46a746dc81d5b1413ab6d6500fb9a45be2dfb908ea4946cf8e07c3c39e39e059`); historical browser evidence continues to identify that artifact. The script name, namespace, grants, match rules and storage keys are unchanged.
+
+The full 301-check automated suite and syntax checks pass after publication preparation. After correcting the publication URLs to match `mc-hamster/companion`, the final build, syntax checks and three focused bundle/publication checks also pass. The existing release regression additionally verifies the metadata-only file, stable/versioned equality, configured publication URLs and README install link. The README now documents installation and updates, and [publishing instructions](PUBLISHING.md) describe the first push and future releases. GitHub Actions is configured to build, check syntax, run tests, and reject stale or untracked generated release files. Public URLs and an actual Tampermonkey installation must be checked after the first push; they were not exercised by these local checks.
+
 
 ## Results and evidence
 
