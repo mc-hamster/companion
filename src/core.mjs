@@ -580,13 +580,20 @@ export class MediaPool {
         kind: entry.cacheMode === 'thumbnail' ? 'thumbnail' : 'preview',
         network: entry.cacheMode === 'network' || entry.cacheMode === 'thumbnail' &&
           (this.transferLane(entry) === 'thumbnail' || !/\.gif(?:\?|$)/i.test(url)),
+        candidates: entry.cacheMode === 'thumbnail' && entry.smallFirst ? entry.candidates.slice(entry.candidateIndex + 1) : [],
         fresh: cacheFresh
       }, result => {
         if (entry.cancelled || this.disposed || entry.loadVersion !== loadVersion || entry.image !== image) return;
         if (!result) { assign(url); return; }
         if (result.failure) { failed('The image host returned HTTP ' + result.status + '.'); return; }
         entry.cacheHit = result.hit; entry.cacheResult = result;
-        if (result.hit) entry.hostTimingIgnored = true;
+        if (result.hit) {
+          entry.hostTimingIgnored = true;
+          if (result.key) {
+            url = result.key; entry.actualURL = url; entry.lastCandidate = url;
+            entry.candidateIndex = Math.max(0, entry.candidates.findIndex(candidate => canonicalImageURL(candidate) === url));
+          }
+        }
         assign(result.dataURL);
       });
     } else assign(url);

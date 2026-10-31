@@ -296,19 +296,26 @@ export class PersistentImageCache {
       await new Promise((resolve,reject)=>{const tx=db.transaction(['images','meta','stats'],'readwrite');for(const s of['images','meta'])tx.objectStore(s).clear();tx.objectStore('stats').delete('total');tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(tx.error);});this.writeBlocked=this.previewWriteBlocked=false;this.notify();
     });
   }
-  load(url,{network=false,fresh=false,kind='legacy'}={},done){
+  load(url,{network=false,fresh=false,kind='legacy',candidates=[]}={},done){
     let cancelled=false,delivered=false,finishing=false,handle=null;const epoch=this.epoch;const valid=()=>!cancelled&&!this.closed;
     const deliver=result=>{if(valid()&&!delivered){delivered=true;done(result);}};
-    const finish=async(blob,hit)=>{
+    const finish=async(blob,hit,source=url)=>{
       if(!valid()||delivered||finishing)return;finishing=true;
       const unusable=()=>{if(valid()){if(hit)this.recordActivity('miss');deliver(null);}};
       if(!blob?.size||blob.size>64*1024*1024){unusable();return;}
-      try{const dataURL=await this.env.encode(blob);if(valid())deliver({dataURL,blob,hit,epoch,key:this.key(url),kind});}catch{unusable();}
+      try{const dataURL=await this.env.encode(blob);if(valid())deliver({dataURL,blob,hit,epoch,key:this.key(source),kind});}catch{unusable();}
     };
     void(async()=>{
       if(!this.enabled()||!this.allowed(url)||!await this.open()){if(valid())deliver(null);return;}
-      if(!fresh){const cached=await this.get(url,kind);if(!valid())return;
-        if(cached){await finish(cached,true);return;}this.recordActivity('miss');}
+      if(!fresh){
+        // A cover's supplied resize URL can be gone while another successful
+        // variant is still saved. Check this request's alternatives before
+        // recording a miss or attempting the preferred URL on the network.
+        const sources=[...new Set([url,...candidates].filter(source=>this.allowed(source)).map(source=>this.key(source)))];
+        for(const source of sources){const cached=await this.get(source,kind);if(!valid())return;
+          if(cached){await finish(cached,true,source);return;}}
+        this.recordActivity('miss');
+      }
       if(!valid())return;
       const host=new URL(url).host;
       if(!network||!this.env.request||this.writeBlocked||kind==='preview'&&this.previewWriteBlocked||this.nativeOnly.has(host)){deliver(null);return;}

@@ -111,3 +111,11 @@ Savings use the same atomic journal/compaction, bounded hourly buckets and cumul
 ## Settings location, version 2.11.0
 
 A compact total/limit summary stays on the main Settings surface. Expand **Image cache → Statistics & storage** for file counts, all four activity/rate/savings windows, Reset stats, persistence/limit controls and Clear saved images. No metrics were removed or reset by this layout change. The aging clock runs only while the statistics disclosure is open; metadata snapshots still keep the visible total current.
+
+## Saved thumbnail variants, version 2.11.1
+
+Small-first thumbnail requests check their remaining candidate URLs in saved storage before attempting the preferred URL on the network. This lets collage cover backgrounds reuse a saved small variant or original fallback even when their supplied legacy resize URL is unavailable and the short thumbnail-history list no longer contains the successful choice. A saved alternative produces a hit after decode, without a miss or another download. When no candidate is saved, the lookup records one miss and retains the normal network order. Forced retries bypass all saved candidates. Original-only preview requests retain their existing source selection.
+
+Regression coverage includes a native-shaped collage cover with a missing 300px source and a saved small variant, correct source tracking and invalidation of corrupt alternate bytes, validated candidate destinations, and forced bypasses.
+
+Validation: all 304 automated checks pass, together with the build and syntax checks. A neutral browser fixture using real IndexedDB and decoded image bytes loaded a saved alternate with 1 hit, 0 misses, 0 downloads, and no managed network request. Actual Tampermonkey sandbox behavior remains unverified.

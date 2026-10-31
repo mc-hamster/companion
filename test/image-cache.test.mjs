@@ -14,6 +14,52 @@ function setup({indexedDB=new IDBFactory(),request,limit=512}={}){
   const cache=new PersistentImageCache(env,()=>settings);return{cache,env,settings,tick:ms=>{time+=ms;}};
 }
 function load(cache,options={},source=url){return new Promise(resolve=>cache.load(source,options,resolve));}
+test('[CACHE-01] collage covers reuse a saved variant without thumbnail history or another miss',async()=>{
+  const full='https://fapping.empornium.sx/images/2016/01/02/neutral.jpg',small=full.replace('.jpg','.th.jpg');
+  const supplied=full.replace('/images/','/images/resize/300/');let calls=0;
+  const f=setup({request:()=>{calls++;return{abort(){}};}});
+  await f.cache.commit(small,blob(),undefined,'thumbnail');
+  const page=domFixture(fixtureHTML('', '<div class="torrent_grid"><article class="torrent_grid__torrent"><a href="/torrents.php?id=1"><div class="torrent__cover" style="background-image:url('+supplied+')"></div></a></article></div>'),'https://www.empornium.sx/collage/2591');
+  const clock=fakeClock(),app=createApp(page.win,memoryStorage(),{Image:clock.env.Image,imageCache:f.cache}).start();
+  try{
+    await until(()=>clock.images[0]?.src?.startsWith('data:'));
+    clock.images[0].succeed(160,90);
+    const record=app.media.records.get(page.doc.querySelector('.torrent__cover'));
+    assert.equal(record.state,'ready');assert.equal(record.image.dataset.epImageSource,small);
+    assert.equal(record.lastEntry.actualURL,small);assert.equal(record.lastEntry.cacheHit,true);
+    assert.equal(calls,0);const stats=await f.cache.summary();assert.equal(stats.misses,0);assert.equal(stats.hits,1);
+  }finally{app.dispose();page.close();f.cache.close();}
+});
+
+test('[CACHE-03] corrupt alternate bytes fall back to their own URL and invalidate the correct saved file',async()=>{
+  const full=url.replace('.th.','.'),preferred=full+'?preferred=1';let calls=0;
+  const f=setup({request:()=>{calls++;return{abort(){}};}}),clock=fakeClock();
+  const p=new MediaPool({...clock.env,imageCache:f.cache});
+  try{
+    await f.cache.commit(url,blob());
+    const entry=p.request(full,{cacheMode:'thumbnail',smallFirst:true,smallCandidates:[preferred,url],candidates:[preferred,url,full]});
+    await until(()=>entry.image.src?.startsWith('data:'));entry.image.fail();
+    assert.equal(entry.image.src,url);assert.equal(entry.actualURL,url);assert.equal(entry.candidateIndex,1);
+    entry.image.succeed(160,90);await f.cache.writes;
+    assert.equal(await f.cache.get(url),null);assert.equal(calls,0);
+    const stats=await f.cache.summary();assert.equal(stats.misses,1);assert.equal(stats.hits,0);
+  }finally{p.dispose();f.cache.close();}
+});
+
+test('[CACHE-03] candidate lookups count one miss, validate alternatives and respect forced bypasses',async()=>{
+  let calls=0;const f=setup({request:d=>{calls++;queueMicrotask(()=>d.onload({status:200,response:blob()}));return{abort(){}};}});
+  try{
+    const alternate=url+'?alternate=1',unsafe='https://evil.test/saved.jpg';
+    await f.cache.commit(unsafe,blob());
+    const cold=await load(f.cache,{network:true,candidates:[alternate,unsafe,'not a URL']});assert.equal(cold.hit,false);
+    assert.equal((await f.cache.summary()).misses,1);assert.equal(calls,1);
+    await f.cache.commit(alternate,blob());
+    const saved=await load(f.cache,{network:true,candidates:[alternate]});assert.equal(saved.hit,true);assert.equal(saved.key,alternate);assert.equal(calls,1);
+    const fresh=await load(f.cache,{network:true,fresh:true,candidates:[alternate]});assert.equal(fresh.hit,false);assert.equal(calls,2);
+    assert.equal((await f.cache.summary()).misses,1,'a forced bypass is not a cache miss');
+  }finally{f.cache.close();}
+});
+
 test('[CACHE-01] actual image bytes survive closing/reopening the database without expiry',async()=>{
   const f=setup();let second;
   try{assert.equal(await f.cache.commit(url,blob()),true);f.cache.close();second=setup({indexedDB:f.env.indexedDB});second.tick(400*86400000);
