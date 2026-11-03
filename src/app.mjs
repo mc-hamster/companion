@@ -9,6 +9,7 @@ import { OnboardingController } from './onboarding.mjs';
 import { PersistentImageCache, cacheBytes, cacheActivityWindows } from './image-cache.mjs';
 import { createSavedSearchEditor } from './search-editor.mjs';
 import { VersionGroups, TagHighlights } from './result-tools.mjs';
+import { ResultGrid, gridCardSizeChoices } from './grid-view.mjs';
 import { coalesceScanRoots, presentationMutation, mutationChangesResults } from './scheduling.mjs';
 
 const SETTINGS_KEY = 'ep.settings';
@@ -142,6 +143,7 @@ export class CompanionApp {
     }, () => this.settings);
     this.cacheUsageUnsubscribe=this.imageCache.subscribe?.(()=>this.scheduleCacheUsage());
     this.versions = new VersionGroups(this); this.tags = new TagHighlights(this);
+    this.grid = new ResultGrid(this);
     this.media = new PageMedia(this);
     this.preview = new PreviewController(this);
     this.backfill = new BackfillController(this);
@@ -291,6 +293,7 @@ export class CompanionApp {
     });
     this.toggleFiltered.setAttribute('aria-pressed', 'false');
     this.toolbar.append(this.toggleFiltered, this.health);
+    this.grid.mount();
     this.backfill.mount();
     this.panes.filters.append(this.node('p', 'Loading filter preferences…', 'epc-filter-placeholder'));
     this.panes.searches.append(this.node('p', 'Click a name to run its search. More lets you edit saved criteria here.', 'epc-caption'));
@@ -354,6 +357,9 @@ export class CompanionApp {
       ['categoryDisplay', 'Category icons', ['keep', 'overlay', 'hide']],
       ['thumbnailMode', 'Thumbnail source', ['auto', 'supplied', 'original']],
       ['thumbnailSize', 'Thumbnail width', 'number', 48, 300],
+      ['resultsView', 'Results layout', ['list', 'grid']],
+      ['gridCardWidth', 'Grid card size', [240, 320, 420, 540]],
+      ['gridLargeImages', 'Automatically load larger images in grid view', 'checkbox'],
       ['previewWidth', 'Preview width', 'number', 240, 800],
       ['hoverDelay', 'Title hover delay (ms)', 'number', 0, 1500],
       ['hideDelay', 'Popup grace period (ms)', 'number', 100, 1500],
@@ -389,7 +395,8 @@ export class CompanionApp {
         for (const value of type) {
           const label = key === 'thumbnailMode' ? ({ auto: 'Small first', supplied: 'Page preview', original: 'Full original' })[value] :
             key === 'navigationScope' ? ({ off: 'Off', results: 'Results only', site: 'Across site' })[value] :
-            key === 'backfillMode' ? ({ off: 'When I click Backfill', pages: 'Automatically load a few pages', all: 'Automatically load all pages' })[value] : value;
+            key === 'backfillMode' ? ({ off: 'When I click Backfill', pages: 'Automatically load a few pages', all: 'Automatically load all pages' })[value] :
+            key === 'resultsView' ? ({ list: 'List', grid: 'Grid' })[value] : value;
           const option = this.node('option', label); option.value = value; control.append(option);
         }
         control.value = this.settings[key];
@@ -401,9 +408,10 @@ export class CompanionApp {
           control.step = key === 'preloadScreens' ? '0.1' : '1'; control.required = true;
         }
       }
+      if (key === 'gridCardWidth') { gridCardSizeChoices(control, this.settings.gridCardWidth); control.dataset.numeric = ''; }
       control.dataset.setting = key; this.controls.set(key, control); row.append(control);
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
-      const parent = ['thumbnailSize','previews'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
+      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridLargeImages'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
         key === 'diagnostics' ? this.optionGroups.diagnostics : key === 'navigationScope' ? this.optionGroups.interaction :
         imageKeys.has(key) ? this.optionGroups.images : this.optionGroups.loading;
@@ -411,6 +419,7 @@ export class CompanionApp {
       if(type==='checkbox'&&(parent===settings||parent===browsing))row.prepend(control);
     }
     settings.append(this.controls.get('previews').closest('label'));
+    settings.append(this.node('p', 'Grid cards show thumbnails first, then optionally load larger images. Card width is separate from list thumbnail width; larger images use more data.', 'epc-caption'));
     this.syncSettingsUI();
     const retry = this.button('Retry visible images', () => this.media.retryVisible()); retry.dataset.optionItem = '';
     this.optionGroups.loading.append(retry);
@@ -630,6 +639,8 @@ export class CompanionApp {
   }
   updateMediaPreferences(previous) {
     this.syncSettingsUI();
+    gridCardSizeChoices(this.controls.get('gridCardWidth'), this.settings.gridCardWidth);
+    this.grid?.refresh();
     this.backfill?.sync();
     this.backfill?.maybeAutomatic();
     if(previous.persistentCacheMB!==this.settings.persistentCacheMB)void this.imageCache.prune(this.imageCache.limit());
@@ -1067,7 +1078,8 @@ export class CompanionApp {
       const id = link && new URL(link.href).searchParams.get('id');
       if (visibility.has(id)) card.classList.toggle('epc-filter-hidden', visibility.get(id));
     }
-    this.batchDOM(() => this.versions?.refresh()); if (refreshTags) this.tags?.refresh();
+    this.batchDOM(() => this.versions?.refresh()); this.grid?.refresh(); if (refreshTags) this.tags?.refresh();
+    this.media?.scheduleGridUpgrades();
     if (this.filterSummary) {
       const rows = Array.from(this.doc.querySelectorAll('tr.torrent'));
       const removed = [...this.detachedFilterRows.keys()].filter(row => !row.isConnected).length;
@@ -1087,6 +1099,7 @@ export class CompanionApp {
       this.resultCounts.shown += difference; this.resultCounts.grouped -= difference; this.renderResultSummary();
     }
     this.scheduleHealth();
+    this.media?.scheduleGridUpgrades();
   }
   renderResultSummary() {
     if (!this.resultCounts || !this.filterSummary) return;
@@ -1157,6 +1170,7 @@ export class CompanionApp {
     this.cancelCacheUsage();this.cacheUsageUnsubscribe?.();
     this.imageCache?.close();
     this.versions?.dispose(); this.tags?.dispose();
+    this.grid?.dispose();
     this.preferences.cancel(); this.win.clearTimeout(this.toastTimer); this.win.clearTimeout(this.filterRefreshTimer);
     if (this.healthFrame) this.win.cancelAnimationFrame(this.healthFrame);
     this.customStyle?.remove();
@@ -1239,7 +1253,9 @@ export class PageMedia {
       this.records.delete(element); this.pool.abandon(record.lastEntry);
     }
     for (const [row, record] of this.thumbnails) {
-      if (!settings.inlineThumbnails) {
+      if (settings.resultsView !== previous.resultsView || settings.gridLargeImages !== previous.gridLargeImages ||
+          settings.thumbnailMode !== previous.thumbnailMode || !this.thumbnailsEnabled(row)) this.clearGridUpgrade(record);
+      if (!this.thumbnailsEnabled(row)) {
         record.unsubscribe?.(); this.intersection?.unobserve(record.element); this.near.delete(record.element);
         this.pool.abandon(record.lastEntry);
         record.element.remove(); this.thumbnails.delete(row); continue;
@@ -1248,7 +1264,7 @@ export class PageMedia {
       const link = record.link || row.querySelector('a[data-ep-overlay]');
       const category = row.querySelector('td.cats_col,td.cats_cols');
       const cell = link?.closest('td');
-      const destination = settings.thumbnailPlacement === 'category' && category &&
+      const destination = settings.resultsView !== 'grid' && settings.thumbnailPlacement === 'category' && category &&
         !this.app.storage.get('nseHideCategoryIconsEnabled', false) ? category : cell;
       if (destination && record.element.parentNode !== destination) {
         if (destination === category) destination.append(record.element); else destination.prepend(record.element);
@@ -1257,10 +1273,16 @@ export class PageMedia {
         const name = 'epc-category-' + value, wanted = value === settings.categoryDisplay;
         if (row.classList.contains(name) !== wanted) row.classList.toggle(name, wanted);
       }
-      if (settings.thumbnailMode !== previous.thumbnailMode) { record.state = 'deferred'; this.loadThumbnail(record); }
+      const enteringGrid = settings.resultsView === 'grid' && previous.resultsView !== 'grid';
+      if (settings.thumbnailMode !== previous.thumbnailMode || enteringGrid &&
+          !record.lastEntry?.key.endsWith('|thumbnail:auto') && !['ready', 'partial'].includes(record.state)) {
+        record.unsubscribe?.(); record.unsubscribe = null; this.pool.abandon(record.lastEntry);
+        record.state = 'deferred'; this.loadThumbnail(record);
+      }
     }
     if (settings.preloadScreens !== previous.preloadScreens) this.makeObserver();
     this.pool.trim(); this.pool.pump();
+    this.scheduleGridUpgrades();
     this.app.schedule(this.doc.getElementById('content') || this.doc.body);
   }
   failedRecords() {
@@ -1323,7 +1345,7 @@ export class PageMedia {
     // Warm the current result list as slots finish, even when the user stays at
     // the top. Nearby rows lead; filtering and closed galleries still apply.
     const records = (rows ? rows.map(row => this.thumbnails.get(row)).filter(Boolean) : [...this.thumbnails.values()])
-      .filter(record => this.app.settings.inlineThumbnails && record.state === 'deferred' && this.displayed(record.element));
+      .filter(record => this.thumbnailsEnabled(record.row) && record.state === 'deferred' && this.displayed(record.element));
     records.sort((a, b) => this.thumbnailPriority(b) - this.thumbnailPriority(a));
     for (const record of records) this.loadThumbnail(record);
     if (!rows && this.app.settings.recoverBackgrounds) {
@@ -1332,6 +1354,88 @@ export class PageMedia {
       for (const record of covers) this.loadBackground(record);
     }
     this.pool.pump();
+    this.scheduleGridUpgrades();
+  }
+  thumbnailsEnabled(row) {
+    return this.app.settings.inlineThumbnails || this.app.settings.resultsView === 'grid' &&
+      (row ? row.closest('table')?.classList.contains('epc-result-grid') : true);
+  }
+  gridUpgradeEligible(record) {
+    return !this.disposed && this.app.settings.enabled && this.app.settings.resultsView === 'grid' &&
+      this.app.settings.gridLargeImages && this.app.filtersReady &&
+      record.row.closest('table')?.classList.contains('epc-result-grid') && this.displayed(record.element);
+  }
+  scheduleGridUpgrades() {
+    if (this.disposed || this.gridFrame || this.app.settings.resultsView !== 'grid' ||
+        !this.app.settings.enabled || !this.app.settings.gridLargeImages) return;
+    this.gridFrame = this.win.requestAnimationFrame(() => {
+      this.gridFrame = null;
+      if (this.disposed) return;
+      const records = [...this.thumbnails.values()];
+      for (const record of records) if (record.gridUpgrade && !this.gridUpgradeEligible(record)) this.clearGridUpgrade(record);
+      if (this.doc.hidden) return;
+      this.gridThumbnailsPending = records.some(record => this.thumbnailsEnabled(record.row) &&
+        this.displayed(record.element) && !['ready', 'partial', 'failed'].includes(record.state));
+      // Finish the thumbnail pass before spending slots on automatic originals.
+      if (this.gridThumbnailsPending) return;
+      for (const record of records) {
+        if (record.state !== 'ready' || record.gridUpgrade || !this.gridUpgradeEligible(record)) continue;
+        if (fullSizeURL(record.source) === canonicalImageURL(record.lastEntry.actualURL)) continue;
+        this.loadGridUpgrade(record);
+      }
+      this.pool.pump();
+    });
+  }
+  clearGridUpgrade(record) {
+    const upgrade = record.gridUpgrade; if (!upgrade) return;
+    record.gridUpgrade = null;
+    upgrade.unsubscribe?.();
+    if (upgrade.image) { upgrade.image.onload = upgrade.image.onerror = null; upgrade.image.remove(); }
+    this.pool.abandon(upgrade.entry);
+    record.image.hidden = false;
+    record.status.hidden = record.state === 'ready' || record.state === 'partial';
+    delete record.element.dataset.gridImage;
+  }
+  loadGridUpgrade(record) {
+    const upgrade = { entry: null, unsubscribe: null, image: null }; record.gridUpgrade = upgrade;
+    const active = () => record.gridUpgrade === upgrade && this.gridUpgradeEligible(record);
+    const entry = this.pool.request(fullSizeURL(record.source), {
+      lane: 'large', cacheMode: 'preview', priority: 15,
+      priorityFor: () => Math.min(30, this.thumbnailPriority(record)),
+      eligible: () => active() && !this.doc.hidden && !this.gridThumbnailsPending,
+      target: this.app.options.Image ? null : this.app.node('img')
+    });
+    upgrade.entry = entry;
+    if (!entry) { record.gridUpgrade = null; return; }
+    const update = item => {
+      if (!active()) return;
+      record.element.dataset.gridImage = item.status;
+      const fail = () => {
+        record.element.dataset.gridImage = 'failed';
+        record.status.textContent = 'Larger image unavailable · showing thumbnail'; record.status.hidden = false;
+      };
+      if (item.status === 'ready' && item.image?.naturalWidth) {
+        if (upgrade.image) return;
+        const adopt = item.image instanceof this.win.HTMLImageElement && !item.image.isConnected;
+        const image = adopt ? item.image : this.app.node('img'); upgrade.image = image;
+        const show = () => {
+          if (!active()) return;
+          image.onload = image.onerror = null; image.alt = ''; image.draggable = false; image.hidden = false;
+          image.dataset.epImageSource = item.actualURL;
+          record.image.after(image); record.image.hidden = true; record.status.hidden = true;
+          // A preview must not move this live card image out of the page.
+          if (image === item.image) item.target = image;
+        };
+        if (adopt) show();
+        else {
+          image.onload = show; image.onerror = fail; image.decoding = 'async';
+          image.src = item.displayURL || item.actualURL;
+          if (!(item.image instanceof this.win.HTMLImageElement)) show();
+        }
+      } else if (['failed', 'partial'].includes(item.status)) fail();
+      else { record.status.textContent = 'Loading larger image…'; record.status.hidden = false; }
+    };
+    upgrade.unsubscribe = this.pool.subscribe(entry, update);
   }
   watchNear(element, callback) {
     this.near.set(element, callback);
@@ -1374,7 +1478,7 @@ export class PageMedia {
     this.collectDefinitions(root);
     const images = root.tagName === 'IMG' ? [root] : Array.from(root.querySelectorAll?.('img') || []);
     for (const image of images) this.inspect(image);
-    if (this.app.settings.inlineThumbnails) {
+    if (this.thumbnailsEnabled()) {
       const rows = new Set(root.matches?.('tr.torrent,#request_table tr') ? [root] :
         Array.from(root.querySelectorAll?.('tr.torrent,#request_table tr') || []));
       const parent = root.closest?.('tr.torrent,#request_table tr'); if (parent) rows.add(parent);
@@ -1540,7 +1644,7 @@ export class PageMedia {
     const definition = this.definitions.get(name); if (!definition) return;
     const cell = link.closest('td'); if (!cell) return;
     const category = row.querySelector('td.cats_col,td.cats_cols');
-    const inCategory = this.app.settings.thumbnailPlacement === 'category' && category &&
+    const inCategory = this.app.settings.resultsView !== 'grid' && this.app.settings.thumbnailPlacement === 'category' && category &&
       !this.app.storage.get('nseHideCategoryIconsEnabled', false);
     const host = this.app.node('span', null, 'epc-thumbnail');
     host.style.setProperty('--epc-thumb-size', this.app.settings.thumbnailSize + 'px');
@@ -1555,21 +1659,23 @@ export class PageMedia {
     if (!row.classList.contains(categoryClass)) row.classList.add(categoryClass);
     const record = { element: host, row, image, status, link, source: definition.src, state: 'deferred', unsubscribe: null };
     this.thumbnails.set(row, record);
+    if (this.app.settings.resultsView === 'grid') this.gridThumbnailsPending = true;
     // Hover offers a temporary enlargement; clicking either image opens controls.
     this.app.preview.bind(button, { ...definition, title: this.app.preview.titleOf(link), href: link.href });
     this.watchNear(host, () => this.loadThumbnail(record));
   }
-  thumbnailOptions(source, rescueEntry) {
-    const smallCandidates = rescueEntry ? [...rescueEntry.smallCandidates] :
+  thumbnailOptions(source, rescueEntry, mode = this.app.settings.thumbnailMode) {
+    const smallCandidates = (rescueEntry ? [...rescueEntry.smallCandidates] :
       [this.thumbnailHistory.get(canonicalImageURL(source))?.src,
-        ...Array.from(this.knownVariants.get(fullSizeURL(source)) || [])].filter(Boolean);
+        ...Array.from(this.knownVariants.get(fullSizeURL(source)) || [])].filter(Boolean))
+      .filter(candidate => mode !== 'auto' || candidate !== fullSizeURL(source));
     const candidates = rescueEntry ? [canonicalImageURL(rescueEntry.actualURL)] :
-      thumbnailCandidates(source, this.app.settings.thumbnailMode, smallCandidates);
+      thumbnailCandidates(source, mode, smallCandidates);
     const smallFirst = /\.(?:th|md)\.[^/.?]+(?:\?|$)/i.test(candidates[0]) ||
       candidates[0] !== fullSizeURL(source) && smallCandidates.includes(candidates[0]);
     return { candidates, smallCandidates, smallFirst, cacheMode: 'thumbnail',
-      lane: this.app.settings.thumbnailMode === 'original' || !smallFirst ? 'large' : 'thumbnail',
-      tier: 'thumbnail:' + this.app.settings.thumbnailMode,
+      lane: mode === 'original' || !smallFirst ? 'large' : 'thumbnail',
+      tier: 'thumbnail:' + mode,
       timeoutMs: this.app.settings.thumbnailTimeoutMs, fullTimeoutMs: this.app.settings.timeoutMs };
   }
   rememberThumbnail(record, item) {
@@ -1586,14 +1692,17 @@ export class PageMedia {
   }
   loadThumbnail(record, force = false, rescue = false) {
     if (!force && record.state !== 'deferred') return;
-    if (!this.app.filtersReady || this.disposed || !this.app.settings.inlineThumbnails || !this.displayed(record.element) || this.doc.hidden) return;
-    const options = this.thumbnailOptions(record.source, rescue ? record.lastEntry : null);
+    if (!this.app.filtersReady || this.disposed || !this.thumbnailsEnabled(record.row) || !this.displayed(record.element) || this.doc.hidden) return;
+    this.clearGridUpgrade(record);
+    if (this.app.settings.resultsView === 'grid') this.gridThumbnailsPending = true;
+    const options = this.thumbnailOptions(record.source, rescue ? record.lastEntry : null,
+      record.row.closest('table')?.classList.contains('epc-result-grid') ? 'auto' : this.app.settings.thumbnailMode);
     const { smallFirst } = options;
     const entry = this.pool.request(record.source, {
       ...options,
       priority: this.thumbnailPriority(record),
       priorityFor: () => this.thumbnailPriority(record),
-      eligible: () => !this.disposed && this.app.filtersReady && this.app.settings.inlineThumbnails &&
+      eligible: () => !this.disposed && this.app.filtersReady && this.thumbnailsEnabled(record.row) &&
         !this.doc.hidden && this.displayed(record.element),
       force,
       rescue, singleAttempt: rescue, fresh: rescue,
@@ -1622,6 +1731,7 @@ export class PageMedia {
       record.element.dataset.state = item.status;
       if (['ready', 'failed', 'partial'].includes(item.status)) { record.unsubscribe?.(); record.unsubscribe = null; }
       if (item.status === 'ready') this.rememberThumbnail(record,item);
+      if (['ready', 'failed', 'partial'].includes(item.status)) this.scheduleGridUpgrades();
       this.app.scheduleHealth();
     };
     record.unsubscribe = this.pool.subscribe(entry, update);
@@ -1752,12 +1862,14 @@ export class PageMedia {
     }
     for (const row of [root, ...root.querySelectorAll('tr')]) {
       const record = this.thumbnails.get(row); if (!record || row.isConnected) continue;
+      this.clearGridUpgrade(record);
       record.unsubscribe?.(); record.element.remove(); this.intersection?.unobserve(record.element); this.near.delete(record.element); this.thumbnails.delete(row);
       this.pool.abandon(record.lastEntry);
     }
   }
   dispose() {
     this.disposed = true; this.intersection?.disconnect(); this.pool.dispose();
+    if (this.gridFrame) this.win.cancelAnimationFrame(this.gridFrame);
     this.doc.documentElement?.classList.remove('epc-cover-art');
     this.pool.env.clearTimeout(this.recoveryTimer);
     this.win.removeEventListener('resize', this.resizeListener);
@@ -1776,6 +1888,7 @@ export class PageMedia {
       }
     }
     for (const record of this.thumbnails.values()) {
+      this.clearGridUpgrade(record);
       record.unsubscribe?.(); record.element.remove();
       record.row.classList.remove('epc-category-keep', 'epc-category-overlay', 'epc-category-hide');
     }

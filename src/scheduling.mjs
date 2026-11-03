@@ -14,7 +14,7 @@ export function presentationMutation(mutation) {
   if (current === mutation.oldValue) return true;
   if (mutation.attributeName !== 'class') return false;
   const nativeClasses = value => (value || '').split(/\s+/).filter(name => name &&
-    !/^epc-(?:tag-match|page-image|compact|revealed|stable-columns|cover-art|managed-cover|native-cover|cover-positioned|version-(?:hidden|member)|category-(?:keep|hide|overlay))$/.test(name)).join(' ');
+    !/^epc-(?:tag-match|page-image|compact|revealed|stable-columns|result-grid|cover-art|managed-cover|native-cover|cover-positioned|version-(?:hidden|member)|category-(?:keep|hide|overlay))$/.test(name)).join(' ');
   return nativeClasses(current) === nativeClasses(mutation.oldValue);
 }
 

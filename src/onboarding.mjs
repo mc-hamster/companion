@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { gridCardSizeChoices } from './grid-view.mjs';
 // A draft of existing preferences, committed through the normal import transaction.
 export class OnboardingController {
   constructor(app) { this.app = app; this.open = false; }
@@ -14,7 +15,7 @@ export class OnboardingController {
     const dialog = app.node('dialog', null, 'epc-root epc-onboarding'); this.element = dialog;
     dialog.setAttribute('aria-labelledby', 'epc-welcome-title');
     const title = app.node('h2', 'Welcome to Empornium Companion'); title.id = 'epc-welcome-title';
-    dialog.append(title, app.node('p', 'Reliable thumbnails, larger previews on hover, filters, grouped versions, saved searches, and more results on one page.'));
+    dialog.append(title, app.node('p', 'Reliable thumbnails, image grids, larger previews on hover, filters, grouped versions, saved searches, and more results on one page.'));
     dialog.append(app.node('p', 'These options—and much more—are available in Settings anytime. Reopen this setup with Settings → Getting started.', 'epc-caption'));
     const form = app.node('form'); this.form = form;
     const fresh = this.firstUse && !app.hasExistingPreferences;
@@ -53,6 +54,18 @@ export class OnboardingController {
     this.group = app.node('input'); this.group.type = 'checkbox'; this.group.checked = app.settings.groupVersions;
     field(form, 'Group alternate video versions', this.group);
     form.append(app.node('p', 'Similar releases share a Show versions button. Every version stays accessible.', 'epc-caption'));
+    this.view = app.node('select'); this.view.dataset.welcomeSetting = 'resultsView';
+    for (const [value, label] of [['list', 'List'], ['grid', 'Grid · larger image cards']]) {
+      const option = app.node('option', label); option.value = value; this.view.append(option);
+    }
+    this.view.value = app.settings.resultsView; field(form, 'Results layout', this.view);
+    this.gridSize = app.node('select'); gridCardSizeChoices(this.gridSize, app.settings.gridCardWidth);
+    this.gridSize.dataset.welcomeSetting = 'gridCardWidth';
+    field(form, 'Grid card size', this.gridSize);
+    this.gridLarge = app.node('input'); this.gridLarge.type = 'checkbox'; this.gridLarge.checked = app.settings.gridLargeImages;
+    this.gridLarge.dataset.welcomeSetting = 'gridLargeImages';
+    field(form, 'Automatically load larger images in grid view', this.gridLarge);
+    form.append(app.node('p', 'Grid cards show thumbnails first, then replace them with larger images when ready. Larger images use more data. Grid card width is separate from list thumbnail width.', 'epc-caption'));
     const tags = app.node('details'); tags.append(app.node('summary', 'Personalize tags (optional)'), app.node('p', 'Separate tags with spaces. Blocked tags hide matching results; Favorite and Caution only highlight them.', 'epc-caption'));
     this.tags = new Map();
     for (const [key, label, value] of [['blocked', 'Blocked tags', app.storage.get('nseTaglist', '')], ['favoriteTags', 'Favorite tags', app.settings.favoriteTags], ['cautionTags', 'Caution tags', app.settings.cautionTags]]) {
@@ -81,6 +94,7 @@ export class OnboardingController {
         backfillEnabled: mode !== 'off' || app.settings.backfillEnabled,
         backfillPages: mode === 'pages' ? Number(this.pages.value) : app.settings.backfillPages,
         thumbnailSize: Number(this.size.value), previews: this.hover.checked, groupVersions: this.group.checked,
+        resultsView: this.view.value, gridCardWidth: Number(this.gridSize.value), gridLargeImages: this.gridLarge.checked,
         favoriteTags: this.tags.get('favoriteTags').value, cautionTags: this.tags.get('cautionTags').value };
       app.importData(JSON.stringify({ ...current, settings,
         nse: { ...current.nse, nseTaglist: this.tags.get('blocked').value } }), false, { completeOnboarding: true });
@@ -99,6 +113,7 @@ export class OnboardingController {
     this.element?.remove(); this.element = null;
     if (this.returnFocus?.isConnected) this.returnFocus.focus({ preventScroll: true });
     this.form = this.tags = this.pages = this.size = this.hover = this.group = this.status = this.save = this.returnFocus = null;
+    this.view = this.gridSize = this.gridLarge = null;
   }
   dispose() { this.close(); }
 }

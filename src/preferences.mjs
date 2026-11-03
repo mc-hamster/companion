@@ -35,11 +35,12 @@ export class PreferencesController {
     try {
       const next = { ...app.settings };
       for (const [key, control] of app.controls) {
-        if (control.type === 'number' && !control.checkValidity()) {
+        const numeric = control.type === 'number' || control.hasAttribute('data-numeric');
+        if (numeric && !control.checkValidity()) {
           control.setAttribute('aria-invalid', 'true'); this.status('Check the highlighted value.'); return false;
         }
         control.removeAttribute('aria-invalid');
-        next[key] = control.type === 'checkbox' ? control.checked : control.type === 'number' ? Number(control.value) : control.value;
+        next[key] = control.type === 'checkbox' ? control.checked : numeric ? Number(control.value) : control.value;
       }
       filterChanged = app.filterDirty;
       next.globalArrowNavigation = next.navigationScope === 'site';

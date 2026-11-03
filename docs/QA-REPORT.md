@@ -1,3 +1,15 @@
+# Empornium Companion 2.12.0 grid validation
+
+Updated November 3, 2026.
+
+Version 2.12.0 adds List/Grid presentation, card-size presets and optional automatic larger images after the thumbnail pass. **318 automated checks pass**, including 14 grid checks. Build, syntax and source whitespace checks pass. The remembered layout and size survive different results pages and a newly constructed browser/storage session in the compiled-bundle regression.
+
+Native Chromium verification used neutral local fixtures at 1200px and 390px: thumbnail-first loading, one transfer per automatically upgraded original, single-column narrow layout without overflow, preset autosave, layout/size persistence across page navigation, 16 native/backfilled rows retained as cards, and failure retention of the small image. Disabling upgrades in onboarding caused no automatic original requests; the existing small-image fallback remained available. The failure fixture intentionally returned image HTTP errors; it recorded no uncaught application errors.
+
+Evidence: [desktop grid](qa/grid-2120-desktop.png), [narrow grid](qa/grid-2120-mobile.png), [size preset](qa/grid-2120-size-presets.png). [Behavior and limits](GRID-VIEW.md). These checks use local mock GM storage; live Empornium with Tampermonkey and actual browser restart remain manual checks. Generated stable, metadata and versioned 2.12.0 scripts are included together.
+
+---
+
 # Empornium Companion 2.11.0 quality audit
 
 Updated October 30, 2026.

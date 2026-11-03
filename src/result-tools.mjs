@@ -145,6 +145,7 @@ export class VersionGroups {
   stabilizeLayouts() {
     if (!this.app.settings.groupVersions || this.app.backfill?.busy) return;
     for (const table of this.app.doc.querySelectorAll('table.torrent_table,table#torrent_table')) {
+      if (table.classList.contains('epc-result-grid')) continue;
       if (this.layouts.has(table) || table.querySelector(':scope > colgroup') || table.querySelectorAll('tr.torrent').length < 200) continue;
       const row = [...table.querySelectorAll('tr.torrent')].find(row => row.getClientRects().length);
       if (!row) continue;

@@ -2,13 +2,14 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · Version **[2.11.1](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion-2.11.1.user.js)**
+**[Install Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · Version **[2.12.0](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion-2.12.0.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
 ## What you get
 
 - **Preview before opening.** See thumbnails beside results and hover over them for a larger image. Click a preview to keep it open.
+- **Browse in a grid.** Switch to larger image cards. Thumbnails appear first, with an optional automatic upgrade to larger images. Choose card width and upgrades in Settings or Getting started.
 - **Hide what you don't want.** Filter by tags, titles, or uploaders. Mark tags as favorites or cautions to make them easier to spot.
 - **Less clutter.** Similar releases are grouped together. Choose **Show versions** to compare them.
 - **Your searches, one click away.** Save a search and run it again from the toolbar.
@@ -33,6 +34,8 @@ If you use older scripts for the same features, back up their settings first, th
 **Searches** manages your saved searches. Run a search on Empornium, then click **Save search**. Its name appears below the toolbar; click it whenever you want to run that search again.
 
 **Settings** has the everyday choices: appearance, thumbnail size, hover previews, version grouping, and extra pages. Use the search box to find a setting, or **Getting started** to walk through setup again.
+
+Click **Grid view** above the results to switch to image cards; **List view** switches back. Under **Settings → Appearance**, grid cards have Compact (240px), Balanced (320px), Large (420px), and Extra large (540px) sizes and an **Automatically load larger images in grid view** option. Larger images load after the thumbnail pass and keep the thumbnail visible if they fail. Both choices are also in Getting started. Your layout is remembered across visits.
 
 To add more results yourself, click **Backfill results** in the toolbar. This brings the following pages into the page you're viewing. **Stop backfill** stops loading and keeps the results already added. For automatic loading, look under **Settings → Browsing → Load more pages**.
 

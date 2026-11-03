@@ -4,6 +4,7 @@ export const DEFAULTS = Object.freeze({
   enabled: true, previews: true, inlineThumbnails: true,
   thumbnailPlacement: 'title', categoryDisplay: 'keep', thumbnailMode: 'auto',
   thumbnailSize: 100, previewWidth: 440, hoverDelay: 140, hideDelay: 240,
+  resultsView: 'list', gridCardWidth: 320, gridLargeImages: true,
   concurrency: 8, maxRetries: 2, stallMs: 8000, timeoutMs: 24000, thumbnailTimeoutMs: 4500,
   cacheEntries: 24, cacheMegapixels: 48, preloadScreens: 0.8,
   persistentImages: true, persistentCacheMB: 512,
@@ -25,7 +26,7 @@ export function validateSettings(input = {}) {
     if (typeof DEFAULTS[key] === 'boolean' && typeof value === 'boolean') result[key] = value;
   }
   const ranges = {
-    thumbnailSize: [48, 300], previewWidth: [240, 800], hoverDelay: [0, 1500],
+    thumbnailSize: [48, 300], gridCardWidth: [240, 600], previewWidth: [240, 800], hoverDelay: [0, 1500],
     hideDelay: [100, 1500], concurrency: [1, 8], maxRetries: [0, 3], thumbnailTimeoutMs: [1500, 12000],
     stallMs: [1000, 30000], timeoutMs: [3000, 90000], cacheEntries: [4, 64],
     cacheMegapixels: [8, 160], persistentCacheMB: [32, 2048], preloadScreens: [0, 2], backfillPages: [1, 15]
@@ -41,7 +42,7 @@ export function validateSettings(input = {}) {
   for (const [key, options] of Object.entries({
     thumbnailPlacement: ['title', 'category'], categoryDisplay: ['keep', 'overlay', 'hide'],
     thumbnailMode: ['auto', 'small', 'supplied', 'original'], navigationScope: ['off', 'results', 'site'],
-    backfillMode: ['off', 'pages', 'all']
+    backfillMode: ['off', 'pages', 'all'], resultsView: ['list', 'grid']
   })) if (options.includes(input[key])) result[key] = input[key];
   if (result.thumbnailMode === 'small') result.thumbnailMode = 'auto';
   for (const key of ['favoriteTags', 'cautionTags']) {
