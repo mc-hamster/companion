@@ -359,6 +359,8 @@ export class CompanionApp {
       ['thumbnailSize', 'Thumbnail width', 'number', 48, 300],
       ['resultsView', 'Results layout', ['list', 'grid']],
       ['gridCardWidth', 'Grid card size', [240, 320, 420, 540]],
+      ['gridShowDetails', 'Show details in grid cards', 'checkbox'],
+      ['gridShowTags', 'Show tags in grid cards', 'checkbox'],
       ['gridLargeImages', 'Automatically load larger images in grid view', 'checkbox'],
       ['previewWidth', 'Preview width', 'number', 240, 800],
       ['hoverDelay', 'Title hover delay (ms)', 'number', 0, 1500],
@@ -411,7 +413,7 @@ export class CompanionApp {
       if (key === 'gridCardWidth') { gridCardSizeChoices(control, this.settings.gridCardWidth); control.dataset.numeric = ''; }
       control.dataset.setting = key; this.controls.set(key, control); row.append(control);
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
-      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridLargeImages'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
+      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridShowDetails','gridShowTags','gridLargeImages'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
         key === 'diagnostics' ? this.optionGroups.diagnostics : key === 'navigationScope' ? this.optionGroups.interaction :
         imageKeys.has(key) ? this.optionGroups.images : this.optionGroups.loading;

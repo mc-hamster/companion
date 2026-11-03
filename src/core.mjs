@@ -4,7 +4,7 @@ export const DEFAULTS = Object.freeze({
   enabled: true, previews: true, inlineThumbnails: true,
   thumbnailPlacement: 'title', categoryDisplay: 'keep', thumbnailMode: 'auto',
   thumbnailSize: 100, previewWidth: 440, hoverDelay: 140, hideDelay: 240,
-  resultsView: 'list', gridCardWidth: 320, gridLargeImages: true,
+  resultsView: 'list', gridCardWidth: 320, gridLargeImages: true, gridShowDetails: false, gridShowTags: false,
   concurrency: 8, maxRetries: 2, stallMs: 8000, timeoutMs: 24000, thumbnailTimeoutMs: 4500,
   cacheEntries: 24, cacheMegapixels: 48, preloadScreens: 0.8,
   persistentImages: true, persistentCacheMB: 512,

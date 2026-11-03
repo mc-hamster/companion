@@ -38,6 +38,8 @@ export class ResultGrid {
         if (!table || !grid) continue;
         this.tables.add(table); app.versions?.releaseLayout(table);
         table.classList.add('epc-result-grid');
+        table.dataset.epGridDetails = String(app.settings.gridShowDetails);
+        table.dataset.epGridTags = String(app.settings.gridShowTags);
         table.style.setProperty('--epc-grid-width', app.settings.gridCardWidth + 'px');
         const headings = [...table.querySelectorAll('tr')].find(row => row.querySelector('th') || row.matches('.colhead_dark'));
         if (headings) {
@@ -51,7 +53,8 @@ export class ResultGrid {
         }
         const fallback = ['Category', 'Name', 'Files', 'Comments', 'Added', 'Size', 'Snatches', 'Seeds', 'Peers', 'Uploader'];
         for (const row of table.querySelectorAll('tr.torrent')) {
-          const title = resultTitleLink(row)?.closest('td');
+          const link = resultTitleLink(row), title = link?.closest('td');
+          if (link) link.dataset.epGridTitle = '';
           let column = 0;
           for (const cell of row.cells) {
             cell.dataset.epGridCell = cell === title ? 'title' : cell.matches('.cats_col,.cats_cols') ?
@@ -62,6 +65,7 @@ export class ResultGrid {
         }
       }
       for (const cell of this.cells) if (!cell.isConnected && !app.detachedFilterRows.has(cell.closest('tr'))) {
+        for (const link of cell.querySelectorAll('[data-ep-grid-title]')) delete link.dataset.epGridTitle;
         delete cell.dataset.epGridCell; delete cell.dataset.epGridLabel; this.cells.delete(cell);
       }
     });
@@ -74,10 +78,13 @@ export class ResultGrid {
   }
   release(table) {
     table.classList.remove('epc-result-grid'); table.style.removeProperty('--epc-grid-width'); this.tables.delete(table);
+    delete table.dataset.epGridDetails;
+    delete table.dataset.epGridTags;
     for (const row of this.headings) if (!row.isConnected || row.closest('table') === table) {
       delete row.dataset.epGridHeader; this.headings.delete(row);
     }
     for (const cell of this.cells) if (!cell.isConnected || cell.closest('table') === table) {
+      for (const link of cell.querySelectorAll('[data-ep-grid-title]')) delete link.dataset.epGridTitle;
       delete cell.dataset.epGridCell; delete cell.dataset.epGridLabel; this.cells.delete(cell);
     }
   }

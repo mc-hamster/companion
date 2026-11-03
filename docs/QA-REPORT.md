@@ -1,3 +1,15 @@
+# Empornium Companion 2.12.1 compact grid validation
+
+Updated November 3, 2026.
+
+Grid titles now show at most two lines, with the full title retained in the link and hover preview. Tags, stats, uploader and category cells are hidden by default. Settings → Appearance has separate Show tags in grid cards and Show details in grid cards toggles, saved with the other preferences. Tag filters/highlights and List presentation are preserved.
+
+The 318-check suite and updated 14 grid regressions pass, including the details/tags defaults, independent live toggles, compiled-bundle tag visibility, removal of grid annotations on returning to List, and persistence across pages/fresh storage sessions. Build and syntax checks pass. Native Chromium verified a long title at exactly two 21px lines at 1200px and 390px, hidden details by default, immediate restoration of stats/category cells, saved toggle state, and no grid overflow. [Compact grid evidence](qa/grid-2121-compact.png) shows the earlier tags-visible presentation. Browser validation used neutral local fixtures.
+
+Card spacing was also checked with injected native row/cell minimum heights and trailing table line breaks. The grid overrides those heights, suppresses the extra breaks and removes title padding when details are hidden; the remaining bottom gap measured 16px at 1200px and 14px at 390px, with no narrow grid overflow. Returning to List restored the native sizing/break behavior. [Desktop spacing](qa/grid-2121-spacing-desktop.png) · [Narrow spacing](qa/grid-2121-spacing-mobile.png).
+
+---
+
 # Empornium Companion 2.12.0 grid validation
 
 Updated November 3, 2026.

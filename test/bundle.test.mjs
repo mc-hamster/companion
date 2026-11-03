@@ -431,7 +431,7 @@ test('the simplified interface shows three task areas and grid preferences and f
     f.doc.querySelector('.epc-navigation [data-pane="settings"]').click();
     const pane = f.doc.querySelector('.epc-pane[data-pane="settings"]');
     const visible = [...pane.querySelectorAll('input,select,textarea')].filter(exposed);
-    assert.equal(visible.length, 10);
+    assert.equal(visible.length, 12);
     assert.ok(visible.some(control => control.id === 'nseThemeDropdown'));
     assert.ok(visible.some(control => control.dataset.setting === 'thumbnailSize'));
     assert.equal(f.doc.querySelector('[data-option-group="advanced"]').open, false);
@@ -612,7 +612,7 @@ test('highlight lists autosave in the folded Filters section without adding prim
     assert.equal(f.doc.querySelector('.tags a').dataset.epTagTone, 'favorite');
     assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag');
     assert.equal(f.doc.querySelectorAll('.epc-navigation button').length, 3);
-    assert.equal(f.doc.querySelectorAll('.epc-basic-settings input,.epc-basic-settings select').length, 9);
+    assert.equal(f.doc.querySelectorAll('.epc-basic-settings input,.epc-basic-settings select').length, 11);
     f.doc.querySelector('[data-setting=groupVersions]').checked = false;
     f.doc.querySelector('[data-setting=groupVersions]').dispatchEvent(new f.win.Event('change', { bubbles: true })); await settle(80);
     assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag');

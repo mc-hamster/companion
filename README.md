@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · Version **[2.12.0](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion-2.12.0.user.js)**
+**[Install Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · Version **[2.12.1](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion-2.12.1.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -36,6 +36,10 @@ If you use older scripts for the same features, back up their settings first, th
 **Settings** has the everyday choices: appearance, thumbnail size, hover previews, version grouping, and extra pages. Use the search box to find a setting, or **Getting started** to walk through setup again.
 
 Click **Grid view** above the results to switch to image cards; **List view** switches back. Under **Settings → Appearance**, grid cards have Compact (240px), Balanced (320px), Large (420px), and Extra large (540px) sizes and an **Automatically load larger images in grid view** option. Larger images load after the thumbnail pass and keep the thumbnail visible if they fail. Both choices are also in Getting started. Your layout is remembered across visits.
+
+Grid titles are limited to two lines. Stats, uploader and category information are hidden by default; enable **Settings → Appearance → Show details in grid cards** to display them again.
+
+Tags are also hidden by default in grid view. **Settings → Appearance → Show tags in grid cards** controls them separately from the details block. Both choices are remembered; tag filtering and highlighting continue to work.
 
 To add more results yourself, click **Backfill results** in the toolbar. This brings the following pages into the page you're viewing. **Stop backfill** stops loading and keeps the results already added. For automatic loading, look under **Settings → Browsing → Load more pages**.
 

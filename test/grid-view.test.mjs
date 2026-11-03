@@ -22,7 +22,8 @@ const completedSmall = async f => {
 
 test('grid settings validate, retain list by default and use a separate larger card width', () => {
   const defaults = validateSettings();
-  assert.equal(defaults.resultsView, 'list'); assert.equal(defaults.gridCardWidth, 320); assert.equal(defaults.gridLargeImages, true);
+  assert.equal(defaults.gridShowTags, false);
+  assert.equal(defaults.resultsView, 'list'); assert.equal(defaults.gridCardWidth, 320); assert.equal(defaults.gridLargeImages, true); assert.equal(defaults.gridShowDetails, false);
   const checked = validateSettings({ resultsView: 'invalid', gridCardWidth: 900, gridLargeImages: 'yes', thumbnailSize: 72 });
   assert.equal(checked.resultsView, 'list'); assert.equal(checked.gridCardWidth, 600); assert.equal(checked.thumbnailSize, 72); assert.equal(checked.gridLargeImages, true);
 });
@@ -35,11 +36,23 @@ test('grid preserves native result identity and controls, labels metadata and re
     assert.equal(table.style.getPropertyValue('--epc-grid-width'), '320px');
     assert.equal(row.cells[5].dataset.epGridLabel, 'Size');
     assert.equal(row.cells[1].dataset.epGridCell, 'title'); assert.ok(row.cells[1].querySelector('.epc-thumbnail'));
+    assert.equal(table.dataset.epGridDetails, 'false'); assert.ok(link.hasAttribute('data-ep-grid-title'));
+    assert.equal(table.dataset.epGridTags, 'false');
+    const fullTitle = link.textContent;
+    await field(f, '[data-setting=gridShowDetails]', true);
+    assert.equal(table.dataset.epGridDetails, 'true'); assert.equal(link.textContent, fullTitle);
+    assert.equal(table.dataset.epGridTags, 'false', 'showing details does not show tags');
+    await field(f, '[data-setting=gridShowTags]', true);
+    assert.equal(table.dataset.epGridTags, 'true'); assert.equal(table.dataset.epGridDetails, 'true');
     const image = f.app.media.thumbnails.get(row).image;
     f.app.grid.toggle.click(); assert.equal(f.storage.get('ep.settings').resultsView, 'list');
     assert.equal(table.classList.contains('epc-result-grid'), false); assert.equal(row.cells[5].hasAttribute('data-ep-grid-label'), false);
+    assert.equal(table.hasAttribute('data-ep-grid-details'), false); assert.equal(link.hasAttribute('data-ep-grid-title'), false);
+    assert.equal(table.hasAttribute('data-ep-grid-tags'), false);
     assert.equal(f.doc.querySelector('.fixture-title'), link); assert.ok(row.cells[0].contains(image));
     f.app.grid.toggle.click(); assert.equal(f.storage.get('ep.settings').resultsView, 'grid');
+    assert.equal(table.dataset.epGridDetails, 'true');
+    assert.equal(table.dataset.epGridTags, 'true');
     assert.equal(f.app.media.thumbnails.get(row).image, image); assert.ok(row.cells[1].contains(image));
   } finally { f.close(); }
 });
@@ -210,6 +223,11 @@ test('layout and card size survive navigation, a new storage session and switchi
   let f = await boot({}, { store, url: 'https://www.empornium.sx/torrents.php?searchtext=first&page=1' });
   try {
     clickText(f.doc.querySelector('.epc-toolbar'), 'Grid view'); await field(f, '[data-setting=gridCardWidth]', 540);
+    assert.equal(f.win.getComputedStyle(f.doc.querySelector('tr.torrent .tags')).display, 'none');
+    await field(f, '[data-setting=gridShowDetails]', true);
+    assert.equal(f.win.getComputedStyle(f.doc.querySelector('tr.torrent .tags')).display, 'none');
+    await field(f, '[data-setting=gridShowTags]', true);
+    assert.notEqual(f.win.getComputedStyle(f.doc.querySelector('tr.torrent .tags')).display, 'none');
   } finally { f.close(); }
   // New document, different search/page, same durable manager data.
   f = await boot({}, { store, url: 'https://www.empornium.sx/torrents.php?searchtext=second&page=2' });
@@ -217,6 +235,8 @@ test('layout and card size survive navigation, a new storage session and switchi
     assert.equal(f.doc.querySelector('[data-ep-grid-toggle]').textContent, 'List view');
     assert.equal(f.doc.querySelector('table.torrent_table').classList.contains('epc-result-grid'), true);
     assert.equal(f.doc.querySelector('[data-setting=gridCardWidth]').value, '540');
+    assert.equal(f.doc.querySelector('table.torrent_table').dataset.epGridDetails, 'true');
+    assert.equal(f.doc.querySelector('table.torrent_table').dataset.epGridTags, 'true');
   } finally { f.close(); }
   // Fresh manager/storage object and window, as after restarting the browser.
   store = strictStorage(Object.fromEntries(Object.entries(store.snapshot()).map(([key, value]) => [key, JSON.parse(value)])));
@@ -224,6 +244,9 @@ test('layout and card size survive navigation, a new storage session and switchi
   try {
     assert.equal(f.doc.querySelector('table.torrent_table').classList.contains('epc-result-grid'), true);
     assert.equal(f.doc.querySelector('[data-setting=gridCardWidth]').value, '540');
+    assert.equal(f.doc.querySelector('[data-setting=gridShowDetails]').checked, true);
+    assert.equal(f.doc.querySelector('[data-setting=gridShowTags]').checked, true);
+    assert.notEqual(f.win.getComputedStyle(f.doc.querySelector('tr.torrent .tags')).display, 'none');
     clickText(f.doc.querySelector('.epc-toolbar'), 'List view');
   } finally { f.close(); }
   f = await boot({}, { store });

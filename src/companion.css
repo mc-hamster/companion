@@ -237,20 +237,25 @@ a.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;poi
 #content .epc-result-grid tr[data-ep-grid-header=sortable]:before{content:"Sort by";align-self:center;font:11px system-ui,sans-serif;opacity:.65}
 #content .epc-result-grid tr:not(.torrent)>th,#content .epc-result-grid tr:not(.torrent)>td{display:block;width:auto!important;padding:5px;border:0}
 #content .epc-result-grid tr:not(.torrent)>th:empty{display:none}
-#content .epc-result-grid tr.torrent{display:flex;flex-wrap:wrap;align-content:start;gap:0;min-width:0;max-width:100%;margin:0;padding:12px;border:1px solid #7a8ba760;border-radius:10px;box-sizing:border-box;overflow:hidden;box-shadow:0 2px 7px #0000000a}
+#content .epc-result-grid tr.torrent{display:flex;flex-wrap:wrap;align-content:start;gap:0;min-width:0;max-width:100%;height:auto!important;min-height:0!important;margin:0;padding:12px;border:1px solid #7a8ba760;border-radius:10px;box-sizing:border-box;overflow:hidden;box-shadow:0 2px 7px #0000000a}
 #content .epc-result-grid tr.torrent[hidden],#content .epc-result-grid tr.torrent.hidden:not(.epc-revealed),#content .epc-result-grid tr.epc-version-hidden{display:none!important}
-#content .epc-result-grid tr.torrent>td{display:block!important;box-sizing:border-box;min-width:0!important;width:auto!important;max-width:100%;height:auto!important;border:0!important;padding:6px 10px 6px 0;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+#content .epc-result-grid tr.torrent>td{display:block!important;box-sizing:border-box;min-width:0!important;width:auto!important;max-width:100%;height:auto!important;min-height:0!important;border:0!important;padding:6px 10px 6px 0;text-align:left;vertical-align:top;overflow-wrap:anywhere}
 #content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category-hidden],#content .epc-result-grid tr.torrent>td[hidden],#content .epc-result-grid tr.torrent>td.hidden{display:none!important}
 #content .epc-result-grid tr.torrent>td[data-ep-grid-cell=title]{order:0;flex:0 0 100%;padding:0 0 10px;font-size:14px;line-height:1.5}
+#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=title]{padding-bottom:0}
+#content .epc-result-grid [data-ep-grid-cell=title]>br{display:none}
 #content .epc-result-grid [data-ep-grid-cell=title]>a{font-weight:650}
+#content .epc-result-grid [data-ep-grid-title]{display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;max-height:3em;line-height:1.5;overflow-wrap:anywhere}
 #content .epc-result-grid [data-ep-grid-cell=title] .tags{margin-top:8px;font-size:12px;line-height:1.7}
+#content .epc-result-grid:not([data-ep-grid-tags=true]) tr.torrent .tags{display:none!important}
 #content .epc-result-grid [data-ep-grid-cell=title] .tags>a{display:inline-block;margin-inline-end:5px;max-width:100%;overflow-wrap:anywhere}
 #content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category]{order:2;flex:0 0 100%;font-size:11px;opacity:.8}
 #content .epc-result-grid tr.torrent>td[data-ep-grid-cell=meta]{order:1;flex:1 0 30%;font-size:12px;border-top:1px solid #7a8ba730!important}
+#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=meta],#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=category]{display:none!important}
 #content .epc-result-grid [data-ep-grid-cell=meta]:before{content:attr(data-ep-grid-label);display:block;font:10px/1.5 system-ui,sans-serif;opacity:.65}
 #content .epc-result-grid .epc-thumbnail{display:block;float:none;width:100%;margin:0 0 12px}
 #content .epc-result-grid .epc-thumb-button{width:100%;height:auto;aspect-ratio:4/3;min-height:120px;max-height:none;border:0;border-radius:6px}
 #content .epc-result-grid .epc-thumb-button>img{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain}
-#content .epc-result-grid .epc-version-control{margin-inline-start:0}
+#content .epc-result-grid .epc-version-control{display:none!important}
 #content .epc-result-grid .cats_col>div[title],#content .epc-result-grid .cats_cols>div[title]{position:static}
 @media(max-width:520px){#content .epc-result-grid>tbody{gap:12px}#content .epc-result-grid tr.torrent{padding:10px}}
