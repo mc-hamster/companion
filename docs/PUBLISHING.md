@@ -9,7 +9,7 @@ The userscript runs inside each user's browser. GitHub serves the installation a
 1. Run the validation commands below and commit the publication changes, including the generated files.
 2. Push `main` to `origin`, which is configured as `https://github.com/mc-hamster/companion.git`. In GitHub Desktop, use **Push origin** after committing. Confirm the repository is public so others can install and receive updates without GitHub authentication.
 3. Confirm the **Validate userscript** GitHub Actions workflow passes.
-4. Open the install link in a browser with Tampermonkey. Check that it identifies **Empornium Companion 2.12.2**, shows the declared permissions, and offers installation. Reload Empornium after installation and confirm Getting started and the toolbar appear. Existing installations should retain their saved preferences when updated.
+4. Open the install link in a browser with Tampermonkey. Check that it identifies **Empornium Companion 2.12.3**, shows the declared permissions, and offers installation. Reload Empornium after installation and confirm Getting started and the toolbar appear. Existing installations should retain their saved preferences when updated.
 5. Share the README or the install link below. These links become available after the public repository's first push.
 
 Install:

@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · Version **[2.12.2](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion-2.12.2.user.js)**
+**[Install Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · Version **[2.12.3](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion-2.12.3.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -34,6 +34,8 @@ If you use older scripts for the same features, back up their settings first, th
 **Searches** manages your saved searches. Run a search on Empornium, then click **Save search**. Its name appears below the toolbar; click it whenever you want to run that search again.
 
 **Settings** has the everyday choices: appearance, thumbnail size, hover previews, version grouping, and extra pages. Use the search box to find a setting, or **Getting started** to walk through setup again.
+
+Enable **Use keyboard shortcuts** during setup, or find the toggle and key mappings under **Settings → Advanced settings → Keyboard & menus**.
 
 Click **Grid view** above the results to switch to image cards; **List view** switches back. Under **Settings → Appearance**, grid cards have Compact (240px), Balanced (320px), Large (420px), and Extra large (540px) sizes and an **Automatically load larger images in grid view** option. Larger images load after the thumbnail pass and keep the thumbnail visible if they fail. Both choices are also in Getting started. Your layout is remembered across visits.
 

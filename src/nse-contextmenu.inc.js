@@ -1,6 +1,9 @@
 if(currentPage !== "Notification filters") {
     document.addEventListener("contextmenu", function(event) {
         if(event.defaultPrevented || event.shiftKey || !nseRightClickManagementEnabled) return;
+        // A browser can also dispatch a native context menu from the Menu key or Shift+F10.
+        if (!app.settings.keyboardShortcuts && event.isTrusted && !event.pointerType &&
+            (event.pointerId === -1 || event.button !== 2 && !event.ctrlKey)) return;
         const target = event.target.closest(".nseTagElement,.nseUploaderElement,div.tags>a,ul#torrent_tags_list>li>a,tr.torrent td.user>a");
         if(!target) return;
         const copy = target.cloneNode(true);

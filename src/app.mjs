@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { DEFAULTS, validateSettings, escapeHTML, safeImageURL, canonicalImageURL,
   legacyOriginal, fullSizeURL, thumbnailCandidates, parseOverlayDefinitions,
-  imageState, editableTarget, SEARCH_NAMES, validateSearches, MediaPool } from './core.mjs';
-import { mountFilterControls, adoptRuleMenu, styleRowControls, applyWorkspaceTheme, adoptNotificationControls, optionGroup, setupSettingsSearch } from './workspace.mjs';
+  imageState, editableTarget, isSaveShortcut, SEARCH_NAMES, validateSearches, MediaPool } from './core.mjs';
+import { mountFilterControls, adoptRuleMenu, styleRowControls, applyWorkspaceTheme, adoptNotificationControls, optionGroup, setupSettingsSearch, keyboardShortcutList } from './workspace.mjs';
 import { PreferencesController, captureFilterBaseline, restoreFilterBaseline } from './preferences.mjs';
 import { BackfillController } from './backfill.mjs';
 import { OnboardingController } from './onboarding.mjs';
@@ -68,6 +68,7 @@ export class CompanionApp {
     const savedSettings = storedSettings && typeof storedSettings === 'object' ? { ...storedSettings } : {};
     this.hasExistingPreferences = Object.keys(savedSettings).length > 0 || storage.list().some(key => key.startsWith('nse'));
     this.onboardingComplete = storage.get('ep.onboardingDone', false) === true;
+    if (!this.hasExistingPreferences && !this.onboardingComplete) savedSettings.keyboardShortcuts = false;
     if (!Object.hasOwn(savedSettings, 'backfillEnabled')) savedSettings.backfillEnabled = storage.get('nseBackfillButtonEnabled', true);
     if (!Object.hasOwn(savedSettings, 'backfillPages')) savedSettings.backfillPages = storage.get('nseBackfillPageLimit', 5);
     if (!savedSettings.navigationScope) savedSettings.navigationScope = savedSettings.globalArrowNavigation ? 'site' :
@@ -382,6 +383,7 @@ export class CompanionApp {
       ['persistentCacheMB', 'Saved image cache limit (MB)', 'number', 32, 2048],
       ['preloadScreens', 'Prioritize nearby images (screens)', 'number', 0, 2],
       ['progressBar', 'Thumbnail progress bar', 'checkbox'],
+      ['keyboardShortcuts', 'Use keyboard shortcuts', 'checkbox'],
       ['navigationScope', 'Arrow key pagination', ['off', 'results', 'site']],
       ['diagnostics', 'Keep a local diagnostic history', 'checkbox'],
       ['backfillEnabled', 'Show Backfill results action', 'checkbox'],
@@ -415,13 +417,16 @@ export class CompanionApp {
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
       const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridShowDetails','gridShowTags','gridLargeImages'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
-        key === 'diagnostics' ? this.optionGroups.diagnostics : key === 'navigationScope' ? this.optionGroups.interaction :
+        key === 'diagnostics' ? this.optionGroups.diagnostics : ['keyboardShortcuts', 'navigationScope'].includes(key) ? this.optionGroups.interaction :
         imageKeys.has(key) ? this.optionGroups.images : this.optionGroups.loading;
       parent.append(row);
       if(type==='checkbox'&&(parent===settings||parent===browsing))row.prepend(control);
     }
     settings.append(this.controls.get('previews').closest('label'));
     settings.append(this.node('p', 'Grid cards show thumbnails first, then optionally load larger images. Card width is separate from list thumbnail width; larger images use more data.', 'epc-caption'));
+    const shortcuts = keyboardShortcutList(this);
+    shortcuts.dataset.optionItem = '';
+    this.optionGroups.interaction.append(shortcuts);
     this.syncSettingsUI();
     const retry = this.button('Retry visible images', () => this.media.retryVisible()); retry.dataset.optionItem = '';
     this.optionGroups.loading.append(retry);
@@ -531,6 +536,7 @@ export class CompanionApp {
     const row=pages.closest('[data-option-item]');row.querySelector('span').textContent=mode==='off'?'Pages per click':'Additional pages';
     const searching=!!this.settingsSearch?.value.trim();if(!searching)row.hidden=mode==='all';
     if(mode==='all'&&!pages.checkValidity())pages.value=this.settings.backfillPages;
+    this.controls.get('navigationScope').disabled = !this.controls.get('keyboardShortcuts').checked;
     if(this.cacheUsage?.hidden){this.win.clearTimeout(this.cacheUsageClock);this.cacheUsageClock=null;}
   }
   scheduleCacheUsage(){
@@ -650,8 +656,9 @@ export class CompanionApp {
       this.syncGridFilters(false); this.media.prepareThumbnails(); this.updateHealth();
     }
     if (previous.favoriteTags !== this.settings.favoriteTags || previous.cautionTags !== this.settings.cautionTags) this.tags.refresh();
+    if (previous.keyboardShortcuts !== this.settings.keyboardShortcuts) this.preview.syncShortcutLabels();
     const other = new Set(['groupVersions', 'favoriteTags', 'cautionTags', 'backfillEnabled', 'backfillPages', 'backfillMode',
-      'navigationScope', 'globalArrowNavigation', 'diagnostics', 'persistentImages', 'persistentCacheMB']);
+      'keyboardShortcuts', 'navigationScope', 'globalArrowNavigation', 'diagnostics', 'persistentImages', 'persistentCacheMB']);
     if (!Object.keys(this.settings).some(key => !other.has(key) && previous[key] !== this.settings[key])) return;
     if (previous.enabled !== this.settings.enabled) {
       this.restartMedia(); return;
@@ -712,6 +719,7 @@ export class CompanionApp {
     else if (parsed.format === 'empornium-companion') {
       if (parsed.version !== 1) throw new Error('Unsupported backup version.');
       settings = validateSettings(parsed.settings);
+      if (!Object.hasOwn(parsed.settings ?? {}, 'keyboardShortcuts')) settings.keyboardShortcuts = this.settings.keyboardShortcuts;
       searches = validateSearches(parsed.searches);
       nse = this.options.validateNSE?.(parsed.nse || {}) || parsed.nse;
       drawer = !!parsed.searchDrawerOpen;
@@ -888,7 +896,7 @@ export class CompanionApp {
           };
           row.replaceChildren(input, this.button('Save name', commit), this.button('Cancel', () => this.renderSavedSearches()));
           input.addEventListener('keydown', e => {
-            if(e.isComposing || this.composing) return;
+            if (!this.settings.keyboardShortcuts || e.isComposing || this.composing || e.defaultPrevented) return;
             if (e.key === 'Enter') { e.preventDefault(); commit(); }
             if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.renderSavedSearches(); }
           });
@@ -1005,8 +1013,8 @@ export class CompanionApp {
     if (this.options.navigate) this.options.navigate(target.href); else this.win.location.assign(target.href);
   }
   keydown(event) {
-    if (this.onboarding?.open) return;
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' &&
+    if (!this.settings.keyboardShortcuts || this.onboarding?.open || event.isComposing || event.defaultPrevented) return;
+    if (isSaveShortcut(event) &&
         event.target.closest?.('.epc-workspace') && this.activePane !== 'searches') {
       event.preventDefault(); if (this.dirty) this.applyChanges(); return;
     }
@@ -1031,7 +1039,7 @@ export class CompanionApp {
       }
       return;
     }
-    if (editableTarget(event.target) || event.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented) return;
+    if (editableTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
     if (this.preview.open) {
       if (event.key.toLowerCase() === 'r') { event.preventDefault(); this.preview.retry(); return; }
       if (event.key.toLowerCase() === 'p') { event.preventDefault(); this.preview.pin(); return; }
@@ -1926,8 +1934,9 @@ export class PreviewController {
     this.doc.addEventListener('visibilitychange', this.statsVisibility);
     this.summary = this.app.node('p', '', 'epc-preview-summary');
     const actions = this.actions = this.app.node('div', null, 'epc-actions');
-    this.pinButton = this.app.button('Pin (P)', () => this.pin());
-    this.retryButton = this.app.button('Retry (R)', () => this.retry());
+    this.pinButton = this.app.button('Pin', () => this.pin());
+    this.retryButton = this.app.button('Retry', () => this.retry());
+    this.syncShortcutLabels();
     this.details = this.app.node('a', 'Details'); this.details.target = '_blank'; this.details.rel = 'noopener noreferrer';
     actions.append(this.pinButton, this.retryButton, this.details);
     this.element.append(heading, this.frame, this.status, this.summary, actions); this.doc.body.append(this.element);
@@ -2152,7 +2161,7 @@ export class PreviewController {
     this.element.style.pointerEvents = titleHover || !this.pinned && this.hoveredTrigger === link ? 'none' : '';
     this.element.hidden = false; this.title.textContent = item.metadata.title || 'Image preview';
     this.summary.textContent = item.metadata.summary || '';
-    this.pinButton.textContent = this.pinned ? 'Unpin (P)' : 'Pin (P)';
+    this.syncShortcutLabels();
     this.pinButton.setAttribute('aria-pressed', String(this.pinned));
     this.clearPendingImage();
     if (!same) { this.clearImage(); this.setStatusText('Waiting for image…'); }
@@ -2246,6 +2255,13 @@ export class PreviewController {
     if (restoreFocus) this.anchor?.focus({ preventScroll: true });
     if (!this.anchor?.isConnected) { this.anchor = null; this.metadata = null; this.dismissed = null; }
     this.app.media.pool.trim();
+  }
+  syncShortcutLabels() {
+    const shortcuts = this.app.settings.keyboardShortcuts;
+    const pin = (this.pinned ? 'Unpin' : 'Pin') + (shortcuts ? ' (P)' : '');
+    const retry = shortcuts ? 'Retry (R)' : 'Retry';
+    if (this.pinButton.textContent !== pin) this.pinButton.textContent = pin;
+    if (this.retryButton.textContent !== retry) this.retryButton.textContent = retry;
   }
   pin() {
     if (!this.anchor) return;

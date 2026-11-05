@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { SEARCH_NAMES } from './core.mjs';
+import { SEARCH_NAMES, isSaveShortcut } from './core.mjs';
 
 const labels = {
   searchtext: 'Keywords', searchstr: 'Keywords', title: 'Title contains', taglist: 'Tags',
@@ -119,9 +119,11 @@ export function createSavedSearchEditor(app, saved, { save, cancel }) {
   };
   actions.append(app.button('Save changes', commit), app.button('Cancel', cancel)); root.append(status, actions);
   root.addEventListener('keydown', event => {
+    if (!app.settings.keyboardShortcuts) return;
     if (event.isComposing || event.key === 'Escape' && event.target.tagName === 'SELECT') { event.stopPropagation(); return; }
+    if (event.defaultPrevented) return;
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); }
-    else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' ||
+    else if (isSaveShortcut(event) ||
       event.key === 'Enter' && event.target.tagName === 'INPUT') { event.preventDefault(); event.stopPropagation(); commit(); }
   });
   return { element: root, focus: () => (firstActive || name).focus({ preventScroll: true }) };

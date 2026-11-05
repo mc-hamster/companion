@@ -338,6 +338,50 @@ function editSaved(f, id = 'landscapes') {
 }
 const editorButton = (editor, text) => [...editor.querySelectorAll('button')].find(button => button.textContent === text);
 
+test('turning off Companion shortcuts releases key events and Save ignores extra modifiers', async () => {
+  const f = await setup('', { navigationScope: 'site' }, { 'ep.searches': [shortcutSearch()] });
+  try {
+    const press = (target, key, modifiers) => {
+      const event = new f.win.KeyboardEvent('keydown', { key, ...modifiers, bubbles: true, cancelable: true });
+      target.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const ctrl = { ctrlKey: true }, winCtrl = { ctrlKey: true, metaKey: true };
+    const toggle = f.app.controls.get('keyboardShortcuts');
+    f.app.openPane('settings');
+    assert.equal(toggle.checked, true, 'existing installations retain shortcuts');
+    assert.equal(press(toggle, 's', winCtrl), false);
+    assert.equal(press(toggle, 's', { ...ctrl, shiftKey: true }), false);
+    assert.equal(press(toggle, 's', ctrl), true);
+
+    let editor = editSaved(f);
+    let name = editor.querySelector('[data-search-title]');
+    name.value = 'Updated';
+    assert.equal(press(name, 's', winCtrl), false);
+    assert.equal(f.storage.get('ep.searches')[0].title, 'Landscapes');
+    assert.equal(press(name, 's', { metaKey: true }), true);
+    assert.equal(f.storage.get('ep.searches')[0].title, 'Updated');
+
+    f.app.openPane('settings');
+    toggle.click();
+    await until(() => !f.app.settings.keyboardShortcuts);
+    assert.equal(press(toggle, 's', ctrl), false);
+    assert.equal(press(f.doc.body, 'ArrowRight'), false);
+    assert.equal(press(toggle, 'Escape'), false);
+    assert.equal(f.app.activePane, 'settings');
+    assert.equal(f.app.preview.pinButton.textContent, 'Pin');
+    editor = editSaved(f);
+    name = editor.querySelector('[data-search-title]');
+    name.value = 'Updated with button';
+    assert.equal(press(name, 's', ctrl), false);
+    assert.equal(press(name, 'Enter'), false);
+    assert.equal(press(name, 'Escape'), false);
+    assert.equal(f.storage.get('ep.searches')[0].title, 'Updated');
+    editorButton(editor, 'Save changes').click();
+    assert.equal(f.storage.get('ep.searches')[0].title, 'Updated with button');
+  } finally { f.close(); }
+});
+
 test('the saved-search editor retains fields and values absent from the current site form', async () => {
   const search = { id: 'landscapes', title: 'Imported search', fields: [
     { name: 'searchstr', type: 'text', value: 'saved keywords' },

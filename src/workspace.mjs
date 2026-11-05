@@ -9,6 +9,25 @@ export function optionGroup(app, parent, title, { key = '', open = false, search
   return section;
 }
 
+export function keyboardShortcutList(app) {
+  const list = app.node('ul', null, 'epc-caption epc-shortcut-list');
+  list.setAttribute('aria-label', 'Keyboard shortcuts');
+  for (const [keys, action] of [
+    ['Ctrl+S / Cmd+S', 'Save changes in Companion.'],
+    ['P', 'Pin or unpin the open image preview.'],
+    ['R', 'Retry loading the open image preview.'],
+    ['Esc', 'Dismiss a preview, menu, or panel, or cancel a saved-search edit.'],
+    ['Shift+F10 / Menu', 'Open the filter menu for the focused tag when tag menus are enabled.'],
+    ['← / →', 'Go to the previous or next page when Arrow key pagination is enabled.'],
+    ['Enter', 'Save from a text field in the saved-search editor or rename field.']
+  ]) {
+    const item = app.node('li');
+    item.append(app.node('kbd', keys), ' ' + action);
+    list.append(item);
+  }
+  return list;
+}
+
 export function setupSettingsSearch(app) {
   const input = app.node('input'); input.type = 'search'; input.placeholder = 'Find a setting…';
   input.setAttribute('aria-label', 'Find a setting'); input.className = 'epc-settings-search';

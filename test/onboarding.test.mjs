@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {boot,strictStorage,clickText,pane,rowHTML,fixtureHTML,settle} from './acceptance-helpers.mjs';
+import {boot,strictStorage,clickText,pane,field,rowHTML,fixtureHTML,settle} from './acceptance-helpers.mjs';
 import {until} from './helpers.mjs';
 import {validateSettings} from '../src/core.mjs';
 const dialog=f=>f.doc.querySelector('.epc-onboarding');
@@ -27,7 +27,38 @@ test('[ONB-01] first use introduces Companion, shows Settings guidance and defer
 test('[ONB-01] Not now preserves defaults, never fetches and does not reopen on another load',async()=>{
   const store=fresh(),calls=[];let f=await boot({}, {store,fetch:async url=>{calls.push(url);return resultPage(url);}});
   try{clickText(dialog(f),'Not now');await settle();assert.equal(dialog(f),null);assert.equal(calls.length,0);assert.equal(store.get('ep.onboardingDone'),true);}finally{f.close();}
-  f=await boot({}, {store});try{assert.equal(dialog(f),null);pane(f,'settings');clickText(f.doc.querySelector('.epc-pane[data-pane=settings]'),'Getting started');assert.ok(dialog(f));assert.equal(dialog(f).querySelector('[name="welcome-backfill"]:checked').value,'off');}finally{f.close();}
+  f=await boot({}, {store});try{assert.equal(dialog(f),null);pane(f,'settings');clickText(f.doc.querySelector('.epc-pane[data-pane=settings]'),'Getting started');assert.ok(dialog(f));assert.equal(dialog(f).querySelector('[name="welcome-backfill"]:checked').value,'off');assert.equal(dialog(f).querySelector('[data-welcome-setting=keyboardShortcuts]').checked,false);}finally{f.close();}
+});
+
+test('onboarding and Keyboard & menus share one shortcut preference and reference', async () => {
+  const store = fresh(), f = await boot({}, { store });
+  try {
+    const welcomeToggle = '[data-welcome-setting=keyboardShortcuts]';
+    const settingsToggle = '[data-setting=keyboardShortcuts]';
+    const welcomeList = dialog(f).querySelector('.epc-shortcut-list');
+    assert.equal(dialog(f).querySelector(welcomeToggle).checked, false);
+    assert.equal(welcomeList.hidden, true);
+    await field(f, welcomeToggle, true);
+    assert.equal(welcomeList.hidden, false);
+    assert.match(welcomeList.textContent, /Ctrl\+S \/ Cmd\+S/);
+    assert.equal(store.get('ep.settings').keyboardShortcuts, false, 'setup keeps a draft until submitted');
+    mode(f, 'off');
+    clickText(dialog(f), 'Start browsing');
+    assert.equal(store.get('ep.settings').keyboardShortcuts, true);
+
+    pane(f, 'settings');
+    const keyboard = f.doc.querySelector('[data-option-group=interaction]');
+    assert.equal(keyboard.querySelector(settingsToggle).checked, true);
+    const settingsList = keyboard.querySelector('.epc-shortcut-list');
+    assert.equal(settingsList.textContent, welcomeList.textContent);
+    await field(f, settingsToggle, false);
+    assert.equal(store.get('ep.settings').keyboardShortcuts, false);
+    assert.equal(settingsList.hidden, false, 'Settings keeps the reference available');
+    assert.equal(keyboard.querySelector('[data-setting=navigationScope]').disabled, true);
+    clickText(f.doc.querySelector('.epc-pane[data-pane=settings]'), 'Getting started');
+    assert.equal(dialog(f).querySelector(welcomeToggle).checked, false);
+    assert.equal(dialog(f).querySelector('.epc-shortcut-list').hidden, true);
+  } finally { f.close(); }
 });
 test('[ONB-02] replay prefills custom values, cancels without writes and preserves unrelated preferences and searches',async()=>{
   const original={thumbnailSize:88,previews:false,inlineThumbnails:false,groupVersions:false,concurrency:4,cacheEntries:52,backfillPages:7,backfillMode:'off',favoriteTags:'landscape',cautionTags:'road'};

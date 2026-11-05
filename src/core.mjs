@@ -10,13 +10,17 @@ export const DEFAULTS = Object.freeze({
   persistentImages: true, persistentCacheMB: 512,
   recoverImages: true, recoverBackgrounds: true, legacyFallback: true,
   prepareGalleries: true, reserveImageSpace: true, compactBodyImages: false,
-  progressBar: true, globalArrowNavigation: false, navigationScope: 'off', diagnostics: false,
+  progressBar: true, keyboardShortcuts: true, globalArrowNavigation: false, navigationScope: 'off', diagnostics: false,
   backfillEnabled: true, backfillPages: 5, backfillMode: 'off', groupVersions: true,
   favoriteTags: '', cautionTags: ''
 });
 
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, Number(value)));
+}
+
+export function isSaveShortcut(event) {
+  return event.key.toLowerCase() === 's' && event.ctrlKey !== event.metaKey && !event.altKey && !event.shiftKey;
 }
 
 export function validateSettings(input = {}) {

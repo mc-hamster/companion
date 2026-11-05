@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { gridCardSizeChoices } from './grid-view.mjs';
+import { keyboardShortcutList } from './workspace.mjs';
 // A draft of existing preferences, committed through the normal import transaction.
 export class OnboardingController {
   constructor(app) { this.app = app; this.open = false; }
@@ -66,6 +67,13 @@ export class OnboardingController {
     this.gridLarge.dataset.welcomeSetting = 'gridLargeImages';
     field(form, 'Automatically load larger images in grid view', this.gridLarge);
     form.append(app.node('p', 'Grid cards show thumbnails first, then replace them with larger images when ready. Larger images use more data. Grid card width is separate from list thumbnail width.', 'epc-caption'));
+    this.shortcuts = app.node('input'); this.shortcuts.type = 'checkbox'; this.shortcuts.checked = app.settings.keyboardShortcuts;
+    this.shortcuts.dataset.welcomeSetting = 'keyboardShortcuts';
+    this.shortcuts.setAttribute('aria-controls', 'epc-welcome-shortcuts');
+    field(form, 'Use keyboard shortcuts', this.shortcuts);
+    const shortcuts = keyboardShortcutList(app); shortcuts.id = 'epc-welcome-shortcuts';
+    const syncShortcuts = () => { shortcuts.hidden = !this.shortcuts.checked; };
+    this.shortcuts.addEventListener('change', syncShortcuts); syncShortcuts(); form.append(shortcuts);
     const tags = app.node('details'); tags.append(app.node('summary', 'Personalize tags (optional)'), app.node('p', 'Separate tags with spaces. Blocked tags hide matching results; Favorite and Caution only highlight them.', 'epc-caption'));
     this.tags = new Map();
     for (const [key, label, value] of [['blocked', 'Blocked tags', app.storage.get('nseTaglist', '')], ['favoriteTags', 'Favorite tags', app.settings.favoriteTags], ['cautionTags', 'Caution tags', app.settings.cautionTags]]) {
@@ -95,6 +103,7 @@ export class OnboardingController {
         backfillPages: mode === 'pages' ? Number(this.pages.value) : app.settings.backfillPages,
         thumbnailSize: Number(this.size.value), previews: this.hover.checked, groupVersions: this.group.checked,
         resultsView: this.view.value, gridCardWidth: Number(this.gridSize.value), gridLargeImages: this.gridLarge.checked,
+        keyboardShortcuts: this.shortcuts.checked,
         favoriteTags: this.tags.get('favoriteTags').value, cautionTags: this.tags.get('cautionTags').value };
       app.importData(JSON.stringify({ ...current, settings,
         nse: { ...current.nse, nseTaglist: this.tags.get('blocked').value } }), false, { completeOnboarding: true });
@@ -113,7 +122,7 @@ export class OnboardingController {
     this.element?.remove(); this.element = null;
     if (this.returnFocus?.isConnected) this.returnFocus.focus({ preventScroll: true });
     this.form = this.tags = this.pages = this.size = this.hover = this.group = this.status = this.save = this.returnFocus = null;
-    this.view = this.gridSize = this.gridLarge = null;
+    this.view = this.gridSize = this.gridLarge = this.shortcuts = null;
   }
   dispose() { this.close(); }
 }
