@@ -1,3 +1,11 @@
+# Empornium Companion 2.12.2 thumbnail validation
+
+Updated November 5, 2026.
+
+Companion starts once per document when the userscript is injected twice. In a local Chromium fixture, two isolated script contexts started before the page HTML loaded. All six result rows showed two thumbnails before the fix and one after it. The compiled-bundle regression checks for one thumbnail and one workspace. A grid regression verifies that a supported larger still image is saved as a preview and reused on a new page. Build, syntax checks and all 320 automated tests pass.
+
+---
+
 # Empornium Companion 2.12.1 compact grid validation
 
 Updated November 3, 2026.

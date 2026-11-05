@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Empornium Companion
 // @namespace    empornium-companion.local
-// @version      2.12.1
+// @version      2.12.2
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion
@@ -3958,8 +3958,9 @@ class PageMedia {
   loadGridUpgrade(record) {
     const upgrade = { entry: null, unsubscribe: null, image: null }; record.gridUpgrade = upgrade;
     const active = () => record.gridUpgrade === upgrade && this.gridUpgradeEligible(record);
-    const entry = this.pool.request(fullSizeURL(record.source), {
-      lane: 'large', cacheMode: 'preview', priority: 15,
+    const source = fullSizeURL(record.source);
+    const entry = this.pool.request(source, {
+      lane: 'large', cacheMode: /\.gif(?:\?|$)/i.test(source) ? 'lookup' : 'network', priority: 15,
       priorityFor: () => Math.min(30, this.thumbnailPriority(record)),
       eligible: () => active() && !this.doc.hidden && !this.gridThumbnailsPending,
       target: this.app.options.Image ? null : this.app.node('img')
@@ -4923,6 +4924,9 @@ const epHost = /^(?:www\.)?(?:empornium\.(?:sx|me|is|ph)|emparadise\.rs)$/i.test
 const epFixture = ['127.0.0.1', 'localhost'].includes(location.hostname) &&
   document.querySelector('meta[name="ep-companion-fixture"][content="local-test-only"]');
 if (!epHost && !epFixture) return;
+// The document is shared by userscript sandboxes, even before <html> exists.
+const epRunningEvent = 'ep-companion:running';
+if (!document.dispatchEvent(new Event(epRunningEvent, { cancelable: true }))) return;
 const epSchema = {"nseSavedVersion":"number","nseTaglist":"string","nseHardPassTaglist":"string","nseWhitelist":"string","nseBlacklistTitles":"string","nseHardPassTitles":"string","nseWhitelistTitles":"string","nseUploaders":"string","nseWhitelistUploaders":"string","nseIndividualUploadHidingEnabled":"boolean","nseIndividualUploadHidingBlacklist":"array","nseIndividualUploadHidingWhitelist":"array","nseFilterAllButtonEnabled":"boolean","nseRightClickManagementEnabled":"boolean","nseRCMTagsEnabled":"boolean","nseRCMTitlesEnabled":"boolean","nseRCMUploadersEnabled":"boolean","nseHideAnonUploadsEnabled":"boolean","nseHideReportedEnabled":"boolean","nseHideWarnedEnabled":"boolean","nseHideUnseededEnabled":"boolean","nseHideGrabbedEnabled":"boolean","nseHideLeechingEnabled":"boolean","nseHideSeedingEnabled":"boolean","nseHideSnatchedEnabled":"boolean","nseHideBookmarkedEnabled":"boolean","nseBypassWhitelistsEnabled":"boolean","nseHardPassEnabled":"boolean","nseRemoveHardPassResults":"boolean","nseObliviousModeEnabled":"boolean","nseCustomCSSEnabled":"boolean","nseCustomCSS":"string","nseScrollToNSEEnabled":"boolean","nseEmojiEnabled":"boolean","nseUpdateToastsEnabled":"boolean","nseFloatingToggleButtonEnabled":"boolean","nseOpenAllButtonEnabled":"boolean","nseOpenAllGoNextEnabled":"boolean","nseUIFont":"string","nseTextAreaFont":"string","nseBlacklistColor":"string","nseHardPassColor":"string","nseWhitelistColor":"string","nseTimeout":"number","nseSelectedTheme":"string","nseCustomTheme":"object","nseRenumberTorrentsEnabled":"boolean","nseHideCategoryIconsEnabled":"boolean","nseArrowNavigationEnabled":"boolean","nseRussianRouletteEnabled":"boolean","nseEveryDayIsApril1st":"boolean"};
 const epStorage = {
   get: (key, fallback) => GM_getValue(key, fallback),
@@ -4956,6 +4960,7 @@ const epApp = createApp(window, epStorage, {
   addStyle: css => GM_addStyle(css),
   validateNSE: input => validateNSE(input, epSchema)
 }).start();
+document.addEventListener(epRunningEvent, event => event.preventDefault());
 GM_registerMenuCommand('Empornium Companion settings', () => {
   epApp.openPane('settings'); epApp.root?.scrollIntoView({ block: 'start' });
 });

@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · Version **[2.12.1](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion-2.12.1.user.js)**
+**[Install Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · Version **[2.12.2](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion-2.12.2.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -56,6 +56,7 @@ Moving from an older script? See the [import instructions](docs/REFERENCE.md#imp
 - **Nothing appears on Empornium?** Check that Tampermonkey and Companion are enabled, then reload the page. Chrome may also need **Allow User Scripts** enabled; follow [Tampermonkey's instructions](https://www.tampermonkey.net/faq.php?q=Q209).
 - **The install link shows code instead of an install button?** Follow [Tampermonkey's manual installation guide](https://www.tampermonkey.net/faq.php?q=Q102).
 - **An image still won't load?** Try **Retry** if it's offered. Companion can't restore a deleted image or fix an image website that's offline.
+- **Two thumbnails beside each result?** In Tampermonkey, keep one copy of Companion enabled and disable any separate thumbnail script, such as **whatcd gazelle direct thumbnails**. Reload the results page.
 
 [Report a problem](https://github.com/mc-hamster/companion/issues) with what you were trying to do, what happened, and your browser and Companion version. Leave out account details and private links.
 

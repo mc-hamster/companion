@@ -1401,8 +1401,9 @@ export class PageMedia {
   loadGridUpgrade(record) {
     const upgrade = { entry: null, unsubscribe: null, image: null }; record.gridUpgrade = upgrade;
     const active = () => record.gridUpgrade === upgrade && this.gridUpgradeEligible(record);
-    const entry = this.pool.request(fullSizeURL(record.source), {
-      lane: 'large', cacheMode: 'preview', priority: 15,
+    const source = fullSizeURL(record.source);
+    const entry = this.pool.request(source, {
+      lane: 'large', cacheMode: /\.gif(?:\?|$)/i.test(source) ? 'lookup' : 'network', priority: 15,
       priorityFor: () => Math.min(30, this.thumbnailPriority(record)),
       eligible: () => active() && !this.doc.hidden && !this.gridThumbnailsPending,
       target: this.app.options.Image ? null : this.app.node('img')

@@ -43,7 +43,8 @@ async function setup(initial = {}, rows = rowHTML(1) + rowHTML(2), extra = '', u
   win.Image = clock.env.Image;
   win.confirm = () => true;
   if (options.fetch) win.fetch = options.fetch;
-  win.eval(bundle); await until(() => f.doc.querySelector('.epc-workspace[data-ep-ready="true"]'), 'Built userscript readiness');
+  for (let i = 0; i < (options.injections ?? 1); i++) win.eval(bundle);
+  await until(() => f.doc.querySelector('.epc-workspace[data-ep-ready="true"]'), 'Built userscript readiness');
   return { ...f, storage, clock };
 }
 test('built artifact is self-contained and restricted to Empornium', () => {
@@ -52,6 +53,15 @@ test('built artifact is self-contained and restricted to Empornium', () => {
   const matches = bundle.match(/^\/\/ @match.*$/gm);
   assert.ok(matches.length >= 6);
   assert.ok(matches.every(line => /(?:empornium\.(?:sx|me|is|ph)|emparadise\.rs)/.test(line)));
+});
+test('duplicate userscript injection renders only one thumbnail per result', async () => {
+  const f = await setup({ 'ep.settings': { inlineThumbnails: true } }, rowHTML(1), '', undefined, { injections: 2 });
+  try {
+    const row = f.doc.querySelector('tr.torrent');
+    assert.equal(row.querySelectorAll('.epc-thumbnail').length, 1);
+    await until(() => row.querySelector('.epc-thumbnail img')?.hasAttribute('src'), 'Thumbnail source');
+    assert.equal(f.doc.querySelectorAll('.epc-workspace').length, 1);
+  } finally { f.close(); }
 });
 test('[CACHE-03] persistent image access declares only supported hosts and no wildcard/cookie/download privileges',()=>{
   const connects=bundle.match(/^\/\/ @connect.*$/gm)||[];

@@ -2,6 +2,9 @@ const epHost = /^(?:www\.)?(?:empornium\.(?:sx|me|is|ph)|emparadise\.rs)$/i.test
 const epFixture = ['127.0.0.1', 'localhost'].includes(location.hostname) &&
   document.querySelector('meta[name="ep-companion-fixture"][content="local-test-only"]');
 if (!epHost && !epFixture) return;
+// The document is shared by userscript sandboxes, even before <html> exists.
+const epRunningEvent = 'ep-companion:running';
+if (!document.dispatchEvent(new Event(epRunningEvent, { cancelable: true }))) return;
 const epSchema = /*NSE_SCHEMA*/;
 const epStorage = {
   get: (key, fallback) => GM_getValue(key, fallback),
@@ -35,6 +38,7 @@ const epApp = createApp(window, epStorage, {
   addStyle: css => GM_addStyle(css),
   validateNSE: input => validateNSE(input, epSchema)
 }).start();
+document.addEventListener(epRunningEvent, event => event.preventDefault());
 GM_registerMenuCommand('Empornium Companion settings', () => {
   epApp.openPane('settings'); epApp.root?.scrollIntoView({ block: 'start' });
 });

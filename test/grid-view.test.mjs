@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { IDBFactory } from 'fake-indexeddb';
 import { createApp } from '../src/app.mjs';
 import { validateSettings } from '../src/core.mjs';
+import { PersistentImageCache } from '../src/image-cache.mjs';
 import { domFixture, fixtureHTML, rowHTML, overlayHTML, memoryStorage, fakeClock, settle, until } from './helpers.mjs';
 import { boot, strictStorage, clickText, pane, field } from './acceptance-helpers.mjs';
 
@@ -71,6 +73,34 @@ test('grid completes thumbnails first, upgrades automatically and keeps thumbnai
     f.app.grid.toggle.click(); assert.equal(small.hidden, false); assert.equal(record.gridUpgrade, null);
     assert.equal(f.app.media.pool.activeLanes.large, 0);
   } finally { f.close(); }
+});
+
+test('grid saves a larger image as a preview and reuses it on a new page', async () => {
+  const indexedDB = new IDBFactory();
+  const original = 'https://hamsterimg.net/images/grid-1.jpg';
+  const requests = [];
+  for (const reopened of [false, true]) {
+    const imageCache = new PersistentImageCache({
+      indexedDB, origin: 'https://www.empornium.sx', now: Date.now, setTimeout, clearTimeout,
+      request: ({ url, onload }) => {
+        requests.push(url);
+        onload({ status: 200, response: new Blob(['fixture'], { type: 'image/jpeg' }) });
+      },
+      encode: async blob => 'data:' + blob.type + ';base64,' + Buffer.from(await blob.arrayBuffer()).toString('base64')
+    }, validateSettings);
+    const f = await setup({}, { rows: rowHTML(1), app: { imageCache } });
+    try {
+      await until(() => f.clock.images.length === 1);
+      f.clock.images[0].succeed(160, 90);
+      await until(() => f.clock.images.length === 2);
+      const record = [...f.app.media.thumbnails.values()][0];
+      assert.match(f.clock.images[1].src, /^data:image\/jpeg/);
+      f.clock.images[1].succeed(1200, 800);
+      assert.equal(record.gridUpgrade.entry.cacheHit, reopened);
+      assert.equal((await f.app.imageCache.summary()).previewCount, 1);
+      assert.equal(requests.filter(url => url === original).length, 1);
+    } finally { f.close(); imageCache.close(); }
+  }
 });
 
 test('disabled grid upgrades and list mode never automatically request originals', async () => {
