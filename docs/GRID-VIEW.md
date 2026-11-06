@@ -13,7 +13,7 @@ Tags are hidden by default in Grid. **Settings → Appearance → Show tags in g
 
 Cards fit their visible content: grid rows and cells ignore inherited fixed/minimum heights, direct table-layout line breaks are suppressed, and title padding does not reserve space for hidden details. Normal outer card padding remains.
 
-Grid cards warm thumbnails throughout the loaded results, including backfilled rows and when List uses Full original. Cards without a usable small variant show **Thumbnail unavailable**. A confirmed missing thumbnail leaves other requests on the same host eligible. Hidden or grouped rows wait, and background tabs pause new requests.
+Grid cards warm thumbnails throughout the loaded results, including backfilled rows. When the larger image has already loaded, it can fill a card whose thumbnail is missing or still loading. Cards with neither image available show **Thumbnail unavailable** if the thumbnail fails. A confirmed missing thumbnail leaves other requests on the same host eligible. Hidden or grouped rows wait, and background tabs pause new requests.
 
 Larger images load when you open an image preview. The preview can show the thumbnail while its larger image loads, and supported larger images can be reused from the cache the next time you request them. Scrolling or resizing preserves loaded thumbnails.
 

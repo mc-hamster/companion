@@ -114,7 +114,7 @@ test('grid warms all 50 thumbnails and only requests an original when a preview 
   } finally { f.close(); }
 });
 
-test('a full image loaded in List stays available when its Grid thumbnail is missing', async () => {
+test('a full image loaded in List fills its Grid card without another thumbnail request', async () => {
   const original = 'https://hamsterimg.net/images/list-original.jpg';
   const f = await boot({ 'ep.settings': { thumbnailMode: 'original', maxRetries: 0 } }, {
     rows: rowHTML(2), extra: overlayHTML(2, original)
@@ -129,14 +129,29 @@ test('a full image loaded in List stays available when its Grid thumbnail is mis
     loaded.dispatchEvent(new f.win.Event('load'));
 
     clickText(f.doc.querySelector('.epc-toolbar'), 'Grid');
-    await until(() => thumb()?.getAttribute('src')?.includes('.th.jpg'));
-    thumb().dispatchEvent(new f.win.Event('error'));
-    assert.equal(f.doc.querySelector('.epc-thumb-status').textContent, 'Thumbnail unavailable');
+    await until(() => thumb()?.getAttribute('src') === original);
+    assert.equal(f.doc.querySelector('.epc-thumb-status').hidden, true);
     thumb().closest('button').click();
 
     const preview = f.doc.querySelector('.epc-preview-frame img');
     assert.equal(preview.naturalWidth, 960);
     assert.equal(preview.getAttribute('src'), original);
+  } finally { f.close(); }
+});
+
+test('a larger image that loads first fills the card while its small image is still pending', async () => {
+  const f = await setup({}, { rows: rowHTML(1) });
+  try {
+    const record = [...f.app.media.thumbnails.values()][0], small = f.clock.images[0];
+    assert.match(small.src, /grid-1\.th\.jpg$/);
+    record.element.querySelector('button').click();
+    await until(() => f.clock.images.length === 2);
+    f.clock.images[1].succeed(1200, 800);
+    assert.match(record.image.src, /grid-1\.jpg$/);
+    assert.equal(record.status.hidden, true);
+    assert.equal(record.element.dataset.state, 'ready');
+    small.succeed(160, 90);
+    assert.match(record.image.src, /grid-1\.jpg$/);
   } finally { f.close(); }
 });
 
@@ -193,6 +208,9 @@ test('missing grid thumbnails leave a placeholder and preserve the requested ori
     first.element.querySelector('button').click();
     await until(() => f.clock.images.length === 3);
     assert.match(f.clock.images[2]?.src, /grid-1\.jpg$/);
+    f.clock.images[2].succeed(960, 540);
+    assert.match(first.image.src, /grid-1\.jpg$/);
+    assert.equal(first.status.hidden, true);
   } finally { f.close(); }
 });
 

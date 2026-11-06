@@ -15,13 +15,18 @@ const toolbarIcons = {
 };
 
 export function companionIcon(app, name) {
+  // Isolate the glyph from site themes that style or hide SVG elements.
+  const icon = app.node('span', null, 'epc-icon');
+  icon.setAttribute('aria-hidden', 'true');
   const svg = app.doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  for (const [key, value] of Object.entries({ class: 'epc-icon', viewBox: '0 0 24 24', fill: 'none',
+  for (const [key, value] of Object.entries({ width: '100%', height: '100%', viewBox: '0 0 24 24', fill: 'none',
     stroke: 'currentColor', 'stroke-width': '1.65', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
-    'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
+    focusable: 'false' })) svg.setAttribute(key, value);
+  svg.style.display = 'block';
   const path = app.doc.createElementNS(svg.namespaceURI, 'path');
   path.setAttribute('d', toolbarIcons[name]); svg.append(path);
-  return svg;
+  icon.attachShadow({ mode: 'open' }).append(svg);
+  return icon;
 }
 
 export function toolbarPageName(url) {

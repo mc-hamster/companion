@@ -245,7 +245,7 @@ export class RetryBudget {
 // transfers may already be running before a userscript can observe their elements.
 export class MediaPool {
   constructor(env, settings = DEFAULTS) {
-    this.env = env; this.settings = settings; this.entries = new Map(); this.queue = [];
+    this.env = env; this.settings = settings; this.entries = new Map(); this.readyImages = new Map(); this.queue = [];
     this.batchDepth = 0; this.queueDirty = false;
     this.active = 0; this.sequence = 0; this.hosts = new Map(); this.activeLanes = { thumbnail: 0, large: 0 };
     this.budget = new RetryBudget(() => env.now(), settings.maxRetries);
@@ -569,7 +569,9 @@ export class MediaPool {
       if(entry.cacheResult){entry.cacheBytes=entry.cacheResult.blob?.size||0;this.env.imageCache.recordActivity?.(entry.cacheResult.hit?'hit':'download',entry.cacheBytes);}
       if (entry.cacheResult && !entry.cacheResult.hit) void this.env.imageCache.commit(entry.actualURL, entry.cacheResult.blob, entry.cacheResult.epoch, entry.cacheResult.kind);
       entry.cacheResult = null; entry.abortTransfer = null;
-      entry.status = 'ready'; entry.reason = ''; this.emit(entry); this.pump(); this.trim();
+      entry.status = 'ready'; entry.reason = '';
+      this.readyImages.set(canonicalImageURL(entry.actualURL), entry);
+      this.emit(entry); this.pump(); this.trim();
     };
     image.onerror = () => {
       if (entry.cancelled || entry.loadVersion !== loadVersion) return;
@@ -650,6 +652,10 @@ export class MediaPool {
     this.activeLanes[entry.activeLane]--; entry.hostState[entry.activeLane]--; } }
   clearTimers(entry) { for (const timer of entry.timers) this.env.clearTimeout(timer); entry.timers = []; }
   cancel(entry) {
+    if (entry.status === 'ready') {
+      const url = canonicalImageURL(entry.actualURL);
+      if (this.readyImages.get(url) === entry) this.readyImages.delete(url);
+    }
     entry.loadVersion = (entry.loadVersion || 0) + 1; entry.abortTransfer?.(); entry.abortTransfer = null; entry.cacheResult = null;
     entry.cancelled = true; this.clearTimers(entry); this.release(entry);
     if (entry.image) {
@@ -694,6 +700,7 @@ export class MediaPool {
     this.disposed = true; this.env.clearTimeout(this.wakeTimer); this.env.clearTimeout(this.hostSaveTimer); this.flushHosts();
     for (const e of this.entries.values()) this.cancel(e);
     this.entries.clear();
+    this.readyImages.clear();
     this.hosts.clear();
   }
 }

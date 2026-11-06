@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Empornium Companion
 // @namespace    empornium-companion.local
-// @version      2.13.0
+// @version      2.13.1
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion
@@ -287,7 +287,7 @@ class RetryBudget {
 // transfers may already be running before a userscript can observe their elements.
 class MediaPool {
   constructor(env, settings = DEFAULTS) {
-    this.env = env; this.settings = settings; this.entries = new Map(); this.queue = [];
+    this.env = env; this.settings = settings; this.entries = new Map(); this.readyImages = new Map(); this.queue = [];
     this.batchDepth = 0; this.queueDirty = false;
     this.active = 0; this.sequence = 0; this.hosts = new Map(); this.activeLanes = { thumbnail: 0, large: 0 };
     this.budget = new RetryBudget(() => env.now(), settings.maxRetries);
@@ -611,7 +611,9 @@ class MediaPool {
       if(entry.cacheResult){entry.cacheBytes=entry.cacheResult.blob?.size||0;this.env.imageCache.recordActivity?.(entry.cacheResult.hit?'hit':'download',entry.cacheBytes);}
       if (entry.cacheResult && !entry.cacheResult.hit) void this.env.imageCache.commit(entry.actualURL, entry.cacheResult.blob, entry.cacheResult.epoch, entry.cacheResult.kind);
       entry.cacheResult = null; entry.abortTransfer = null;
-      entry.status = 'ready'; entry.reason = ''; this.emit(entry); this.pump(); this.trim();
+      entry.status = 'ready'; entry.reason = '';
+      this.readyImages.set(canonicalImageURL(entry.actualURL), entry);
+      this.emit(entry); this.pump(); this.trim();
     };
     image.onerror = () => {
       if (entry.cancelled || entry.loadVersion !== loadVersion) return;
@@ -692,6 +694,10 @@ class MediaPool {
     this.activeLanes[entry.activeLane]--; entry.hostState[entry.activeLane]--; } }
   clearTimers(entry) { for (const timer of entry.timers) this.env.clearTimeout(timer); entry.timers = []; }
   cancel(entry) {
+    if (entry.status === 'ready') {
+      const url = canonicalImageURL(entry.actualURL);
+      if (this.readyImages.get(url) === entry) this.readyImages.delete(url);
+    }
     entry.loadVersion = (entry.loadVersion || 0) + 1; entry.abortTransfer?.(); entry.abortTransfer = null; entry.cacheResult = null;
     entry.cancelled = true; this.clearTimers(entry); this.release(entry);
     if (entry.image) {
@@ -736,6 +742,7 @@ class MediaPool {
     this.disposed = true; this.env.clearTimeout(this.wakeTimer); this.env.clearTimeout(this.hostSaveTimer); this.flushHosts();
     for (const e of this.entries.values()) this.cancel(e);
     this.entries.clear();
+    this.readyImages.clear();
     this.hosts.clear();
   }
 }
@@ -2671,13 +2678,18 @@ const toolbarIcons = {
 };
 
 function companionIcon(app, name) {
+  // Isolate the glyph from site themes that style or hide SVG elements.
+  const icon = app.node('span', null, 'epc-icon');
+  icon.setAttribute('aria-hidden', 'true');
   const svg = app.doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  for (const [key, value] of Object.entries({ class: 'epc-icon', viewBox: '0 0 24 24', fill: 'none',
+  for (const [key, value] of Object.entries({ width: '100%', height: '100%', viewBox: '0 0 24 24', fill: 'none',
     stroke: 'currentColor', 'stroke-width': '1.65', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
-    'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
+    focusable: 'false' })) svg.setAttribute(key, value);
+  svg.style.display = 'block';
   const path = app.doc.createElementNS(svg.namespaceURI, 'path');
   path.setAttribute('d', toolbarIcons[name]); svg.append(path);
-  return svg;
+  icon.attachShadow({ mode: 'open' }).append(svg);
+  return icon;
 }
 
 function toolbarPageName(url) {
@@ -4785,7 +4797,7 @@ class PageMedia {
   constructor(app) {
     this.app = app; this.win = app.win; this.doc = app.doc;
     this.definitions = new Map(); this.scriptText = new WeakMap(); this.knownVariants = new Map();
-    this.records = new Map(); this.thumbnails = new Map(); this.near = new Map();
+    this.records = new Map(); this.thumbnails = new Map(); this.thumbnailsByOriginal = new Map(); this.near = new Map();
     this.layoutVersion = 0;
     this.nativeTimers = new Set(); this.disposed = false;
     this.syncCoverGate();
@@ -4799,6 +4811,9 @@ class PageMedia {
     }, app.settings);
     this.pool.listeners.add(entry => {
       app.record(entry, 'scheduled'); app.scheduleHealth();
+      if (entry.status === 'ready') for (const record of this.thumbnailsByOriginal.get(canonicalImageURL(entry.actualURL)) || []) {
+        this.useLoadedOriginal(record, entry);
+      }
       if (['ready','streaming','partial'].includes(entry.status)) app.preview?.acceptRecovered(entry);
     });
     const history = app.storage.get('ep.thumbnailHistory', []);
@@ -4858,9 +4873,7 @@ class PageMedia {
     }
     for (const [row, record] of this.thumbnails) {
       if (!this.thumbnailsEnabled(row)) {
-        record.unsubscribe?.(); this.intersection?.unobserve(record.element); this.near.delete(record.element);
-        this.pool.abandon(record.lastEntry);
-        record.element.remove(); this.thumbnails.delete(row); continue;
+        this.removeThumbnail(record); continue;
       }
       record.element.style.setProperty('--epc-thumb-size', settings.thumbnailSize + 'px');
       const link = record.link || row.querySelector('a[data-ep-overlay]');
@@ -5216,11 +5229,22 @@ class PageMedia {
     if (inCategory) category.append(host); else cell.prepend(host);
     const categoryClass = 'epc-category-' + this.app.settings.categoryDisplay;
     if (!row.classList.contains(categoryClass)) row.classList.add(categoryClass);
-    const record = { element: host, row, image, status, link, source: definition.src, state: 'deferred', unsubscribe: null };
+    const original = fullSizeURL(canonicalImageURL(definition.src));
+    const record = { element: host, row, image, status, link, source: definition.src, original, state: 'deferred', unsubscribe: null };
     this.thumbnails.set(row, record);
+    if (!this.thumbnailsByOriginal.has(original)) this.thumbnailsByOriginal.set(original, new Set());
+    this.thumbnailsByOriginal.get(original).add(record);
     this.invalidateLayout();
     // Hover offers a temporary enlargement; clicking either image opens controls.
     this.app.preview.bind(button, { ...definition, title: this.app.preview.titleOf(link), href: link.href });
+  }
+  removeThumbnail(record) {
+    this.thumbnails.delete(record.row);
+    const matching = this.thumbnailsByOriginal.get(record.original);
+    matching.delete(record);
+    if (!matching.size) this.thumbnailsByOriginal.delete(record.original);
+    record.unsubscribe?.(); this.intersection?.unobserve(record.element); this.near.delete(record.element);
+    record.element.remove(); this.pool.abandon(record.lastEntry);
   }
   thumbnailOptions(source, rescueEntry, mode = this.app.settings.thumbnailMode) {
     const grid = mode === 'grid', original = fullSizeURL(canonicalImageURL(source));
@@ -5254,9 +5278,40 @@ class PageMedia {
     this.win.clearTimeout(this.historyTimer);this.historyTimer=null;
     try{this.app.storage.set('ep.thumbnailHistory',[...this.thumbnailHistory]);}catch{}
   }
+  showThumbnail(record, entry) {
+    const displayURL = entry.displayURL || entry.actualURL;
+    if (record.image.getAttribute('src') !== displayURL) record.image.src = displayURL;
+    record.image.dataset.epImageSource = entry.actualURL;
+    record.status.hidden = true;
+  }
+  useLoadedOriginal(record, entry) {
+    if (entry?.cancelled || !entry?.image?.naturalWidth || !this.app.filtersReady || this.disposed ||
+        (record.status.hidden && ['ready', 'partial', 'streaming'].includes(record.state)) || this.doc.hidden ||
+        !this.thumbnailsEnabled(record.row) || !this.displayed(record.element, record)) return false;
+    const previous = record.lastEntry;
+    record.state = record.element.dataset.state = 'ready';
+    record.lastEntry = entry;
+    record.unsubscribe?.(); record.unsubscribe = null;
+    this.pool.abandon(previous);
+    if (previous !== entry && previous?.target === record.image && !previous.cancelled && previous.status !== 'failed') {
+      // A title tooltip may still be using the small request. Keep its target
+      // separate so a late thumbnail completion cannot replace the original.
+      const image = record.image.cloneNode(false);
+      record.image.replaceWith(image); record.image = image; previous.target = null;
+    }
+    this.showThumbnail(record, entry);
+    record.status.textContent = '';
+    this.app.scheduleHealth();
+    return true;
+  }
   loadThumbnail(record, force = false, rescue = false) {
-    if (!force && record.state !== 'deferred') return;
+    const original = this.pool.readyImages.get(record.original);
+    if (!force && record.state !== 'deferred') {
+      if (original) this.useLoadedOriginal(record, original);
+      return;
+    }
     if (!this.app.filtersReady || this.disposed || !this.thumbnailsEnabled(record.row) || this.doc.hidden || !this.displayed(record.element, record)) return;
+    if (this.useLoadedOriginal(record, original)) return;
     const grid = !!record.row.closest('.epc-result-grid');
     const options = this.thumbnailOptions(record.source, rescue ? record.lastEntry : null, grid ? 'grid' : this.app.settings.thumbnailMode);
     if (!options) {
@@ -5283,15 +5338,13 @@ class PageMedia {
     const update = item => {
       if (this.disposed || !record.element.isConnected) return;
       record.state = item.status;
+      if (item.status === 'failed' && this.useLoadedOriginal(record, this.pool.readyImages.get(record.original))) return;
       this.trackRecovery(record, item);
       record.status.textContent = ({ queued: 'Waiting', loading: 'Loading', retrying: 'Retrying',
         stalled: 'Slow load', failed: grid ? 'Thumbnail unavailable' : record.autoRecoveryAttempted || !this.app.settings.maxRetries ? 'Unavailable' : 'Retrying soon',
         streaming: 'Loading', partial: '', ready: '' })[item.status] || '';
       if (item.image?.naturalWidth && ['streaming', 'partial', 'ready'].includes(item.status)) {
-        const displayURL=item.displayURL||item.actualURL;
-        if (record.image.getAttribute('src') !== displayURL) record.image.src = displayURL;
-        record.image.dataset.epImageSource=item.actualURL;
-        record.status.hidden = true;
+        this.showThumbnail(record, item);
       } else record.status.hidden = false;
       record.element.dataset.state = item.status;
       if (['ready', 'failed', 'partial'].includes(item.status)) { record.unsubscribe?.(); record.unsubscribe = null; }
@@ -5427,8 +5480,7 @@ class PageMedia {
     for (const row of [root, ...root.querySelectorAll('tr')]) {
       const record = this.thumbnails.get(row); if (!record || row.isConnected) continue;
       this.invalidateLayout();
-      record.unsubscribe?.(); record.element.remove(); this.intersection?.unobserve(record.element); this.near.delete(record.element); this.thumbnails.delete(row);
-      this.pool.abandon(record.lastEntry);
+      this.removeThumbnail(record);
     }
   }
   dispose() {
@@ -5454,7 +5506,7 @@ class PageMedia {
       record.unsubscribe?.(); record.element.remove();
       record.row.classList.remove('epc-category-keep', 'epc-category-overlay', 'epc-category-hide');
     }
-    this.records.clear(); this.thumbnails.clear(); this.near.clear();
+    this.records.clear(); this.thumbnails.clear(); this.thumbnailsByOriginal.clear(); this.near.clear();
   }
 }
 

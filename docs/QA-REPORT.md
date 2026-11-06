@@ -1,3 +1,11 @@
+# Empornium Companion 2.13.1 validation
+
+Updated November 5, 2026.
+
+The build, syntax checks, and all **338 automated tests** pass. The tests cover larger images that arrive before a thumbnail, after a thumbnail fails, and before switching from List to Grid. Chrome and Firefox reproduced the empty slot and hidden logo on the 2.13.0 build using a local fixture with a delayed thumbnail and simulated site styles. The same fixture showed the larger image in the slot and the logo in 2.13.1. Tested bundle SHA-256 is `194e04a7ae6ffbcf5f221958489635c0c433fb351c3006f24cc0b55d15583b37`.
+
+---
+
 # Empornium Companion 2.13.0 toolbar validation
 
 Updated November 5, 2026.

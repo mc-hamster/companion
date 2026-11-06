@@ -1,5 +1,7 @@
 # Feature mapping
 
+Version 2.13.1 fills an empty thumbnail slot with the matching larger image when Companion has already loaded it. It also isolates Companion's logo and toolbar icons from site styles that affect SVGs.
+
 Version 2.13.0 reorganizes the toolbar. **List**, **Grid**, and **Load more** are available directly. **Browse options** contains Freeleech and Show filtered. Saved searches and loading feedback have their own row. It also adds Freeleech, conditional rules, and a history for seen and ignored torrents. Pin collages to add torrents from their details pages. Grid cards load thumbnails across the loaded results and request larger images when you open a preview. Backfill processes newly added rows and affected groups, with at least one second between request starts. [Filters and history](REFERENCE.md#freeleech-conditional-rules-and-seen-history) · [Grid view](GRID-VIEW.md)
 
 Version 2.12.1 clamps grid titles to two lines and hides tags and the metadata/category block by default. Settings → Appearance offers separate Show tags in grid cards and Show details in grid cards toggles. Both apply immediately and persist with the normal settings/backup flow. Version expansion controls are hidden entirely in Grid. Tag filtering/highlighting, full title text, links, hover previews and native List presentation are retained.
