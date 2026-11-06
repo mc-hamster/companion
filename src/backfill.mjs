@@ -2,6 +2,7 @@
 // Backfill behavior contributed by mc-hamster; integrated with Companion's
 // existing filtering/media controllers. See THIRD_PARTY.md for pinned sources.
 import { parseOverlayDefinitions, safeImageURL } from './core.mjs';
+import { companionIcon } from './workspace.mjs';
 
 const TABLE = '#torrent_table, #content table.torrent_table';
 const PAGE_LINKS = 'a.pager_page,a.pager_last';
@@ -48,7 +49,7 @@ export function nextBackfillURL(source, current, search, loaded = new Set()) {
     .filter(Boolean).sort((a, b) => pageNumber(a) - pageNumber(b))[0] || null;
 }
 
-function torrentID(row, base) {
+export function torrentID(row, base) {
   for (const link of row.querySelectorAll('a[href]')) {
     try {
       const url = new URL(link.getAttribute('href'), base), id = url.searchParams.get('id');
@@ -65,18 +66,24 @@ export class BackfillController {
     this.search = this.win.location.href; this.loaded = new Set(); this.seenIDs = new Set();
     this.generation = 0; this.overlaySequence = 1000000000; this.pages = 0; this.added = 0;
     this.busy = false; this.initialized = false; this.disposed = false; this.message = '';
+    this.lastRequestStartedAt = null;
   }
   table() { return this.doc.querySelector(TABLE); }
   supported() { return !!backfillURL(this.search, this.search) && !!this.table(); }
   mount() {
-    this.button = this.app.button('Backfill results', () => {
+    this.button = this.app.button('', () => {
       if (this.busy) this.stop(); else this.run();
     });
     this.button.dataset.epBackfill = '';
+    this.button.className = 'epc-primary epc-load-more';
+    this.buttonLabel = this.app.node('span', 'Load more');
+    const add = companionIcon(this.app, 'add'), stop = companionIcon(this.app, 'stop');
+    add.classList.add('epc-load-icon'); stop.classList.add('epc-stop-icon');
+    this.button.append(add, stop, this.buttonLabel);
     this.status = this.app.node('span', '', 'epc-backfill-status');
     this.status.setAttribute('role', 'status'); this.status.setAttribute('aria-live', 'polite');
-    this.app.toolbar.insertBefore(this.button, this.app.health);
-    this.app.toolbar.insertBefore(this.status, this.app.health);
+    this.app.contextActions.append(this.button);
+    this.app.toolbarStatus.append(this.status);
     this.sync();
   }
   sync() {
@@ -90,7 +97,7 @@ export class BackfillController {
     }
     this.button.hidden = !available || !this.app.settings.backfillEnabled || this.initialized && !this.nextURL && !this.busy;
     this.status.hidden = !available || !this.app.settings.backfillEnabled;
-    this.button.textContent = this.busy ? 'Stop backfill' : 'Backfill results';
+    this.buttonLabel.textContent = this.busy ? 'Stop loading' : 'Load more';
     this.button.disabled = !this.app.filtersReady || this.app.options.waitForFilters && !this.app.engineReady || !this.nextURL && !this.busy;
     this.button.disabled ||= !this.busy && this.now() < (this.notBefore || 0);
     this.win.clearTimeout(this.cooldownTimer); this.cooldownTimer = null;
@@ -107,7 +114,6 @@ export class BackfillController {
       this.status.append(this.doc.createTextNode(' '), link);
     }
     this.status.hidden ||= !this.message;
-    if (available) this.activateImages();
   }
   maybeAutomatic() {
     if (this.autoStarted || this.busy || this.disposed || !this.app.onboardingComplete || this.app.onboarding?.open ||
@@ -149,12 +155,18 @@ export class BackfillController {
   async readWithRetry(url, generation) {
     for (let attempt = 0; attempt < 3; attempt++) {
       if (!await this.foreground(generation) || !this.active(generation)) return null;
+      if (!attempt && this.lastRequestStartedAt !== null) {
+        const interval = this.app.options.backfillIntervalMs ?? 1000;
+        // Fetch and append time count toward spacing. A zero wait still yields to input and rendering.
+        if (!await this.wait(Math.max(0, interval - (this.now() - this.lastRequestStartedAt)), generation)) return null;
+      }
       if (this.now() < (this.notBefore || 0) && !await this.wait(this.notBefore - this.now(), generation)) return null;
       if (!await this.foreground(generation) || !this.active(generation)) return null;
       const controller = new this.win.AbortController(); this.controller = controller;
       let timedOut = false, failure, result;
       const timeout = this.win.setTimeout(() => { timedOut = true; controller.abort(); }, this.app.options.backfillTimeoutMs || 20000);
       this.message = 'Loading page ' + pageNumber(url) + (attempt ? ' · attempt ' + (attempt + 1) + '/3' : ''); this.sync();
+      this.lastRequestStartedAt = this.now();
       try { result = await this.readPage(url, controller.signal); }
       catch (error) { failure = timedOut ? pageError('The page request timed out.', true) : error; }
       finally { this.win.clearTimeout(timeout); if (this.controller === controller) this.controller = null; }
@@ -172,15 +184,15 @@ export class BackfillController {
       if (!await this.wait(delay, generation)) return null;
     }
   }
-  activateImages() {
-    for (const image of this.doc.querySelectorAll('tr.torrent img[data-ep-backfill-src],tr.torrent img[data-ep-backfill-srcset]')) {
+  activateImages(rows, cards) {
+    for (const row of rows) for (const image of row.querySelectorAll('img[data-ep-backfill-src],img[data-ep-backfill-srcset]')) {
       if (image.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden')) continue;
       for (const name of ['src', 'srcset']) {
         const value = image.getAttribute('data-ep-backfill-' + name);
         if (value) { image.setAttribute(name, value); image.removeAttribute('data-ep-backfill-' + name); }
       }
     }
-    for(const cover of this.doc.querySelectorAll('.torrent_grid__torrent .torrent__cover[data-ep-backfill-background]')){
+    for(const card of cards) for(const cover of card.querySelectorAll('.torrent__cover[data-ep-backfill-background]')){
       if(cover.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden'))continue;
       const source=safeImageURL(cover.dataset.epBackfillBackground,this.search);
       cover.removeAttribute('data-ep-backfill-background');if(source){
@@ -302,62 +314,67 @@ export class BackfillController {
     this.app.versions?.releaseLayout(this.table());
     try {
       for (; pages < limit && this.nextURL; ) {
-        if (this.disposed || generation !== this.generation || !this.app.settings.backfillEnabled) return;
-        if (!await this.foreground(generation)) return;
-        if (this.disposed || generation !== this.generation || !this.app.settings.backfillEnabled) return;
+        if (!this.active(generation)) return;
         const url = this.nextURL;
         const result = await this.readWithRetry(url, generation);
         if (!result || !this.active(generation)) return;
-        const prepared = [],acceptedIDs=new Set();
+        const prepared = [], acceptedIDs = new Set();
         for (const source of result.rows) {
           const id = torrentID(source, url);
-          if (!id || this.seenIDs.has(id)) continue;
-          prepared.push(this.prepareRow(source, result.definitions, url)); this.seenIDs.add(id);acceptedIDs.add(id);
+          if (!id || this.seenIDs.has(id) || acceptedIDs.has(id)) continue;
+          prepared.push(this.prepareRow(source, result.definitions, url)); acceptedIDs.add(id);
         }
         const grid=this.doc.querySelector('#content .torrent_grid'),preparedCovers=[];
         if(grid){const coverIDs=new Set([...grid.querySelectorAll('.torrent_grid__torrent')].map(card=>torrentID(card,this.search)));
           for(const card of result.cards||[]){const id=torrentID(card,url);if(acceptedIDs.has(id)&&!coverIDs.has(id)){preparedCovers.push(this.prepareCover(card,url));coverIDs.add(id);}}}
         const target = this.table();
         if (!target) throw new Error('The results table is no longer available.');
-        const body = target.tBodies[0] || target.createTBody();
-        this.app.batchDOM(() => {
+        if (prepared.length) this.app.batchDOM(() => {
+          const body = target.tBodies[0] || target.createTBody();
           body.append(...prepared);
           grid?.append(...preparedCovers);
           // Use one filtering implementation for native and appended rows. Do this
           // synchronously before thumbnails or deferred native images can start.
-          try { this.app.options.newRows?.(body); }
+          try { this.app.options.newRows?.(body, prepared); }
           catch (error) {
             // A failed filter pass must not leave fresh rows visible and marked
             // as already seen. Keep earlier pages and allow this page to retry.
             for (const row of prepared) {
               const id = torrentID(row, url);
-              this.seenIDs.delete(id); this.app.removedFilterIDs.delete(id);
+              this.app.removedFilterIDs.delete(id);
               this.app.detachedFilterRows.get(row)?.remove(); this.app.detachedFilterRows.delete(row);
-              this.app.filterRows?.delete(row); row.remove();
+              this.app.filterRows?.delete(row);
+              for (const tag of row.querySelectorAll('div.tags')) this.app.filterTags?.delete(tag);
+              for (const cell of row.querySelectorAll('.cats_col,.cats_cols')) this.app.categoryCells?.delete(cell);
+              row.remove();
             }
             for(const card of preparedCovers)card.remove();
             this.app.refreshFilters(); throw pageError('A result on this page could not be processed. Loaded pages were kept.');
           }
-          this.app.syncGridFilters();
-          if (this.app.settings.enabled) for (const row of prepared) if (row.isConnected) {
-            this.app.media.scan(row); this.app.preview.scan(row);
+          this.app.syncGridFilters(true, prepared);
+          if (this.app.settings.enabled) {
+            for (const row of prepared) if (row.isConnected) {
+              this.app.media.scan(row, false); this.app.preview.scan(row);
+            }
+            for (const card of preparedCovers) {
+              this.app.media.scan(card, false); this.app.preview.scan(card);
+            }
+            this.app.media.prepareThumbnails(prepared, preparedCovers);
           }
-          if(this.app.settings.enabled)for(const card of preparedCovers){this.app.media.scan(card);this.app.preview.scan(card);}
         });
+        for (const id of acceptedIDs) this.seenIDs.add(id);
         pages++; added += prepared.length; this.pages++; this.added += prepared.length;
         this.loaded.add(url);
         this.nextURL = result.rows.length ? nextBackfillURL(result.page, url, this.search, this.loaded) ||
           nextBackfillURL(this.doc, url, this.search, this.loaded) : null;
         this.updatePager();
-        // Give rendering/input a turn between pages, without an idle poller.
-        if (this.nextURL && pages < limit && !await this.wait(this.app.options.backfillIntervalMs ?? 1000, generation)) return;
       }
       this.message = added + ' results added from ' + pages + (pages === 1 ? ' page' : ' pages') + (this.nextURL ? '' : ' · No more pages');
     } catch (error) {
       if (generation === this.generation && !this.disposed) {
         this.failedURL = this.nextURL;
         this.message = (pages ? pages + (pages === 1 ? ' page kept. ' : ' pages kept. ') : '') + 'Could not load page ' + pageNumber(this.nextURL) +
-          ': ' + error.message + (this.now() < (this.notBefore || 0) ? ' Backfill is available again after the cooldown.' : '') + ' Try Backfill results again.';
+          ': ' + error.message + (this.now() < (this.notBefore || 0) ? ' Loading is available again after the cooldown.' : '') + ' Try Load more again.';
       }
     } finally {
       if (generation === this.generation) {

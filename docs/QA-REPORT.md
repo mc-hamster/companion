@@ -1,3 +1,27 @@
+# Empornium Companion 2.13.0 toolbar validation
+
+Updated November 5, 2026.
+
+The Compact menu keeps layout buttons and Load more in view. Browse options contains Freeleech and Show filtered, and a separate row holds saved searches and status. The toolbar, panels, filter menus, first-use setup, and image viewer use the same surface and control styles. The build and all **337 automated tests** pass.
+
+Chrome and Firefox checked the compiled build on local fixtures. Browse options fit at 320, 390, and 736 pixels, close when you click outside, and return focus on Escape. The runs also checked saved shortcuts, switching layouts, conditional rules, seen and ignored history, selecting Freeleech, collage quick add, enlarging a grid image, and loading another results page. A selected theme carried through to Getting started and returning to the default restored the system appearance. Tested bundle SHA-256 is `d3b76d3fab5e15de5ad900daac996716ea1e5fa33229e3adb9b04309c646636d`.
+
+---
+
+# Empornium Companion 2.13.0 user audit
+
+Updated November 5, 2026.
+
+The build, syntax checks, and all **336 automated tests** pass. The stable and versioned userscripts are identical. SHA-256 for the tested build is `c7e2f8f18277b2f646547e1028a211f243f1bedfdf6a2b2efcb11945908ac2b8`.
+
+Two Grid defects were reproduced and fixed. A header with a mix of ordinary labels and sort links now shows only the sort controls in Grid and restores the full header in List. An original image loaded in List remains usable when Grid replaces its inline image with a thumbnail. In Firefox, opening the larger image after a missing thumbnail could previously show a blank panel. Both fixes have regression tests that failed on the earlier build.
+
+Chrome passed 15 user journeys and Firefox passed 14. The runs covered first use, Settings and keyboard navigation, narrow layout, image loading and failure, List and Grid, alternate versions, tag highlights, conditional rules and Hard Pass, Freeleech and Bookmarks, Seen & Ignored, saved searches, backup and restore, manual backfill and Stop, and collage covers and quick add. The browser harness delivered a simulated focus event for the cross-tab history refresh. Separate Chrome checks covered touch and automatic backfill. Automatic backfill finished all 260 results after two simulated HTTP 503 responses and kept request starts about one second apart during ordinary pagination. The 800-row performance fixture showed no idle scans or image-triggered regrouping, and recorded one long task when appending 50 rows.
+
+Tampermonkey 5.5.1 in an isolated Chrome for Testing profile installed 2.12.3 and accepted 2.13.0 as an upgrade. The upgrade preserved a saved search and filter, and the build injected one toolbar per page. Its real image transport requested a thumbnail and larger image anonymously over local TLS, then reused both after reload with the image endpoint blocked. Firefox used the browser fixture's manager adapter. All application checks used loopback fixtures and dummy data.
+
+---
+
 # Empornium Companion 2.12.2 thumbnail validation
 
 Updated November 5, 2026.

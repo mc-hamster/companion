@@ -1,15 +1,15 @@
 // Integration bridge; original upstream filtering semantics stay in epFilterRows.
 const epSeenRows = new WeakSet(torrents);
-bridge.newRows = function(root) {
+bridge.newRows = function(root, rows) {
     if(nseUnfilteredPages.includes(currentPage)) return;
     const selector = currentPage === "Requests" ? "#request_table tr" : "tr.torrent";
-    const candidates = new Set(root.matches(selector) ? [root] : root.querySelectorAll(selector));
-    const parent = root.closest(selector); if(parent) candidates.add(parent);
+    const candidates = new Set(rows || (root.matches(selector) ? [root] : root.querySelectorAll(selector)));
+    if(!rows) { const parent = root.closest(selector); if(parent) candidates.add(parent); }
     const fresh = Array.from(candidates).filter(row => !epSeenRows.has(row) &&
         row.querySelector("td > div.tags") && row.querySelector("td > a,td > strong > a"));
     if(!fresh.length) return;
     for(const row of fresh) epSeenRows.add(row);
-    epFilterRows(fresh);
+    epFilterRows(fresh, rows);
     torrents = [...torrents, ...fresh];
     for(const row of fresh) {
         if(nseRightClickManagementEnabled) {

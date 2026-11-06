@@ -704,8 +704,10 @@ async function thumbnailPage({ count = 12, concurrency = 6, waitForFilters = fal
   const f = domFixture(fixtureHTML(rows, overlays)), c = fakeClock();
   if (noObserver) delete f.win.IntersectionObserver;
   Object.defineProperty(f.doc, 'hidden', { get: () => hidden });
+  let positionReads = 0;
   const baseRect = f.win.HTMLElement.prototype.getBoundingClientRect;
   f.win.HTMLElement.prototype.getBoundingClientRect = function() {
+    if (this.classList.contains('epc-thumbnail')) positionReads++;
     const rect = baseRect.call(this), row = this.closest('tr[data-fixture-id]');
     if (!row) return rect;
     const top = positions.get(row.dataset.fixtureId);
@@ -714,7 +716,8 @@ async function thumbnailPage({ count = 12, concurrency = 6, waitForFilters = fal
   const storage = memoryStorage({ 'ep.settings': { concurrency } });
   const app = createApp(f.win, storage, { Image: c.env.Image, waitForFilters }).start();
   if (!waitForFilters) await until(() => f.doc.querySelector('.epc-workspace[data-ep-ready="true"]'), 'Thumbnail fixture readiness');
-  return { ...f, app, c, positions, setHidden(value) { hidden = value; f.doc.dispatchEvent(new f.win.Event('visibilitychange')); },
+  return { ...f, app, c, positions, get positionReads() { return positionReads; },
+    setHidden(value) { hidden = value; f.doc.dispatchEvent(new f.win.Event('visibilitychange')); },
     close() { app.dispose(); f.close(); } };
 }
 
@@ -724,6 +727,8 @@ test('all 50 result thumbnails warm without scrolling or an IntersectionObserver
     const last = [...f.app.media.thumbnails.values()].at(-1);
     assert.equal(f.app.media.visible(last.element, true), false);
     assert.equal(f.c.images.length, 2);
+    const positionReads = f.positionReads;
+    assert.ok(positionReads <= 3 * 50, 'the initial enqueue measures each thumbnail only a bounded number of times');
     // Each completion must start another queued image with no scroll, hover or timer.
     for (let i = 0; i < 50; i++) {
       assert.ok(f.c.images[i], 'next thumbnail starts automatically: ' + i);
@@ -732,6 +737,7 @@ test('all 50 result thumbnails warm without scrolling or an IntersectionObserver
       assert.ok(f.app.media.pool.active <= 6);
     }
     assert.equal(f.c.images.length, 50);
+    assert.equal(f.positionReads, positionReads, 'transfer completions reuse the initial layout');
     assert.equal(last.state, 'ready');
     assert.equal([...f.app.media.thumbnails.values()].every(record => record.state === 'ready'), true);
     assert.equal(f.win.scrollY, 0);
@@ -746,8 +752,9 @@ test('current and nearby rows overtake distant preloads; hidden and detached row
     f.app.filtersFinished(); await settle();
     assert.match(f.c.images[0].src, /\/1\.th\.jpg$/);
     f.c.images[0].succeed(); assert.match(f.c.images[1].src, /\/4\.th\.jpg$/);
-    // Reprioritize on completion using current layout, without relying on IO callbacks.
+    // A layout change invalidates queued positions before the next completion.
     f.positions.set('2', 30);
+    f.win.dispatchEvent(new f.win.Event('resize'));
     const hidden = f.doc.querySelector('[data-fixture-id="3"]'); hidden.classList.add('hidden');
     f.doc.querySelector('[data-fixture-id="5"]').remove();
     f.c.images[1].succeed(); assert.match(f.c.images[2].src, /\/2\.th\.jpg$/);

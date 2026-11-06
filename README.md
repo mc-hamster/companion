@@ -2,14 +2,14 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · Version **[2.12.3](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion-2.12.3.user.js)**
+**[Install Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · Version **[2.13.0](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion-2.13.0.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
 ## What you get
 
 - **Preview before opening.** See thumbnails beside results and hover over them for a larger image. Click a preview to keep it open.
-- **Browse in a grid.** Switch to larger image cards. Thumbnails appear first, with an optional automatic upgrade to larger images. Choose card width and upgrades in Settings or Getting started.
+- **Browse in a grid.** Switch to thumbnail cards. Open an image preview to see a larger version. Choose card width in Settings or Getting started.
 - **Hide what you don't want.** Filter by tags, titles, or uploaders. Mark tags as favorites or cautions to make them easier to spot.
 - **Less clutter.** Similar releases are grouped together. Choose **Show versions** to compare them.
 - **Your searches, one click away.** Save a search and run it again from the toolbar.
@@ -29,7 +29,11 @@ If you use older scripts for the same features, back up their settings first, th
 
 ## Start browsing
 
-**Filters** lets you choose what to hide or highlight. Most changes save automatically. Use **Show filtered** to temporarily bring hidden results back without removing your rules.
+**Filters** lets you choose what to hide or highlight. Most changes save automatically. Open **Browse options** and choose **Show filtered** to temporarily bring hidden results back without removing your rules.
+
+In **Browse options**, use **Freeleech** to switch between **All results**, **Any freeleech**, and **Sitewide only**. Bookmarks remembers its own selection.
+
+In **Filters → Conditional rules**, choose **Add a rule** to combine tags, titles, and uploaders. **Filters → Seen & Ignored** lets you show, dim, or hide torrents you have opened and undo individual seen or ignored entries. [Filter examples](docs/REFERENCE.md#freeleech-conditional-rules-and-seen-history)
 
 **Searches** manages your saved searches. Run a search on Empornium, then click **Save search**. Its name appears below the toolbar; click it whenever you want to run that search again.
 
@@ -37,13 +41,15 @@ If you use older scripts for the same features, back up their settings first, th
 
 Enable **Use keyboard shortcuts** during setup, or find the toggle and key mappings under **Settings → Advanced settings → Keyboard & menus**.
 
-Click **Grid view** above the results to switch to image cards; **List view** switches back. Under **Settings → Appearance**, grid cards have Compact (240px), Balanced (320px), Large (420px), and Extra large (540px) sizes and an **Automatically load larger images in grid view** option. Larger images load after the thumbnail pass and keep the thumbnail visible if they fail. Both choices are also in Getting started. Your layout is remembered across visits.
+Click **Grid** above the results to switch to thumbnail cards. **List** switches back. Under **Settings → Appearance**, choose Compact (240px), Balanced (320px), Large (420px), or Extra large (540px) cards. Hover over a thumbnail or click its preview button to load the larger image. Your layout is remembered across visits.
 
 Grid titles are limited to two lines. Stats, uploader and category information are hidden by default; enable **Settings → Appearance → Show details in grid cards** to display them again.
 
 Tags are also hidden by default in grid view. **Settings → Appearance → Show tags in grid cards** controls them separately from the details block. Both choices are remembered; tag filtering and highlighting continue to work.
 
-To add more results yourself, click **Backfill results** in the toolbar. This brings the following pages into the page you're viewing. **Stop backfill** stops loading and keeps the results already added. For automatic loading, look under **Settings → Browsing → Load more pages**.
+To add more results yourself, click **Load more** in the toolbar. This brings the following pages into the page you're viewing. **Stop loading** keeps the results already added. For automatic loading, look under **Settings → Browsing → Load more pages**.
+
+To curate a collage, open it and click **Pin for quick add** in the Companion toolbar. Open a torrent's details page and click **Add to [collage name]**. If you pin several collages, use the selector next to the button to switch destinations. You can unpin a collage from its own page.
 
 ## Updates and backups
 

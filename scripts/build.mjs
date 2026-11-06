@@ -62,9 +62,35 @@ section('htmlContent.innerHTML =', 'referenceNode.after(htmlContent);', html =>
   html.replace(/\$\{(nse(?:BlacklistTaglist|HardPassTaglist|WhitelistTaglist|BlacklistTitleList|HardPassTitleList|WhitelistTitleList|BlacklistUploadersList|WhitelistUploadersList|UIFont|TextAreaFont|BlacklistColor|HardPassColor|WhitelistColor)|nseCustomTheme\.\w+)\}/g, (_, expression) => '${escapeHTML(' + expression + ')}')
     .replace(/\$\{(nseCustomCSS\.replace\([^\n]+?)\}/g, (_, expression) => '${escapeHTML(' + expression + ')}'));
 nse = nse.replace(/\$\{(currentTBLPhrase|currentTWLPhrase)\}/g, (_, expression) => '${escapeHTML(' + expression + ')}');
-section('if(torrents) {', '// +-----------------------------------------+\n// | Event handler assignment', block =>
-  'let epIconSequence = 0;\nfunction epFilterRows(torrents) {\napp.captureFilterBaseline();\n' + block + '\n}\nepFilterRows(torrents);\n\n');
+section('if(torrents) {', '// +-----------------------------------------+\n// | Event handler assignment', block => {
+  const flags = '            let countMe = 1;';
+  const precedence = '            // If forcing through individual filtering, ignore results';
+  if (!block.includes(flags) || !block.includes(precedence)) throw new Error('Missing conditional filter anchors.');
+  block = block.replace(flags,
+    '            const conditional = matchConditional?.(tagElement, titleElement, uploaderElement);\n' + flags);
+  block = block.replace(precedence, [
+    '            if (conditional?.has("HIDE")) currentHidden = true;',
+    '            if (conditional?.has("SHOW") && !currentBypassWhitelist) currentWhitelisted = true;',
+    '            if (conditional?.has("PASS")) {',
+    '                currentForceHide = true;',
+    '                if (!currentForceShow && nseHardPassEnabled && nseRemoveHardPassResults) {',
+    '                    torrents[i].classList.add("nseHardPassRemove");',
+    '                    countMe = 0;',
+    '                }',
+    '            }',
+    '',
+    precedence
+  ].join('\n'));
+  return 'let epIconSequence = 0;\nfunction epFilterRows(torrents, appended) {\napp.captureFilterBaseline(appended);\n' +
+    'const matchConditional = app.resultFilters.conditionalMatcher();\n' + block + '\n}\nepFilterRows(torrents);\n\n';
+});
 replace('id="nseToggleIcon_${i}"', 'id="nseToggleIcon_${++epIconSequence}"');
+replace('let torrentIconContainer = torrents[i].querySelector("td > span.torrent_icon_container");',
+  'const resultID = titleElement && new URL(titleElement.href, location.href).searchParams.get("id");\n' +
+  '                let torrentIconContainer = /^\\d{1,15}$/.test(resultID || "") ? torrents[i].querySelector("td > span.torrent_icon_container") : null;');
+replace('let torrentID = titleElement.href.match(/([0-9]+)/)[0];', 'let torrentID = resultID;');
+nse = nse.replace(/let regex = "id=" \+ this\.torrentID;\s*if\(torrentLinks\[i\]\.href\.match\(regex\)\)/g,
+  'if(new URL(torrentLinks[i].href).searchParams.get("id") === this.torrentID)');
 section('// Assign event handlers if arrow key navigation is enabled', 'let headerNode =', () => '');
 section('let nseTextAreas =', 'let explanationTogglers =', () => '');
 const eventStart = nse.indexOf('let explanationTogglers =');
@@ -139,10 +165,14 @@ const app = stripExports((await read('src/app.mjs')).replace(/import \{[\s\S]*?\
 const workspace = stripExports(await read('src/workspace.mjs'));
 const preferences = stripExports((await read('src/preferences.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const backfill = stripExports((await read('src/backfill.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
+const collageQuickAdd = stripExports(await read('src/collage-quick-add.mjs'));
 const onboarding = stripExports((await read('src/onboarding.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const imageCache = stripExports((await read('src/image-cache.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const searchEditor = stripExports((await read('src/search-editor.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const resultTools = stripExports(await read('src/result-tools.mjs'));
+const conditionalRules = stripExports(await read('src/conditional-rules.mjs'));
+const conditionalRuleEditor = stripExports((await read('src/conditional-rule-editor.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
+const resultFilters = stripExports((await read('src/result-filters.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const gridView = stripExports((await read('src/grid-view.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const scheduling = stripExports(await read('src/scheduling.mjs'));
 const settings = stripExports(await read('src/nse-settings.mjs'));
@@ -173,7 +203,7 @@ const bootstrap = (await read('src/bootstrap.inc.js'))
   .replace('/*COMPANION_CSS*/', JSON.stringify(css))
   .replace('/*NSE_BODY*/', nse);
 await mkdir(new URL('dist/', root), { recursive: true });
-const artifact = header + '\n\n(function () {\n"use strict";\n' + core + '\n' + imageCache + '\n' + preferences + '\n' + backfill + '\n' + onboarding + '\n' + searchEditor + '\n' + resultTools + '\n' + gridView + '\n' + scheduling + '\n' + workspace + '\n' + app + '\n' + settings + '\n' + bootstrap + '\n})();\n';
+const artifact = header + '\n\n(function () {\n"use strict";\n' + core + '\n' + imageCache + '\n' + preferences + '\n' + backfill + '\n' + collageQuickAdd + '\n' + onboarding + '\n' + searchEditor + '\n' + resultTools + '\n' + gridView + '\n' + scheduling + '\n' + workspace + '\n' + conditionalRules + '\n' + conditionalRuleEditor + '\n' + resultFilters + '\n' + app + '\n' + settings + '\n' + bootstrap + '\n})();\n';
 await writeFile(new URL('dist/EmporniumCompanion.meta.js', root), header + '\n');
 await writeFile(new URL('dist/EmporniumCompanion.user.js', root), artifact);
 await writeFile(new URL('dist/EmporniumCompanion-' + releaseVersion + '.user.js', root), artifact);

@@ -72,7 +72,7 @@ bridge.openVisible = function() {
     if(nseUnfilteredPages.includes(currentPage)) return;
     const visited = new Set();
     for(const row of document.querySelectorAll(currentPage === "Requests" ? "#request_table tr" : "tr.torrent")) {
-        if(row.getAttribute("isNSEHidden") === "1" || row.classList.contains("epc-version-hidden")) continue;
+        if(row.getAttribute("isNSEHidden") === "1" || row.matches(".epc-version-hidden,.epc-filter-hidden")) continue;
         const title = row.querySelector(currentPage === "Collage" ? "td > strong > a" : "td > a");
         if(!title?.href) continue;
         const url = new URL(title.href, location.href);
@@ -84,7 +84,7 @@ bridge.openVisible = function() {
 };
 bridge.hideVisible = function() {
     if(!confirm("Hide the results currently shown? You can restore them with Undo changes.")) return;
-    const visible = [...document.querySelectorAll("tr.torrent")].filter(row => !row.classList.contains("epc-version-hidden"));
+    const visible = document.querySelectorAll("tr.torrent:not(.epc-version-hidden,.epc-filter-hidden)");
     for(const row of visible) {
         if(row.getAttribute("isNSEHidden") !== "1") row.querySelector(".nseToggleIcon")?.click();
     }

@@ -28,7 +28,7 @@ const epApp = createApp(window, epStorage, {
   waitForFilters: true, startNSE: epRunNSE,
   requestImage: typeof GM_xmlhttpRequest === 'function' ? details => GM_xmlhttpRequest(details) : null,
   localImageCache: !!epFixture,
-  newRows: root => epBridge.newRows?.(root),
+  newRows: (root, rows) => epBridge.newRows?.(root, rows),
   flushNSE: () => epBridge.flush?.(),
   refreshFilters: syncInputs => epBridge.refresh?.(syncInputs),
   validateDraftFilters: () => epBridge.validateDraft?.(),

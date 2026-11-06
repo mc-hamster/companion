@@ -1,13 +1,13 @@
 {
   "name": "empornium-companion",
-  "version": "2.12.3",
+  "version": "2.13.0",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test test/*.test.mjs",
-    "check": "node --check src/image-cache.mjs && node --check src/onboarding.mjs && node --check src/core.mjs && node --check src/backfill.mjs && node --check src/search-editor.mjs && node --check src/result-tools.mjs && node --check src/grid-view.mjs && node --check src/scheduling.mjs && node --check src/app.mjs && node --check src/workspace.mjs && node --check src/preferences.mjs && node --check dist/EmporniumCompanion.user.js",
+    "check": "node --check src/image-cache.mjs && node --check src/onboarding.mjs && node --check src/core.mjs && node --check src/backfill.mjs && node --check src/search-editor.mjs && node --check src/result-tools.mjs && node --check src/result-filters.mjs && node --check src/conditional-rules.mjs && node --check src/conditional-rule-editor.mjs && node --check src/grid-view.mjs && node --check src/scheduling.mjs && node --check src/app.mjs && node --check src/workspace.mjs && node --check src/preferences.mjs && node --check dist/EmporniumCompanion.user.js",
     "fixture": "node test/server.mjs"
   },
   "devDependencies": {

@@ -113,6 +113,37 @@ test('appended preview data survives overlay-name collisions and media restarts 
   } finally { f.close(); }
 });
 
+test('a missing thumbnail on a backfilled grid page does not delay other thumbnails on its host', async () => {
+  const ids = Array.from({ length: 50 }, (_, index) => index + 2);
+  const f = await setup({ settings: { resultsView: 'grid', backfillPages: 1 }, fetch: async url =>
+    response(url, pageHTML(ids, 2, null, { numbered: 0 })) });
+  try {
+    f.clock.images[0].succeed(160, 90);
+    const requests = [];
+    f.app.media.pool.env.imageCache = {
+      enabled: () => true,
+      load(url, options, done) {
+        requests.push(url);
+        const missing = /\/image-[2-7]\.th\.jpg$/.test(url);
+        const timer = f.clock.env.setTimeout(() => done(missing ? { failure: true, status: 404 } : null), 1);
+        return () => f.clock.env.clearTimeout(timer);
+      }
+    };
+    await f.app.backfill.run();
+    for (let step = 0; step < 50; step++) {
+      f.clock.tick(2);
+      for (const image of f.clock.images) if (image.onload && !image.naturalWidth) image.succeed(160, 90);
+    }
+    const records = [...f.app.media.thumbnails.values()].filter(record => record.row.dataset.epBackfillPage);
+    assert.equal(records.length, 50);
+    assert.equal(records.filter(record => record.state === 'ready').length, 44);
+    assert.equal(records.filter(record => record.status.textContent === 'Thumbnail unavailable').length, 6);
+    assert.equal(requests.length, 50);
+    assert.ok(requests.every(url => /\.th\.jpg$/.test(url)));
+    assert.equal(f.app.media.pool.hosts.get('hamsterimg.net').constrained, false);
+  } finally { f.close(); }
+});
+
 test('new rows respect active filters and Show filtered before thumbnail or native-image requests', async () => {
   const f = await setup({ filter: true, fetch: async url => response(url,
     pageHTML([2, 3], 2, null, { numbered: 0 }).replace('</div></td>', '</div><img src="/native-icon.jpg" onerror="window.backfillExecuted=true"></td>')) });
@@ -153,7 +184,7 @@ test('Stop discards late responses and a second click cannot run a parallel back
   const f = await setup({ fetch: url => new Promise(resolve => { resolvePage = () => resolve(response(url, pageHTML([2], 2, null, { numbered: 0 }))); }) });
   try {
     const first = f.app.backfill.run(); await f.app.backfill.run(); await until(()=>f.calls.length===1);
-    assert.equal(f.calls.length, 1); assert.equal(f.app.backfill.button.textContent, 'Stop backfill');
+    assert.equal(f.calls.length, 1); assert.equal(f.app.backfill.button.textContent, 'Stop loading');
     f.app.backfill.stop(); resolvePage(); await first;
     assert.equal(f.doc.querySelectorAll('tr.torrent').length, 1);
     assert.equal(f.app.backfill.nextURL, pageURL(2)); assert.equal(f.app.backfill.busy, false);
@@ -175,7 +206,7 @@ test('timed-out, login, non-HTML and redirected responses leave the cursor retry
       await f.app.backfill.run();
       assert.equal(f.app.backfill.busy, false); assert.equal(f.app.backfill.nextURL, pageURL(2));
       assert.equal(f.doc.querySelectorAll('tr.torrent').length, 1);
-      assert.match(f.app.backfill.status.textContent, /Try Backfill results again/);
+      assert.match(f.app.backfill.status.textContent, /Try Load more again/);
     } finally { f.close(); }
   }
 });
@@ -281,13 +312,60 @@ test('[BFL-07] backup roundtrip preserves automatic mode while setup completion 
 });
 
 test('[PERF-01] backfill scans only newly inserted rows rather than rescanning the accumulated table',async()=>{
-  const f=await setup({settings:{backfillPages:2},fetch:async url=>{const n=Number(new URL(url).searchParams.get('page'));return response(url,pageHTML([n],n,n+1,{numbered:0}));}});
+  const f=await setup({settings:{backfillPages:2,resultsView:'grid'},fetch:async url=>{const n=Number(new URL(url).searchParams.get('page'));return response(url,pageHTML([n],n,n+1,{numbered:0}));}});
   try{
     const roots=[],scan=f.app.media.scan.bind(f.app.media);f.app.media.scan=root=>{roots.push(root);return scan(root);};
+    const decorated=[],decorate=f.app.grid.decorateRows.bind(f.app.grid);
+    f.app.grid.decorateRows=(rows,labels)=>{decorated.push(...rows);decorate(rows,labels);};
+    const groupScopes=[],collect=f.app.versions.collectCandidates.bind(f.app.versions);
+    f.app.versions.collectCandidates=rows=>{groupScopes.push(...rows);return collect(rows);};
     await f.app.backfill.run();await settle();
     assert.ok(roots.some(root=>root.dataset.fixtureId==='2'));assert.ok(roots.some(root=>root.dataset.fixtureId==='3'));
     assert.equal(roots.some(root=>root.matches('body,table,tbody')),false,'owned append mutations must not trigger a second broad scan');
+    assert.deepEqual(decorated.map(row=>row.dataset.fixtureId),['2','3']);
+    assert.deepEqual(groupScopes.map(row=>row.dataset.fixtureId),['2','3']);
   }finally{f.close();}
+});
+
+test('backfill counts request and processing time toward the minimum interval between starts', async () => {
+  let now = 100000;
+  const starts = [], waits = [];
+  const f = await setup({ fetch: async url => {
+    starts.push(now);
+    const page = Number(new URL(url).searchParams.get('page'));
+    now += page === 3 ? 1200 : 300;
+    return response(url, pageHTML([page], page, page < 4 ? page + 1 : null, { numbered: 0 }));
+  } });
+  try {
+    const controller = f.app.backfill, sync = f.app.syncGridFilters.bind(f.app);
+    delete f.app.options.backfillIntervalMs;
+    controller.now = () => now;
+    controller.wait = async (ms, generation) => { waits.push(ms); now += ms; return controller.active(generation); };
+    f.app.syncGridFilters = (...args) => { now += 125; return sync(...args); };
+    // A second manual batch also respects the prior request start.
+    f.app.settings.backfillPages = 1;
+    await controller.run();
+    f.app.settings.backfillPages = 2;
+    await controller.run();
+    assert.deepEqual(waits, [575, 0]);
+    assert.deepEqual(starts, [100000, 101000, 102325]);
+  } finally { f.close(); }
+});
+
+test('a backfilled variant can form a group and collapse an existing duplicate', async () => {
+  const initial = pageHTML([1, 2], 1, 2).replace(/Example [12]/g, 'Mountain Walk');
+  const appended = pageHTML([3], 2, null, { numbered: 0 }).replace('Example 3', 'Mountain Walk [1080p]');
+  const f = await setup({ html: initial, fetch: async url => response(url, appended) });
+  try {
+    assert.match(f.app.filterSummary.textContent, /^2 shown/);
+    await f.app.backfill.run();
+    const control = f.doc.querySelector('.epc-version-control');
+    assert.equal(control.textContent, 'Show 3 versions');
+    assert.deepEqual([...f.doc.querySelectorAll('.epc-version-hidden')].map(row => row.dataset.fixtureId), ['2', '3']);
+    assert.match(f.app.filterSummary.textContent, /^1 shown · 2 grouped/);
+    control.click();
+    assert.match(f.app.filterSummary.textContent, /^3 shown/);
+  } finally { f.close(); }
 });
 
 test('[BFL-08] Stop or disposal during foreground admission cannot start a stale request',async()=>{

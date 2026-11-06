@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { resultTitleLink } from './result-tools.mjs';
+import { companionIcon } from './workspace.mjs';
 
 export function gridCardSizeChoices(select, width) {
   const choices = new Map([[240, 'Compact · 240px'], [320, 'Balanced · 320px'], [420, 'Large · 420px'], [540, 'Extra large · 540px']]);
@@ -13,30 +14,41 @@ export function gridCardSizeChoices(select, width) {
 
 // Keep native rows, links and controls: both layouts share filtering and backfill.
 export class ResultGrid {
-  constructor(app) { this.app = app; this.tables = new Set(); this.cells = new Set(); this.headings = new Set(); }
+  constructor(app) { this.app = app; this.tables = new Map(); this.cells = new Set(); this.headings = new Set(); }
   mount() {
     const app = this.app;
-    this.toggle = app.button('Grid view', () => {
-      const next = app.settings.resultsView === 'grid' ? 'list' : 'grid';
-      if (!app.preferences.flush()) return;
-      if (app.settings.resultsView === next) return;
-      app.controls.get('resultsView').value = next;
-      app.dirty = true; app.preferences.flush();
-    });
-    this.toggle.dataset.epGridToggle = '';
-    this.toggle.setAttribute('aria-pressed', 'false');
-    app.toolbar.append(this.toggle);
+    this.layout = app.node('div', null, 'epc-layout-switch');
+    this.layout.setAttribute('role', 'group');
+    this.layout.setAttribute('aria-label', 'Results layout');
+    this.layout.hidden = true;
+    this.layoutButtons = new Map();
+    for (const [value, label, help] of [['list', 'List', 'Show results in a list'], ['grid', 'Grid', 'Show results as image cards']]) {
+      const button = app.button(label, () => {
+        if (!app.preferences.flush() || app.settings.resultsView === value) return;
+        app.controls.get('resultsView').value = value;
+        app.dirty = true; app.preferences.flush();
+      });
+      button.prepend(companionIcon(app, value));
+      button.dataset.epLayout = value;
+      button.title = help;
+      this.layoutButtons.set(value, button); this.layout.append(button);
+    }
+    this.syncControls();
+    app.browseTools.prepend(this.layout);
+  }
+  syncControls() {
+    for (const [value, button] of this.layoutButtons) button.setAttribute('aria-pressed', String(this.app.settings.resultsView === value));
   }
   refresh() {
     const app = this.app, grid = app.settings.resultsView === 'grid';
     app.batchDOM(() => {
-      for (const table of [...this.tables]) if (!table.isConnected || !grid) this.release(table);
-      const candidates = new Set([...app.doc.querySelectorAll('#content tr.torrent')].map(row => row.closest('table')));
+      for (const table of this.tables.keys()) if (!table.isConnected || !grid) this.release(table);
+      const candidates = new Set(this.tables.keys());
       // Retain managed tables when Hard Pass temporarily removes every row.
-      for (const table of this.tables) candidates.add(table);
+      if (grid) for (const row of app.doc.querySelectorAll('#content tr.torrent')) candidates.add(row.closest('table'));
       for (const table of candidates) {
         if (!table || !grid) continue;
-        this.tables.add(table); app.versions?.releaseLayout(table);
+        app.versions?.releaseLayout(table);
         table.classList.add('epc-result-grid');
         table.dataset.epGridDetails = String(app.settings.gridShowDetails);
         table.dataset.epGridTags = String(app.settings.gridShowTags);
@@ -51,29 +63,46 @@ export class ResultGrid {
           const label = cell.textContent.trim() || cell.getAttribute('title') || cell.querySelector('[title]')?.getAttribute('title') || '';
           for (let i = 0; i < cell.colSpan; i++) labels.push(label);
         }
-        const fallback = ['Category', 'Name', 'Files', 'Comments', 'Added', 'Size', 'Snatches', 'Seeds', 'Peers', 'Uploader'];
-        for (const row of table.querySelectorAll('tr.torrent')) {
-          const link = resultTitleLink(row), title = link?.closest('td');
-          if (link) link.dataset.epGridTitle = '';
-          let column = 0;
-          for (const cell of row.cells) {
-            cell.dataset.epGridCell = cell === title ? 'title' : cell.matches('.cats_col,.cats_cols') ?
-              app.storage.get('nseHideCategoryIconsEnabled', false) || app.settings.categoryDisplay === 'hide' ? 'category-hidden' : 'category' : 'meta';
-            cell.dataset.epGridLabel = labels[column] || (row.cells.length === fallback.length ? fallback[column] : '');
-            column += cell.colSpan; this.cells.add(cell);
-          }
-        }
+        this.tables.set(table, labels);
+        this.decorateRows(table.querySelectorAll('tr.torrent'), labels);
       }
       for (const cell of this.cells) if (!cell.isConnected && !app.detachedFilterRows.has(cell.closest('tr'))) {
         for (const link of cell.querySelectorAll('[data-ep-grid-title]')) delete link.dataset.epGridTitle;
         delete cell.dataset.epGridCell; delete cell.dataset.epGridLabel; this.cells.delete(cell);
       }
     });
-    if (this.toggle) {
-      this.toggle.hidden = !(this.tables.size || app.doc.querySelector('#content tr.torrent') || app.detachedFilterRows.size);
-      this.toggle.textContent = grid ? 'List view' : 'Grid view';
-      this.toggle.setAttribute('aria-pressed', String(grid));
-      this.toggle.title = grid ? 'Switch results to a list' : 'Switch results to larger image cards';
+    if (this.layout) {
+      this.layout.hidden = !(this.tables.size || app.doc.querySelector('#content tr.torrent') || app.detachedFilterRows.size);
+      this.syncControls();
+    }
+  }
+  append(rows) {
+    if (this.app.settings.resultsView === 'grid') {
+      // One backfilled page appends to a single results table.
+      const table = rows[0]?.closest('table');
+      if (table && table.closest('#content')) {
+        const labels = this.tables.get(table);
+        if (!labels) { this.refresh(); return; }
+        this.decorateRows(rows, labels);
+      }
+    }
+    if (this.layout?.hidden && (rows.some(row => row.closest('#content')) || this.app.detachedFilterRows.size)) {
+      this.layout.hidden = false;
+    }
+  }
+  decorateRows(rows, labels) {
+    const { app } = this;
+    const category = app.storage.get('nseHideCategoryIconsEnabled', false) || app.settings.categoryDisplay === 'hide' ? 'category-hidden' : 'category';
+    const fallback = ['Category', 'Name', 'Files', 'Comments', 'Added', 'Size', 'Snatches', 'Seeds', 'Peers', 'Uploader'];
+    for (const row of rows) {
+      const link = resultTitleLink(row), title = link?.closest('td');
+      if (link) link.dataset.epGridTitle = '';
+      let column = 0;
+      for (const cell of row.cells) {
+        cell.dataset.epGridCell = cell === title ? 'title' : cell.matches('.cats_col,.cats_cols') ? category : 'meta';
+        cell.dataset.epGridLabel = labels[column] || (row.cells.length === fallback.length ? fallback[column] : '');
+        column += cell.colSpan; this.cells.add(cell);
+      }
     }
   }
   release(table) {
@@ -88,5 +117,5 @@ export class ResultGrid {
       delete cell.dataset.epGridCell; delete cell.dataset.epGridLabel; this.cells.delete(cell);
     }
   }
-  dispose() { for (const table of this.tables) this.release(table); this.toggle?.remove(); }
+  dispose() { for (const table of this.tables.keys()) this.release(table); this.layout?.remove(); }
 }

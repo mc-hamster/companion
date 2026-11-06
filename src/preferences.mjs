@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { validateSettings } from './core.mjs';
+import { compileConditionalRules } from './conditional-rules.mjs';
 
 export class PreferencesController {
   constructor(app) { this.app = app; this.timer = null; this.checkpoint = app.storage.get('ep.preferenceUndo', null); }
@@ -23,28 +24,33 @@ export class PreferencesController {
     }
     if (app.undoPreferences) app.undoPreferences.hidden = false;
   }
-  flush() {
+  flush(conditionalRules = this.app.settings.conditionalRules) {
     const app = this.app;
     app.win.clearTimeout(this.timer); this.timer = null;
-    if (!app.dirty || app.composing || app.disposed) return true;
+    const wasDirty = app.dirty;
+    const updatingRules = conditionalRules !== app.settings.conditionalRules;
+    if (app.composing || app.disposed) return !updatingRules;
+    if (!wasDirty && !updatingRules) return true;
     const focused = app.doc.activeElement;
     const restore = focused?.matches?.('textarea[data-ep-filter-control],input[type=text][data-ep-filter-control]') ?
       { node: focused, value: focused.value, start: focused.selectionStart, end: focused.selectionEnd, scroll: focused.scrollTop } : null;
-    let snapshot, checkpointBefore = this.checkpoint, filterChanged;
+    let snapshot, checkpointBefore = this.checkpoint, filterChanged, conditionalChanged;
     const previousSettings = app.settings;
     try {
-      const next = { ...app.settings };
+      const next = { ...app.settings, conditionalRules };
       for (const [key, control] of app.controls) {
         const numeric = control.type === 'number' || control.hasAttribute('data-numeric');
         if (numeric && !control.checkValidity()) {
           control.setAttribute('aria-invalid', 'true'); this.status('Check the highlighted value.'); return false;
         }
-        control.removeAttribute('aria-invalid');
+        if (numeric) control.removeAttribute('aria-invalid');
         next[key] = control.type === 'checkbox' ? control.checked : numeric ? Number(control.value) : control.value;
       }
       filterChanged = app.filterDirty;
       next.globalArrowNavigation = next.navigationScope === 'site';
       const checked = validateSettings(next);
+      conditionalChanged = checked.conditionalRules !== previousSettings.conditionalRules;
+      if (conditionalChanged) compileConditionalRules(checked.conditionalRules);
       if (filterChanged) app.options.validateDraftFilters?.();
       const keys = new Set(['ep.settings', 'ep.preferenceUndo', 'nseArrowNavigationEnabled',
         ...(filterChanged ? app.storage.list().filter(key => key.startsWith('nse')) : [])]);
@@ -64,10 +70,11 @@ export class PreferencesController {
         app.controls.get(key).value = checked[key];
       }
       app.dirty = app.filterDirty = false;
-      if (filterChanged) app.refreshFilters();
+      if (filterChanged || conditionalChanged) app.refreshFilters();
+      if (conditionalChanged) app.resultFilters.refreshRulesEditor();
       app.updateMediaPreferences(previous);
       app.applyAppearance();
-      this.status('Saved automatically');
+      this.status(conditionalChanged ? 'Rules saved' : 'Saved automatically');
       return true;
     } catch (error) {
       let restored = true;
@@ -82,9 +89,9 @@ export class PreferencesController {
         }
         app.settings = previousSettings; this.checkpoint = checkpointBefore;
         if (app.undoPreferences) app.undoPreferences.hidden = !checkpointBefore;
-        if (filterChanged && restored) app.refreshFilters();
+        if ((filterChanged || conditionalChanged) && restored) app.refreshFilters();
       }
-      app.dirty = true;
+      app.dirty = wasDirty;
       if (filterChanged) app.filterDirty = true;
       this.status('Could not save. Your edits are still here.');
       app.toast(restored ? error.message || 'Preferences could not be saved.' : 'Storage failed and some preferences could not be restored. Your draft is still here.');
@@ -117,15 +124,16 @@ export class PreferencesController {
   }
 }
 
-export function captureFilterBaseline(app) {
+export function captureFilterBaseline(app, rows) {
   app.filterRows ||= new Map(); app.filterTags ||= new Map(); app.categoryCells ||= new Map();
-  for (const row of app.doc.querySelectorAll('tr.torrent,#request_table tr')) if (!app.filterRows.has(row)) {
+  for (const row of rows || app.doc.querySelectorAll('tr.torrent,#request_table tr')) if (!app.filterRows.has(row)) {
     app.filterRows.set(row, { hidden: row.classList.contains('hidden'), background: row.style.backgroundColor });
   }
-  for (const tag of app.doc.querySelectorAll('#content div.tags')) if (!app.filterTags.has(tag)) {
+  const roots = rows || [app.doc];
+  for (const root of roots) for (const tag of root.querySelectorAll('#content div.tags')) if (!app.filterTags.has(tag)) {
     app.filterTags.set(tag, tag.classList.contains('hidden'));
   }
-  for (const cell of app.doc.querySelectorAll('#content .cats_col,#content .cats_cols')) if (!app.categoryCells.has(cell)) {
+  for (const root of roots) for (const cell of root.querySelectorAll('#content .cats_col,#content .cats_cols')) if (!app.categoryCells.has(cell)) {
     app.categoryCells.set(cell, { display: cell.style.display, next: cell.nextElementSibling,
       colspan: cell.nextElementSibling?.getAttribute('colspan') });
   }

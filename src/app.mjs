@@ -2,14 +2,17 @@
 import { DEFAULTS, validateSettings, escapeHTML, safeImageURL, canonicalImageURL,
   legacyOriginal, fullSizeURL, thumbnailCandidates, parseOverlayDefinitions,
   imageState, editableTarget, isSaveShortcut, SEARCH_NAMES, validateSearches, MediaPool } from './core.mjs';
-import { mountFilterControls, adoptRuleMenu, styleRowControls, applyWorkspaceTheme, adoptNotificationControls, optionGroup, setupSettingsSearch, keyboardShortcutList } from './workspace.mjs';
+import { mountFilterControls, adoptRuleMenu, styleRowControls, applyWorkspaceTheme, adoptNotificationControls, optionGroup, setupSettingsSearch, keyboardShortcutList, companionIcon, toolbarPageName } from './workspace.mjs';
 import { PreferencesController, captureFilterBaseline, restoreFilterBaseline } from './preferences.mjs';
-import { BackfillController } from './backfill.mjs';
+import { BackfillController, torrentID } from './backfill.mjs';
+import { CollageQuickAdd } from './collage-quick-add.mjs';
 import { OnboardingController } from './onboarding.mjs';
 import { PersistentImageCache, cacheBytes, cacheActivityWindows } from './image-cache.mjs';
 import { createSavedSearchEditor } from './search-editor.mjs';
 import { VersionGroups, TagHighlights } from './result-tools.mjs';
 import { ResultGrid, gridCardSizeChoices } from './grid-view.mjs';
+import { ResultFilters } from './result-filters.mjs';
+import { compileConditionalRules } from './conditional-rules.mjs';
 import { coalesceScanRoots, presentationMutation, mutationChangesResults } from './scheduling.mjs';
 
 const SETTINGS_KEY = 'ep.settings';
@@ -88,6 +91,7 @@ export class CompanionApp {
     this.removedFilterIDs = new Set();
     this.detachedFilterRows = new Map();
     this.preferences = new PreferencesController(this);
+    this.resultFilters = new ResultFilters(this);
     try {
       const existing = storage.get(SEARCH_KEY, null);
       this.searches = validateSearches(existing || JSON.parse(storage.get('empSavedSearches', '[]')));
@@ -148,6 +152,7 @@ export class CompanionApp {
     this.media = new PageMedia(this);
     this.preview = new PreviewController(this);
     this.backfill = new BackfillController(this);
+    this.collageQuickAdd = new CollageQuickAdd(this);
     this.onboarding = new OnboardingController(this);
     this.on(this.doc,'securitypolicyviolation',event=>{
       if(/^img-src/.test(event.violatedDirective||'')&&/^data(?::|$)/.test(event.blockedURI||''))this.imageCache.displayBlocked=true;
@@ -177,10 +182,10 @@ export class CompanionApp {
     });
     this.on(this.doc, 'visibilitychange', () => { this.media.pool.pump(); this.onboarding.maybeOpen(); this.backfill.maybeAutomatic(); });
     this.on(this.win, 'online', () => this.media.resumeAutomaticRecovery(true));
-    this.on(this.win, 'focus', () => this.refreshSavedSearches());
+    this.on(this.win, 'focus', () => { this.refreshSavedSearches(); this.resultFilters.refreshSeen(); });
     this.on(this.doc, 'visibilitychange', () => {
       if(this.doc.hidden)this.cancelCacheUsage();
-      else{this.refreshSavedSearches();void this.refreshCacheUsage();}
+      else{this.refreshSavedSearches();this.resultFilters.refreshSeen();void this.refreshCacheUsage();}
     });
     this.observer = new this.win.MutationObserver(mutations => {
       if (this.media.coverGatePending) this.media.syncCoverGate();
@@ -188,6 +193,8 @@ export class CompanionApp {
       let removed = false;
       for (const mutation of mutations) {
         if (mutation.target.nodeType === 1 && mutation.target.closest?.(OWN)) continue;
+        if (mutation.type === 'childList' && [...mutation.addedNodes, ...mutation.removedNodes].every(node =>
+          node.nodeType === 1 && node.matches('.epc-thumbnail,.epc-cover-image,.epc-cover-status'))) continue;
         if (presentationMutation(mutation)) continue;
         const results = mutationChangesResults(mutation);
         if (mutation.type === 'attributes') this.schedule(mutation.target, results);
@@ -206,8 +213,13 @@ export class CompanionApp {
     });
     this.observeDOM();
     if (this.doc.body) this.mount();
-    this.on(this.doc, 'DOMContentLoaded', () => { this.mount(); this.schedule(this.doc.body); });
-    this.on(this.win, 'pageshow', event => { if (event.persisted && this.doc.body) this.schedule(this.doc.body); });
+    if (this.doc.readyState !== 'loading') this.resultFilters.recordVisit();
+    this.on(this.doc, 'DOMContentLoaded', () => {
+      this.resultFilters.recordVisit(); this.mount(); this.schedule(this.doc.body);
+    }, { once: true });
+    this.on(this.win, 'pageshow', event => {
+      if (event.persisted && this.doc.body) { this.resultFilters.recordVisit(); this.schedule(this.doc.body); }
+    });
     return this;
   }
   observeDOM() {
@@ -233,6 +245,7 @@ export class CompanionApp {
   schedule(root, results = true) {
     if (this.disposed || !this.win.document || !this.doc.documentElement || !root || root.nodeType !== 1 || root.closest?.(OWN)) return;
     this.roots.add(root);
+    if (results && !this.resultsDirty) this.media.invalidateLayout();
     this.resultsDirty ||= results;
     if (!this.filtersReady) return;
     if (this.scanPending) return;
@@ -264,9 +277,14 @@ export class CompanionApp {
     this.root = this.node('section', null, 'epc-root epc-workspace');
     this.root.setAttribute('aria-label', 'Empornium Companion');
     this.toolbar = this.node('header', null, 'epc-toolbar');
+    const main = this.node('div', null, 'epc-toolbar-main');
+    const brand = this.node('div', null, 'epc-toolbar-brand');
+    const mark = this.node('span', null, 'epc-brand-mark'); mark.append(companionIcon(this, 'brand'));
     this.launcher = this.node('strong', 'Companion', 'epc-brand');
-    this.filterSummary = this.node('span', '', 'epc-result-summary');
-    this.toolbar.append(this.launcher, this.filterSummary);
+    const pageName = toolbarPageName(this.win.location.href);
+    brand.append(mark, this.launcher);
+    if (pageName) brand.append(this.node('span', pageName, 'epc-page-name'));
+    main.append(brand);
     this.panel = this.node('section', null, 'epc-panel'); this.panel.hidden = true;
     const heading = this.node('header', null, 'epc-panel-heading');
     this.paneHeading = this.node('strong', 'Companion');
@@ -280,20 +298,49 @@ export class CompanionApp {
       const button = this.button(title, () => this.openPane(key));
       button.dataset.pane = key; button.setAttribute('aria-controls', pane.id); button.setAttribute('aria-expanded', 'false');
       this.paneButtons.set(key, button); this.panes[key] = pane;
-      if (key !== 'images') navigation.append(button);
+      if (key !== 'images') { button.prepend(companionIcon(this, key)); navigation.append(button); }
       this.panel.append(pane);
     }
-    this.toolbar.append(navigation);
+    main.append(navigation);
+    const context = this.node('div', null, 'epc-toolbar-context');
+    this.browseTools = this.node('div', null, 'epc-browse-tools');
+    this.browseMenu = this.node('details', null, 'epc-browse-menu'); this.browseMenu.hidden = true;
+    const browseTrigger = this.node('summary', 'Browse options');
+    browseTrigger.prepend(companionIcon(this, 'browse'));
+    this.browseControls = this.node('div', null, 'epc-browse-controls');
+    this.browseMenu.append(browseTrigger, this.browseControls); this.browseTools.append(this.browseMenu);
+    this.contextActions = this.node('div', null, 'epc-context-actions');
+    context.append(this.browseTools, this.contextActions);
+    this.on(this.doc, 'pointerdown', event => {
+      if (this.browseMenu.open && !this.browseMenu.contains(event.target)) this.browseMenu.open = false;
+    });
+    this.browseMenu.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || !this.browseMenu.open || event.defaultPrevented) return;
+      event.preventDefault(); event.stopPropagation();
+      this.browseMenu.open = false; browseTrigger.focus();
+    });
+    const footer = this.node('div', null, 'epc-toolbar-footer');
+    this.toolbarUtilities = this.node('div', null, 'epc-toolbar-utilities');
+    this.toolbarStatus = this.node('div', null, 'epc-toolbar-status');
+    this.filterSummary = this.node('span', '', 'epc-result-summary');
     this.notice = this.node('p', '', 'epc-notice'); this.notice.setAttribute('role', 'status');
-    this.health = this.node('span', '', 'epc-health');
-    this.toggleFiltered = this.button('Show filtered', () => {
+    this.health = this.node('span', '', 'epc-health'); this.health.hidden = true;
+    this.toolbarStatus.append(this.filterSummary, this.health);
+    footer.append(this.toolbarUtilities, this.toolbarStatus);
+    this.toolbar.append(main, context, footer);
+    const filteredLabel = this.node('span', 'Show filtered');
+    this.filteredCount = this.node('span', '', 'epc-filtered-count');
+    this.filteredCount.setAttribute('aria-hidden', 'true');
+    this.toggleFiltered = this.button('', () => {
       this.revealingFiltered = !this.revealingFiltered;
       this.toggleFiltered.setAttribute('aria-pressed', String(this.revealingFiltered));
-      this.toggleFiltered.textContent = this.revealingFiltered ? 'Hide filtered' : 'Show filtered';
+      filteredLabel.textContent = this.revealingFiltered ? 'Hide filtered' : 'Show filtered';
       this.syncGridFilters(); this.media.demandListener?.();
     });
+    this.toggleFiltered.dataset.epReveal = '';
     this.toggleFiltered.setAttribute('aria-pressed', 'false');
-    this.toolbar.append(this.toggleFiltered, this.health);
+    this.toggleFiltered.append(companionIcon(this, 'eye'), filteredLabel, this.filteredCount);
+    this.browseControls.append(this.toggleFiltered);
     this.grid.mount();
     this.backfill.mount();
     this.panes.filters.append(this.node('p', 'Loading filter preferences…', 'epc-filter-placeholder'));
@@ -350,6 +397,7 @@ export class CompanionApp {
     const imageKeys = new Set(['enabled', 'previews', 'inlineThumbnails', 'compactBodyImages', 'thumbnailPlacement',
       'categoryDisplay', 'thumbnailMode', 'previewWidth', 'progressBar']);
     this.controls = new Map();
+    this.resultFilters.mountFreeleech();
     const schema = [
       ['enabled', 'Enable image improvements', 'checkbox'],
       ['previews', 'Enlarge images on hover', 'checkbox'],
@@ -362,7 +410,6 @@ export class CompanionApp {
       ['gridCardWidth', 'Grid card size', [240, 320, 420, 540]],
       ['gridShowDetails', 'Show details in grid cards', 'checkbox'],
       ['gridShowTags', 'Show tags in grid cards', 'checkbox'],
-      ['gridLargeImages', 'Automatically load larger images in grid view', 'checkbox'],
       ['previewWidth', 'Preview width', 'number', 240, 800],
       ['hoverDelay', 'Title hover delay (ms)', 'number', 0, 1500],
       ['hideDelay', 'Popup grace period (ms)', 'number', 100, 1500],
@@ -386,7 +433,7 @@ export class CompanionApp {
       ['keyboardShortcuts', 'Use keyboard shortcuts', 'checkbox'],
       ['navigationScope', 'Arrow key pagination', ['off', 'results', 'site']],
       ['diagnostics', 'Keep a local diagnostic history', 'checkbox'],
-      ['backfillEnabled', 'Show Backfill results action', 'checkbox'],
+      ['backfillEnabled', 'Show Load more action', 'checkbox'],
       ['backfillMode', 'Load more pages', ['off', 'pages', 'all']],
       ['backfillPages', 'Additional pages per batch', 'number', 1, 15],
       ['groupVersions', 'Group alternate video versions', 'checkbox']
@@ -415,7 +462,7 @@ export class CompanionApp {
       if (key === 'gridCardWidth') { gridCardSizeChoices(control, this.settings.gridCardWidth); control.dataset.numeric = ''; }
       control.dataset.setting = key; this.controls.set(key, control); row.append(control);
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
-      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridShowDetails','gridShowTags','gridLargeImages'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
+      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
         key === 'diagnostics' ? this.optionGroups.diagnostics : ['keyboardShortcuts', 'navigationScope'].includes(key) ? this.optionGroups.interaction :
         imageKeys.has(key) ? this.optionGroups.images : this.optionGroups.loading;
@@ -476,7 +523,8 @@ export class CompanionApp {
     this.saveBar.append(this.saveStatus, this.undoPreferences); this.panel.append(this.saveBar);
     this.savedShortcuts = this.node('nav', null, 'epc-saved-shortcuts');
     this.savedShortcuts.setAttribute('aria-label', 'Saved searches'); this.savedShortcuts.hidden = true;
-    this.root.append(this.toolbar, this.savedShortcuts, this.notice, this.panel); this.doc.body.append(this.root);
+    this.toolbarUtilities.append(this.savedShortcuts);
+    this.root.append(this.toolbar, this.notice, this.panel); this.doc.body.append(this.root);
     this.root.addEventListener('input', event => this.markDirty(event.target, event));
     this.root.addEventListener('change', event => {
       if(event.target.dataset.setting==='backfillMode')this.controls.get('backfillEnabled').checked=true;
@@ -507,11 +555,13 @@ export class CompanionApp {
     const table = this.doc.querySelector('#content .torrent_table,#content .torrent_grid');
     if (anchor && this.workspaceAnchor !== anchor) { anchor.after(this.root); this.workspaceAnchor = anchor; }
     else if (!anchor && table && this.workspaceAnchor !== table) { table.before(this.root); this.workspaceAnchor = table; }
+    this.collageQuickAdd.mount();
   }
   openPane(key) {
     if (key === 'images') key = 'settings';
     this.preferences.flush();
     if (!this.panes?.[key]) return;
+    this.browseMenu.open = false;
     if (key === 'filters' || key === 'settings') mountFilterControls(this);
     if (key === 'searches') this.ensureSavedSearchUI();
     if (key === 'searches' && !this.savedDrawer) {
@@ -525,6 +575,7 @@ export class CompanionApp {
     }
     this.paneHeading.textContent = ({ filters: 'Filter your results', searches: 'Saved searches', images: 'Images & previews', settings: 'Settings' })[key];
     this.saveBar.hidden = key === 'searches';
+    if (key === 'filters' && this.resultFilters.history?.open) this.resultFilters.refreshSeen();
     this.storage.set('ep.searchDrawerOpen', key === 'searches');
     if(key==='settings')void this.refreshCacheUsage();
     else this.cancelCacheUsage();
@@ -591,7 +642,7 @@ export class CompanionApp {
   }
   markDirty(target, event) { this.preferences.changed(target, event); this.refreshOptionSummaries?.(); }
   applyChanges() { return this.preferences.flush(); }
-  captureFilterBaseline() { this.versions?.captureOrder(); captureFilterBaseline(this); }
+  captureFilterBaseline(rows) { this.versions?.captureOrder(rows); captureFilterBaseline(this, rows); }
   restoreFilterBaseline() { restoreFilterBaseline(this); }
   detachFilteredRow(row) {
     if (!row.isConnected) return;
@@ -620,6 +671,7 @@ export class CompanionApp {
     if (this.preview.open && !this.preview.pinned &&
         (!this.preview.anchor?.isConnected || this.preview.anchor.closest('.hidden:not(.epc-revealed),[hidden],.epc-version-hidden'))) this.preview.hide(true);
     this.versions.refresh(); this.tags.refresh();
+    if (this.resultFilters.historyVisible()) this.resultFilters.renderHistory();
   }
   syncFilterActions() {
     const available = this.options.resultActionsAvailable?.() !== false;
@@ -652,13 +704,16 @@ export class CompanionApp {
     this.backfill?.sync();
     this.backfill?.maybeAutomatic();
     if(previous.persistentCacheMB!==this.settings.persistentCacheMB)void this.imageCache.prune(this.imageCache.limit());
-    if (previous.groupVersions !== this.settings.groupVersions) {
-      this.syncGridFilters(false); this.media.prepareThumbnails(); this.updateHealth();
+    if (previous.seenMode !== this.settings.seenMode) this.resultFilters.seen = null;
+    if (previous.groupVersions !== this.settings.groupVersions || previous.seenMode !== this.settings.seenMode ||
+        previous[this.resultFilters.freeleechKey] !== this.settings[this.resultFilters.freeleechKey]) {
+      this.resultFilters.refreshView();
     }
     if (previous.favoriteTags !== this.settings.favoriteTags || previous.cautionTags !== this.settings.cautionTags) this.tags.refresh();
     if (previous.keyboardShortcuts !== this.settings.keyboardShortcuts) this.preview.syncShortcutLabels();
     const other = new Set(['groupVersions', 'favoriteTags', 'cautionTags', 'backfillEnabled', 'backfillPages', 'backfillMode',
-      'keyboardShortcuts', 'navigationScope', 'globalArrowNavigation', 'diagnostics', 'persistentImages', 'persistentCacheMB']);
+      'keyboardShortcuts', 'navigationScope', 'globalArrowNavigation', 'diagnostics', 'persistentImages', 'persistentCacheMB',
+      'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView']);
     if (!Object.keys(this.settings).some(key => !other.has(key) && previous[key] !== this.settings[key])) return;
     if (previous.enabled !== this.settings.enabled) {
       this.restartMedia(); return;
@@ -678,7 +733,10 @@ export class CompanionApp {
   }
   adoptEngine() {
     if (!this.doc.getElementById('nseOuter')) {
-      this.panes.filters.replaceChildren(this.node('p', 'Filtering is available on torrent lists and detail pages.'));
+      if (this.resultFilters.bookmarks) {
+        this.panes.filters.replaceChildren();
+        this.resultFilters.mountHistory(this.panes.filters);
+      } else this.panes.filters.replaceChildren(this.node('p', 'Filtering is available on torrent lists and detail pages.'));
       return;
     }
     this.engineReady = true;
@@ -719,7 +777,10 @@ export class CompanionApp {
     else if (parsed.format === 'empornium-companion') {
       if (parsed.version !== 1) throw new Error('Unsupported backup version.');
       settings = validateSettings(parsed.settings);
-      if (!Object.hasOwn(parsed.settings ?? {}, 'keyboardShortcuts')) settings.keyboardShortcuts = this.settings.keyboardShortcuts;
+      if (Object.hasOwn(parsed.settings ?? {}, 'conditionalRules')) compileConditionalRules(settings.conditionalRules);
+      for (const key of ['keyboardShortcuts', 'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView']) {
+        if (!Object.hasOwn(parsed.settings ?? {}, key)) settings[key] = this.settings[key];
+      }
       searches = validateSearches(parsed.searches);
       nse = this.options.validateNSE?.(parsed.nse || {}) || parsed.nse;
       drawer = !!parsed.searchDrawerOpen;
@@ -769,14 +830,16 @@ export class CompanionApp {
       }
       throw error;
     }
+    const conditionalChanged = settings && settings.conditionalRules !== this.settings.conditionalRules;
     if (settings) {
       const before = this.settings; this.settings = settings;
       for (const [key, control] of this.controls || []) {
         if (control.type === 'checkbox') control.checked = settings[key]; else control.value = settings[key];
       }
       if (this.mounted) this.updateMediaPreferences(before);
+      this.resultFilters.refreshRulesEditor();
     }
-    if (nse && this.mounted) { this.refreshFilters(true); this.applyAppearance(); }
+    if ((nse || conditionalChanged) && this.mounted) { this.refreshFilters(true); this.applyAppearance(); }
     if (searches) { this.searches = searches; this.renderSavedSearches(); }
     // Legacy drawer state only restores management. Saved shortcuts are always visible.
     // Old drawer flags do not reopen management or hide the primary shortcuts.
@@ -795,7 +858,7 @@ export class CompanionApp {
       this.doc.getElementById('search_form') : null;
     const changed = this.savedForm !== form; this.savedForm = form;
     if (!this.savedDrawer?.isConnected) {
-      this.savedDrawer = this.node('div', null, 'epc-root epc-saved');
+      this.savedDrawer = this.node('div', null, 'epc-saved');
       this.searchName = this.node('input'); this.searchName.type = 'text'; this.searchName.maxLength = 300;
       this.searchName.placeholder = 'Name this search'; this.searchName.setAttribute('aria-label', 'Saved search name');
       this.saveNamedSearch = this.button('Save current search', () => this.saveCurrentSearch());
@@ -810,9 +873,10 @@ export class CompanionApp {
     this.namedSearch.hidden = !form;
     this.savedFormHint.hidden = !!form;
     if (!this.quickSaveSearch) {
-      const tools = this.node('div', null, 'epc-quick-search');
       this.quickSaveSearch = this.button('Save search', () => this.saveCurrentSearch());
-      tools.append(this.quickSaveSearch); this.toolbar.insertBefore(tools, this.health);
+      this.quickSaveSearch.className = 'epc-quiet epc-quick-search';
+      this.quickSaveSearch.prepend(companionIcon(this, 'add'));
+      this.toolbarUtilities.append(this.quickSaveSearch);
     }
     this.quickSaveSearch.hidden = !form;
     if (form && changed) {
@@ -848,7 +912,6 @@ export class CompanionApp {
   updateQuickSearch() {
     if (!this.quickSaveSearch || !this.savedForm) return;
     const saved = this.searchSignatures?.has(searchSignature(captureSearch(this.savedForm)));
-    this.quickSaveSearch.textContent = saved ? 'Search saved' : 'Save search';
     this.quickSaveSearch.disabled = !!saved;
     this.quickSaveSearch.hidden = !!saved;
   }
@@ -865,6 +928,7 @@ export class CompanionApp {
       this.savedShortcuts.replaceChildren(this.node('strong', 'Saved searches'));
       for (const saved of searches) {
         const link = this.searchLink(saved); link.className = 'epc-saved-shortcut';
+        link.append(companionIcon(this, 'open'));
         this.savedShortcuts.append(link);
       }
       this.savedShortcuts.hidden = !searches.length;
@@ -1056,16 +1120,20 @@ export class CompanionApp {
       if (link?.href) { event.preventDefault(); this.navigate(link.href); break; }
     }
   }
-  syncGridFilters(refreshTags = true) {
-    const visibility = new Map(Array.from(this.removedFilterIDs, id => [id, true]));
+  syncGridFilters(refreshTags = true, appended) {
+    const previous = appended && !this.resultsDirty ? this.resultCounts : null;
+    const newRows = previous ? appended : null;
+    const seenFiltered = new Set();
+    let rows;
     this.batchDOM(() => {
-      for (const [row, marker] of this.detachedFilterRows) {
+      if (!newRows) for (const [row, marker] of this.detachedFilterRows) {
         if (!marker.isConnected) continue;
         if (this.revealingFiltered && !row.isConnected) {
           marker.after(row); this.schedule(row, false);
         } else if (!this.revealingFiltered && row.isConnected) this.detachFilteredRow(row);
       }
-      for (const row of this.doc.querySelectorAll('tr.torrent')) {
+      rows = newRows ? newRows.filter(row => row.isConnected) : [...this.doc.querySelectorAll('tr.torrent')];
+      for (const row of rows) {
         const filtered = row.getAttribute('isNSEHidden') === '1';
         const revealed = !!this.revealingFiltered && filtered;
         // Native themes may hide .hidden with a more specific !important rule.
@@ -1075,41 +1143,68 @@ export class CompanionApp {
         const hidden = filtered && !revealed;
         if ((filtered || wasRevealed) && row.classList.contains('hidden') !== hidden) row.classList.toggle('hidden', hidden);
         if (wasRevealed !== revealed) row.classList.toggle('epc-revealed', revealed);
+        if (this.resultFilters.applyRow(row)) seenFiltered.add(row);
       }
     });
-    for (const row of this.doc.querySelectorAll('tr.torrent')) {
-      const link = row.querySelector('a[href*="torrents.php?id="]');
-      if (!link) continue;
-      const id = new URL(link.href).searchParams.get('id');
-      visibility.set(id, !row.classList.contains('epc-revealed') && (row.classList.contains('hidden') || row.classList.contains('nseHardPassRemove')));
+    const cards = this.doc.querySelectorAll('.torrent_grid__torrent'), affectedCards = [];
+    if (cards.length) {
+      const visibility = new Map(newRows ? [] : Array.from(this.removedFilterIDs, id => [id, { hidden: true }]));
+      for (const row of newRows || rows) {
+        const id = torrentID(row, this.win.location.href);
+        if (!id) continue;
+        visibility.set(id, {
+          hidden: !row.isConnected || row.classList.contains('epc-filter-hidden') || !row.classList.contains('epc-revealed') &&
+            (row.classList.contains('hidden') || row.classList.contains('nseHardPassRemove')),
+          dim: row.classList.contains('epc-seen-dim')
+        });
+      }
+      for (const card of cards) {
+        const state = visibility.get(torrentID(card, this.win.location.href));
+        if (state) {
+          card.classList.toggle('epc-filter-hidden', state.hidden);
+          card.classList.toggle('epc-seen-dim', !!state.dim);
+          affectedCards.push(card);
+        } else if (!newRows) this.resultFilters.applyRow(card);
+      }
     }
-    for (const card of this.doc.querySelectorAll('.torrent_grid__torrent')) {
-      const link = card.querySelector('a[href*="torrents.php?id="]');
-      const id = link && new URL(link.href).searchParams.get('id');
-      if (visibility.has(id)) card.classList.toggle('epc-filter-hidden', visibility.get(id));
+    this.resultFilters.freeleechControl.hidden = !(rows.length || cards.length || previous?.total || this.detachedFilterRows.size);
+    if (newRows) {
+      this.versions?.append(newRows); this.grid?.append(rows);
+    } else {
+      this.batchDOM(() => this.versions?.refresh()); this.grid?.refresh();
     }
-    this.batchDOM(() => this.versions?.refresh()); this.grid?.refresh(); if (refreshTags) this.tags?.refresh();
-    this.media?.scheduleGridUpgrades();
+    if (refreshTags) this.tags?.refresh(newRows ? rows : undefined);
     if (this.filterSummary) {
-      const rows = Array.from(this.doc.querySelectorAll('tr.torrent'));
-      const removed = [...this.detachedFilterRows.keys()].filter(row => !row.isConnected).length;
-      const filtered = rows.filter(row => row.getAttribute('isNSEHidden') === '1').length;
+      const archived = newRows ? newRows.filter(row => this.detachedFilterRows.has(row)) : [...this.detachedFilterRows.keys()];
+      const removed = (previous?.removed || 0) + archived.filter(row => !row.isConnected).length;
+      const filtered = (previous?.filtered || 0) + rows.filter(row => row.getAttribute('isNSEHidden') === '1' || seenFiltered.has(row)).length;
       const grouped = this.versions?.collapsed || 0;
-      const shown = rows.filter(row => !row.hidden && !row.classList.contains('epc-version-hidden') &&
+      const eligible = rows.filter(row => !row.hidden && !row.classList.contains('epc-filter-hidden') &&
+        (newRows || !row.classList.contains('epc-version-hidden')) &&
         (row.classList.contains('epc-revealed') || !row.classList.contains('nseHardPassRemove') && !row.classList.contains('hidden'))).length;
-      this.resultCounts = { total: rows.length, shown, grouped, filtered, removed }; this.renderResultSummary();
+      // A new version can also collapse existing rows that had no group before.
+      const shown = previous ? previous.shown + eligible - (grouped - previous.grouped) : eligible;
+      this.resultCounts = { total: (previous?.total || 0) + rows.length, shown, grouped, filtered, removed }; this.renderResultSummary();
       this.toggleFiltered.disabled = !filtered && !removed;
       this.toggleFiltered.hidden = !filtered && !removed || !this.storage.get('nseFloatingToggleButtonEnabled', true);
-      styleRowControls(this);
+      this.filteredCount.textContent = (filtered + removed).toLocaleString();
+      this.browseMenu.hidden = this.resultFilters.freeleechControl.hidden && this.toggleFiltered.hidden;
+      if (this.browseMenu.hidden) this.browseMenu.open = false;
+      this.browseMenu.toggleAttribute('data-active', !!this.revealingFiltered ||
+        this.settings[this.resultFilters.freeleechKey] !== 'all');
+      styleRowControls(this, newRows ? rows : undefined);
     }
     this.backfill?.sync();
+    this.backfill?.activateImages(rows, newRows ? affectedCards : cards);
+    this.media?.invalidateLayout();
+    if (this.preview?.open && !this.preview.pinned && this.preview.anchor?.closest('.epc-filter-hidden')) this.preview.hide(true);
   }
   groupVisibilityChanged(difference) {
     if (this.resultCounts) {
       this.resultCounts.shown += difference; this.resultCounts.grouped -= difference; this.renderResultSummary();
     }
     this.scheduleHealth();
-    this.media?.scheduleGridUpgrades();
+    this.media?.invalidateLayout();
   }
   renderResultSummary() {
     if (!this.resultCounts || !this.filterSummary) return;
@@ -1176,6 +1271,7 @@ export class CompanionApp {
   }
   dispose() {
     this.disposed = true; this.observer?.disconnect(); this.backfill?.dispose(); this.preview?.dispose(); this.media?.dispose();
+    this.collageQuickAdd?.dispose();
     this.onboarding?.dispose();
     this.cancelCacheUsage();this.cacheUsageUnsubscribe?.();
     this.imageCache?.close();
@@ -1198,12 +1294,14 @@ export class PageMedia {
     this.app = app; this.win = app.win; this.doc = app.doc;
     this.definitions = new Map(); this.scriptText = new WeakMap(); this.knownVariants = new Map();
     this.records = new Map(); this.thumbnails = new Map(); this.near = new Map();
+    this.layoutVersion = 0;
     this.nativeTimers = new Set(); this.disposed = false;
     this.syncCoverGate();
     this.pool = new MediaPool({
       Image: app.options.Image || this.win.Image, now: () => Date.now(),
       imageCache: app.imageCache,
       hostHistory: app.storage.get('ep.hostHistory', []), saveHosts: history => app.storage.set('ep.hostHistory', history),
+      priorityRevision: () => `${this.layoutVersion}/${this.win.scrollY}/${this.win.innerHeight}/${app.settings.preloadScreens}`,
       setTimeout: this.win.setTimeout.bind(this.win), clearTimeout: this.win.clearTimeout.bind(this.win),
       hidden: () => this.doc.hidden, report: error => app.report(error)
     }, app.settings);
@@ -1216,9 +1314,10 @@ export class PageMedia {
       Array.isArray(item) && item.length === 2 && typeof item[1] === 'object' && item[1] &&
       Date.now() - item[1].time < 7 * 86400000 && safeImageURL(item[1].src, this.win.location.href)));
     this.makeObserver();
-    this.resizeListener = () => { this.makeObserver(); this.app.preview?.position(); };
+    this.resizeListener = () => { this.makeObserver(); this.invalidateLayout(); this.demandListener(); this.app.preview?.position(); };
     this.win.addEventListener('resize', this.resizeListener, { passive: true });
-    this.demandListener = () => {
+    this.demandListener = event => {
+      if (event?.target?.nodeType === 1) this.invalidateLayout(); // Scrolling an inner container changes document-relative positions.
       if (this.demandPending) return;
       this.demandPending = true;
       this.win.requestAnimationFrame(() => {
@@ -1226,12 +1325,14 @@ export class PageMedia {
         if (this.disposed) return;
         for (const [target, callback] of this.near) if (this.visible(target, true)) callback();
         this.prepareThumbnails();
-        this.pool.pump();
         this.planAutomaticRecovery();
       });
     };
-    this.win.addEventListener('scroll', this.demandListener, { passive: true });
+    this.win.addEventListener('scroll', this.demandListener, { passive: true, capture: true });
     this.doc.addEventListener('visibilitychange', this.demandListener);
+    if (this.win.ResizeObserver) this.layoutObserver = new this.win.ResizeObserver(() => {
+      this.invalidateLayout(); this.demandListener();
+    });
   }
   makeObserver() {
     this.intersection?.disconnect();
@@ -1255,6 +1356,7 @@ export class PageMedia {
   }
   updateSettings(previous) {
     const settings = this.app.settings;
+    this.invalidateLayout();
     this.syncCoverGate();
     this.pool.settings = settings; this.pool.budget.maxRetries = settings.maxRetries;
     for (const [element, record] of this.records) if (record.kind === 'background' &&
@@ -1263,8 +1365,6 @@ export class PageMedia {
       this.records.delete(element); this.pool.abandon(record.lastEntry);
     }
     for (const [row, record] of this.thumbnails) {
-      if (settings.resultsView !== previous.resultsView || settings.gridLargeImages !== previous.gridLargeImages ||
-          settings.thumbnailMode !== previous.thumbnailMode || !this.thumbnailsEnabled(row)) this.clearGridUpgrade(record);
       if (!this.thumbnailsEnabled(row)) {
         record.unsubscribe?.(); this.intersection?.unobserve(record.element); this.near.delete(record.element);
         this.pool.abandon(record.lastEntry);
@@ -1283,16 +1383,28 @@ export class PageMedia {
         const name = 'epc-category-' + value, wanted = value === settings.categoryDisplay;
         if (row.classList.contains(name) !== wanted) row.classList.toggle(name, wanted);
       }
-      const enteringGrid = settings.resultsView === 'grid' && previous.resultsView !== 'grid';
-      if (settings.thumbnailMode !== previous.thumbnailMode || enteringGrid &&
-          !record.lastEntry?.key.endsWith('|thumbnail:auto') && !['ready', 'partial'].includes(record.state)) {
-        record.unsubscribe?.(); record.unsubscribe = null; this.pool.abandon(record.lastEntry);
-        record.state = 'deferred'; this.loadThumbnail(record);
+      const grid = row.closest('table')?.classList.contains('epc-result-grid');
+      const entry = record.lastEntry, usable = ['ready', 'partial'].includes(record.state);
+      const changedLayout = settings.resultsView !== previous.resultsView;
+      const layoutNeedsReload = changedLayout && (!usable || grid && (!entry ||
+        !this.thumbnailOptions(record.source, null, 'grid')?.candidates.includes(canonicalImageURL(entry.actualURL))));
+      if (layoutNeedsReload || !grid && settings.thumbnailMode !== previous.thumbnailMode) {
+        record.unsubscribe?.(); record.unsubscribe = null; this.pool.abandon(entry);
+        if (entry?.target === record.image && !entry.cancelled) {
+          // The previous image can still serve a preview. Keep its source
+          // intact and give the new thumbnail its own element.
+          const image = record.image.cloneNode(false);
+          record.image.replaceWith(image); record.image = image;
+          entry.target = null;
+        }
+        record.image.removeAttribute('src'); delete record.image.dataset.epImageSource;
+        record.lastEntry = null; record.state = 'deferred'; record.element.dataset.state = 'deferred';
+        record.failedAt = null; record.autoRecoveryAttempted = false;
+        record.status.textContent = 'Waiting'; record.status.hidden = false;
       }
     }
     if (settings.preloadScreens !== previous.preloadScreens) this.makeObserver();
     this.pool.trim(); this.pool.pump();
-    this.scheduleGridUpgrades();
     this.app.schedule(this.doc.getElementById('content') || this.doc.body);
   }
   failedRecords() {
@@ -1318,7 +1430,7 @@ export class PageMedia {
     const records = this.failedRecords();
     if (!records.length) return;
     const deadline = Math.min(...records.map(record =>
-      Math.max(record.failedAt, this.pool.budget.get(record.source).last) + 31000));
+      Math.max(record.failedAt, this.pool.budget.get(record.lastEntry.url).last) + 31000));
     this.recoveryTimer = this.pool.env.setTimeout(() => this.resumeAutomaticRecovery(),
       Math.max(0, deadline - this.pool.env.now()));
   }
@@ -1326,7 +1438,7 @@ export class PageMedia {
     if (this.disposed || !this.app.settings.maxRetries || this.doc.hidden || this.win.navigator.onLine === false) return;
     const now = this.pool.env.now();
     for (const record of this.failedRecords()) {
-      if (!online && now < Math.max(record.failedAt, this.pool.budget.get(record.source).last) + 31000) continue;
+      if (!online && now < Math.max(record.failedAt, this.pool.budget.get(record.lastEntry.url).last) + 31000) continue;
       record.autoRecoveryAttempted = true;
       if (record.kind === 'image') this.recover(record, true, true, true);
       else if (record.kind === 'background') this.loadBackground(record, true, true);
@@ -1334,119 +1446,60 @@ export class PageMedia {
     }
     this.planAutomaticRecovery();
   }
-  displayed(element) {
-    if (!element?.isConnected || !element.getClientRects().length || element.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden')) return false;
-    const style = this.win.getComputedStyle(element);
-    return style.visibility !== 'hidden' && style.display !== 'none';
+  invalidateLayout() { this.layoutVersion++; }
+  displayed(element, record) {
+    if (!element?.isConnected || element.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden')) return false;
+    const position = record && this.thumbnailPosition(record);
+    if (position?.displayed !== undefined) return position.displayed;
+    const style = element.getClientRects().length && this.win.getComputedStyle(element);
+    const displayed = !!style && style.visibility !== 'hidden' && style.display !== 'none';
+    if (position) position.displayed = displayed;
+    return displayed;
   }
   visible(element, ahead = false) {
     if (!this.displayed(element)) return false;
     const rect = element.getBoundingClientRect(), margin = ahead ? this.win.innerHeight * this.app.settings.preloadScreens : 0;
     return rect.bottom >= -margin && rect.top <= this.win.innerHeight + margin;
   }
+  thumbnailPosition(record) {
+    if (record.position?.version !== this.layoutVersion) {
+      // Document coordinates remain useful while the window scrolls.
+      const rect = record.element.getBoundingClientRect(), scroll = this.win.scrollY;
+      record.position = { version: this.layoutVersion, top: rect.top + scroll, bottom: rect.bottom + scroll };
+    }
+    return record.position;
+  }
+  thumbnailDistance(record) {
+    const { top, bottom } = this.thumbnailPosition(record), scroll = this.win.scrollY;
+    const height = Math.max(1, this.win.innerHeight);
+    return Math.max(top - scroll - height, scroll - bottom, 0) / height;
+  }
   thumbnailPriority(record) {
-    const rect = record.element.getBoundingClientRect(), height = Math.max(1, this.win.innerHeight);
-    if (rect.bottom >= 0 && rect.top <= height) return 80;
-    const distance = Math.max(rect.top - height, -rect.bottom, 0) / height;
+    const distance = this.thumbnailDistance(record);
+    if (!distance) return 80;
     return distance <= this.app.settings.preloadScreens ? 40 - distance : 10 / (1 + distance);
   }
-  prepareThumbnails(rows) {
+  prepareThumbnails(rows, cards) {
     if (this.disposed || !this.app.filtersReady || this.doc.hidden) return;
     // Warm the current result list as slots finish, even when the user stays at
     // the top. Nearby rows lead; filtering and closed galleries still apply.
-    const records = (rows ? rows.map(row => this.thumbnails.get(row)).filter(Boolean) : [...this.thumbnails.values()])
-      .filter(record => this.thumbnailsEnabled(record.row) && record.state === 'deferred' && this.displayed(record.element));
-    records.sort((a, b) => this.thumbnailPriority(b) - this.thumbnailPriority(a));
-    for (const record of records) this.loadThumbnail(record);
-    if (!rows && this.app.settings.recoverBackgrounds) {
-      const covers = [...this.records.values()].filter(record => record.coverArt && record.state === 'deferred' && this.displayed(record.element));
-      covers.sort((a,b)=>this.thumbnailPriority(b)-this.thumbnailPriority(a));
-      for (const record of covers) this.loadBackground(record);
-    }
-    this.pool.pump();
-    this.scheduleGridUpgrades();
-  }
-  thumbnailsEnabled(row) {
-    return this.app.settings.inlineThumbnails || this.app.settings.resultsView === 'grid' &&
-      (row ? row.closest('table')?.classList.contains('epc-result-grid') : true);
-  }
-  gridUpgradeEligible(record) {
-    return !this.disposed && this.app.settings.enabled && this.app.settings.resultsView === 'grid' &&
-      this.app.settings.gridLargeImages && this.app.filtersReady &&
-      record.row.closest('table')?.classList.contains('epc-result-grid') && this.displayed(record.element);
-  }
-  scheduleGridUpgrades() {
-    if (this.disposed || this.gridFrame || this.app.settings.resultsView !== 'grid' ||
-        !this.app.settings.enabled || !this.app.settings.gridLargeImages) return;
-    this.gridFrame = this.win.requestAnimationFrame(() => {
-      this.gridFrame = null;
-      if (this.disposed) return;
-      const records = [...this.thumbnails.values()];
-      for (const record of records) if (record.gridUpgrade && !this.gridUpgradeEligible(record)) this.clearGridUpgrade(record);
-      if (this.doc.hidden) return;
-      this.gridThumbnailsPending = records.some(record => this.thumbnailsEnabled(record.row) &&
-        this.displayed(record.element) && !['ready', 'partial', 'failed'].includes(record.state));
-      // Finish the thumbnail pass before spending slots on automatic originals.
-      if (this.gridThumbnailsPending) return;
-      for (const record of records) {
-        if (record.state !== 'ready' || record.gridUpgrade || !this.gridUpgradeEligible(record)) continue;
-        if (fullSizeURL(record.source) === canonicalImageURL(record.lastEntry.actualURL)) continue;
-        this.loadGridUpgrade(record);
+    const records = rows ? rows.map(row => this.thumbnails.get(row)).filter(Boolean) : this.thumbnails.values();
+    this.pool.batch(() => {
+      for (const record of records) this.loadThumbnail(record);
+      if (this.app.settings.recoverBackgrounds) {
+        if (!rows) {
+          for (const record of this.records.values()) if (record.coverArt) this.loadBackground(record);
+        } else if (cards) for (const card of cards) for (const cover of card.querySelectorAll('.torrent__cover')) {
+          const record = this.records.get(cover);
+          if (record?.coverArt) this.loadBackground(record);
+        }
       }
       this.pool.pump();
     });
   }
-  clearGridUpgrade(record) {
-    const upgrade = record.gridUpgrade; if (!upgrade) return;
-    record.gridUpgrade = null;
-    upgrade.unsubscribe?.();
-    if (upgrade.image) { upgrade.image.onload = upgrade.image.onerror = null; upgrade.image.remove(); }
-    this.pool.abandon(upgrade.entry);
-    record.image.hidden = false;
-    record.status.hidden = record.state === 'ready' || record.state === 'partial';
-    delete record.element.dataset.gridImage;
-  }
-  loadGridUpgrade(record) {
-    const upgrade = { entry: null, unsubscribe: null, image: null }; record.gridUpgrade = upgrade;
-    const active = () => record.gridUpgrade === upgrade && this.gridUpgradeEligible(record);
-    const source = fullSizeURL(record.source);
-    const entry = this.pool.request(source, {
-      lane: 'large', cacheMode: /\.gif(?:\?|$)/i.test(source) ? 'lookup' : 'network', priority: 15,
-      priorityFor: () => Math.min(30, this.thumbnailPriority(record)),
-      eligible: () => active() && !this.doc.hidden && !this.gridThumbnailsPending,
-      target: this.app.options.Image ? null : this.app.node('img')
-    });
-    upgrade.entry = entry;
-    if (!entry) { record.gridUpgrade = null; return; }
-    const update = item => {
-      if (!active()) return;
-      record.element.dataset.gridImage = item.status;
-      const fail = () => {
-        record.element.dataset.gridImage = 'failed';
-        record.status.textContent = 'Larger image unavailable · showing thumbnail'; record.status.hidden = false;
-      };
-      if (item.status === 'ready' && item.image?.naturalWidth) {
-        if (upgrade.image) return;
-        const adopt = item.image instanceof this.win.HTMLImageElement && !item.image.isConnected;
-        const image = adopt ? item.image : this.app.node('img'); upgrade.image = image;
-        const show = () => {
-          if (!active()) return;
-          image.onload = image.onerror = null; image.alt = ''; image.draggable = false; image.hidden = false;
-          image.dataset.epImageSource = item.actualURL;
-          record.image.after(image); record.image.hidden = true; record.status.hidden = true;
-          // A preview must not move this live card image out of the page.
-          if (image === item.image) item.target = image;
-        };
-        if (adopt) show();
-        else {
-          image.onload = show; image.onerror = fail; image.decoding = 'async';
-          image.src = item.displayURL || item.actualURL;
-          if (!(item.image instanceof this.win.HTMLImageElement)) show();
-        }
-      } else if (['failed', 'partial'].includes(item.status)) fail();
-      else { record.status.textContent = 'Loading larger image…'; record.status.hidden = false; }
-    };
-    upgrade.unsubscribe = this.pool.subscribe(entry, update);
+  thumbnailsEnabled(row) {
+    return this.app.settings.inlineThumbnails || this.app.settings.resultsView === 'grid' &&
+      (row ? row.closest('table')?.classList.contains('epc-result-grid') : true);
   }
   watchNear(element, callback) {
     this.near.set(element, callback);
@@ -1484,8 +1537,11 @@ export class PageMedia {
       this.knownVariants.get(key).add(def.thumbnail);
     }
   }
-  scan(root) {
+  scan(root, prepare = true) {
     if (this.disposed || !this.app.settings.enabled || root.closest?.(OWN)) return;
+    if (!this.observedLayout && this.doc.body && this.layoutObserver) {
+      this.layoutObserver.observe(this.doc.body); this.observedLayout = true;
+    }
     this.collectDefinitions(root);
     const images = root.tagName === 'IMG' ? [root] : Array.from(root.querySelectorAll?.('img') || []);
     for (const image of images) this.inspect(image);
@@ -1499,7 +1555,7 @@ export class PageMedia {
       const covers = root.matches?.('.torrent__cover') ? [root] : Array.from(root.querySelectorAll?.('.torrent__cover') || []);
       for (const cover of covers) this.addBackground(cover);
     }
-    if (!root.matches?.('img,source')) this.prepareThumbnails();
+    if (prepare && !root.matches?.('img,source')) this.prepareThumbnails();
     this.app.scheduleHealth();
   }
   rememberVariant(src) {
@@ -1670,21 +1726,26 @@ export class PageMedia {
     if (!row.classList.contains(categoryClass)) row.classList.add(categoryClass);
     const record = { element: host, row, image, status, link, source: definition.src, state: 'deferred', unsubscribe: null };
     this.thumbnails.set(row, record);
-    if (this.app.settings.resultsView === 'grid') this.gridThumbnailsPending = true;
+    this.invalidateLayout();
     // Hover offers a temporary enlargement; clicking either image opens controls.
     this.app.preview.bind(button, { ...definition, title: this.app.preview.titleOf(link), href: link.href });
-    this.watchNear(host, () => this.loadThumbnail(record));
   }
   thumbnailOptions(source, rescueEntry, mode = this.app.settings.thumbnailMode) {
+    const grid = mode === 'grid', original = fullSizeURL(canonicalImageURL(source));
     const smallCandidates = (rescueEntry ? [...rescueEntry.smallCandidates] :
       [this.thumbnailHistory.get(canonicalImageURL(source))?.src,
         ...Array.from(this.knownVariants.get(fullSizeURL(source)) || [])].filter(Boolean))
-      .filter(candidate => mode !== 'auto' || candidate !== fullSizeURL(source));
-    const candidates = rescueEntry ? [canonicalImageURL(rescueEntry.actualURL)] :
-      thumbnailCandidates(source, mode, smallCandidates);
-    const smallFirst = /\.(?:th|md)\.[^/.?]+(?:\?|$)/i.test(candidates[0]) ||
-      candidates[0] !== fullSizeURL(source) && smallCandidates.includes(candidates[0]);
-    return { candidates, smallCandidates, smallFirst, cacheMode: 'thumbnail',
+      .filter(candidate => mode !== 'auto' && !grid || canonicalImageURL(candidate) !== original);
+    let candidates = rescueEntry ? [canonicalImageURL(rescueEntry.actualURL)] :
+      thumbnailCandidates(source, grid ? 'auto' : mode, smallCandidates);
+    if (grid) {
+      candidates = candidates.map(canonicalImageURL).filter(candidate => candidate !== original);
+      if (!candidates.length) return null;
+    }
+    const smallFirst = grid || /\.(?:th|md)\.[^/.?]+(?:\?|$)/i.test(candidates[0]) ||
+      candidates[0] !== original && smallCandidates.includes(candidates[0]);
+    return { candidates, smallCandidates: grid ? candidates : smallCandidates, smallFirst, cacheMode: 'thumbnail',
+      strictCandidates: grid,
       lane: mode === 'original' || !smallFirst ? 'large' : 'thumbnail',
       tier: 'thumbnail:' + mode,
       timeoutMs: this.app.settings.thumbnailTimeoutMs, fullTimeoutMs: this.app.settings.timeoutMs };
@@ -1703,18 +1764,22 @@ export class PageMedia {
   }
   loadThumbnail(record, force = false, rescue = false) {
     if (!force && record.state !== 'deferred') return;
-    if (!this.app.filtersReady || this.disposed || !this.thumbnailsEnabled(record.row) || !this.displayed(record.element) || this.doc.hidden) return;
-    this.clearGridUpgrade(record);
-    if (this.app.settings.resultsView === 'grid') this.gridThumbnailsPending = true;
-    const options = this.thumbnailOptions(record.source, rescue ? record.lastEntry : null,
-      record.row.closest('table')?.classList.contains('epc-result-grid') ? 'auto' : this.app.settings.thumbnailMode);
-    const { smallFirst } = options;
-    const entry = this.pool.request(record.source, {
+    if (!this.app.filtersReady || this.disposed || !this.thumbnailsEnabled(record.row) || this.doc.hidden || !this.displayed(record.element, record)) return;
+    const grid = !!record.row.closest('.epc-result-grid');
+    const options = this.thumbnailOptions(record.source, rescue ? record.lastEntry : null, grid ? 'grid' : this.app.settings.thumbnailMode);
+    if (!options) {
+      record.state = 'failed'; record.element.dataset.state = 'failed';
+      record.status.textContent = 'Thumbnail unavailable'; record.status.hidden = false;
+      this.app.scheduleHealth(); return;
+    }
+    // Thumbnail failures must never exhaust the retry budget for a requested original.
+    const source = grid ? (rescue ? record.lastEntry.url : options.candidates[0]) : record.source;
+    const entry = this.pool.request(source, {
       ...options,
       priority: this.thumbnailPriority(record),
       priorityFor: () => this.thumbnailPriority(record),
       eligible: () => !this.disposed && this.app.filtersReady && this.thumbnailsEnabled(record.row) &&
-        !this.doc.hidden && this.displayed(record.element),
+        grid === !!record.row.closest('.epc-result-grid') && !this.doc.hidden && this.displayed(record.element, record),
       force,
       rescue, singleAttempt: rescue, fresh: rescue,
       // Use the real inline element: no detached preload followed by a second
@@ -1722,16 +1787,13 @@ export class PageMedia {
       target: this.app.options.Image ? null : record.image
     });
     if (!entry) return;
-    // Queued thumbnails use pool eligibility and distance priority. They no
-    // longer need an intersection/scroll callback that reads their layout.
-    this.near.delete(record.element); this.intersection?.unobserve(record.element);
     record.unsubscribe?.();
     const update = item => {
       if (this.disposed || !record.element.isConnected) return;
       record.state = item.status;
       this.trackRecovery(record, item);
       record.status.textContent = ({ queued: 'Waiting', loading: 'Loading', retrying: 'Retrying',
-        stalled: 'Slow load', failed: record.autoRecoveryAttempted || !this.app.settings.maxRetries ? 'Unavailable' : 'Retrying soon',
+        stalled: 'Slow load', failed: grid ? 'Thumbnail unavailable' : record.autoRecoveryAttempted || !this.app.settings.maxRetries ? 'Unavailable' : 'Retrying soon',
         streaming: 'Loading', partial: '', ready: '' })[item.status] || '';
       if (item.image?.naturalWidth && ['streaming', 'partial', 'ready'].includes(item.status)) {
         const displayURL=item.displayURL||item.actualURL;
@@ -1742,7 +1804,6 @@ export class PageMedia {
       record.element.dataset.state = item.status;
       if (['ready', 'failed', 'partial'].includes(item.status)) { record.unsubscribe?.(); record.unsubscribe = null; }
       if (item.status === 'ready') this.rememberThumbnail(record,item);
-      if (['ready', 'failed', 'partial'].includes(item.status)) this.scheduleGridUpgrades();
       this.app.scheduleHealth();
     };
     record.unsubscribe = this.pool.subscribe(entry, update);
@@ -1800,13 +1861,13 @@ export class PageMedia {
   loadBackground(record, force = false, rescue = false) {
     if (!force && record.state !== 'deferred') return;
     if (!this.app.filtersReady || this.disposed || !this.app.settings.recoverBackgrounds ||
-        !(record.coverArt ? this.displayed(record.element) : this.visible(record.element, true)) || this.doc.hidden) return;
+        !(record.coverArt ? this.displayed(record.element, record) : this.visible(record.element, true)) || this.doc.hidden) return;
     const entry = this.pool.request(record.source, {
       ...(record.coverArt ? this.thumbnailOptions(record.originalSource, rescue ? record.lastEntry : null) : { lane: 'large' }),
       priority: record.coverArt ? this.thumbnailPriority(record) : this.visible(record.element) ? 30 : 5,
       ...(record.coverArt ? { priorityFor: () => this.thumbnailPriority(record), target: this.app.options.Image ? null : record.image } : {}), force,
       eligible: () => !this.disposed && this.app.settings.recoverBackgrounds && !this.doc.hidden &&
-        (record.coverArt ? this.displayed(record.element) : this.visible(record.element, true)), rescue, singleAttempt: rescue, fresh: rescue });
+        (record.coverArt ? this.displayed(record.element, record) : this.visible(record.element, true)), rescue, singleAttempt: rescue, fresh: rescue });
     if (!entry) return;
     record.unsubscribe?.();
     const update = item => {
@@ -1873,18 +1934,17 @@ export class PageMedia {
     }
     for (const row of [root, ...root.querySelectorAll('tr')]) {
       const record = this.thumbnails.get(row); if (!record || row.isConnected) continue;
-      this.clearGridUpgrade(record);
+      this.invalidateLayout();
       record.unsubscribe?.(); record.element.remove(); this.intersection?.unobserve(record.element); this.near.delete(record.element); this.thumbnails.delete(row);
       this.pool.abandon(record.lastEntry);
     }
   }
   dispose() {
-    this.disposed = true; this.intersection?.disconnect(); this.pool.dispose();
-    if (this.gridFrame) this.win.cancelAnimationFrame(this.gridFrame);
+    this.disposed = true; this.intersection?.disconnect(); this.layoutObserver?.disconnect(); this.pool.dispose();
     this.doc.documentElement?.classList.remove('epc-cover-art');
     this.pool.env.clearTimeout(this.recoveryTimer);
     this.win.removeEventListener('resize', this.resizeListener);
-    this.win.removeEventListener('scroll', this.demandListener);
+    this.win.removeEventListener('scroll', this.demandListener, true);
     this.doc.removeEventListener('visibilitychange', this.demandListener);
     this.flushThumbnailHistory();
     if (this.fallbackListener) {
@@ -1899,7 +1959,6 @@ export class PageMedia {
       }
     }
     for (const record of this.thumbnails.values()) {
-      this.clearGridUpgrade(record);
       record.unsubscribe?.(); record.element.remove();
       record.row.classList.remove('epc-category-keep', 'epc-category-overlay', 'epc-category-hide');
     }
@@ -2179,14 +2238,21 @@ export class PreviewController {
     }
     const readyThumbnail = thumbnail?.lastEntry && ['ready', 'partial'].includes(thumbnail.lastEntry.status);
     if(titleHover&&readyThumbnail&&!options.force)this.app.imageCache.recordActivity?.('hit',thumbnail.lastEntry.cacheBytes);
-    const entry = titleHover && readyThumbnail && !options.force ? thumbnail.lastEntry : this.app.media.pool.request(source, {
-      ...(titleHover ? this.app.media.thumbnailOptions(source) : { lane: 'large', keepAlive: true,
-        cacheMode: thumbnail?.image.naturalWidth && !/\.gif(?:\?|$)/i.test(source) ? 'network' : 'lookup' }), priority: 100, force: !!options.force,
+    const gridTitle = titleHover && row?.closest('table')?.classList.contains('epc-result-grid');
+    const requestOptions = titleHover ? this.app.media.thumbnailOptions(source, null, gridTitle ? 'grid' : undefined) : {
+      lane: 'large', keepAlive: true,
+      cacheMode: thumbnail?.image.naturalWidth && !/\.gif(?:\?|$)/i.test(source) ? 'network' : 'lookup',
+      candidates: Array.from(new Set([source, item.metadata.src]))
+    };
+    const entry = titleHover && readyThumbnail && !options.force ? thumbnail.lastEntry : requestOptions &&
+      this.app.media.pool.request(gridTitle ? requestOptions.candidates[0] : source, {
+      ...requestOptions, priority: 100, force: !!options.force,
       eligible: () => this.open && version === this.version,
-      fresh: !!options.force, ...(!titleHover ? { candidates: Array.from(new Set([source, item.metadata.src])) } : {}) });
+      fresh: !!options.force });
     if (!entry) {
       previousUnsubscribe?.();
-      this.clearLoadStats(); this.setStatusText('Retry limit reached. Try again after a short pause.'); this.position(); return;
+      this.clearLoadStats(); this.setStatusText(requestOptions ? 'Retry limit reached. Try again after a short pause.' : 'Thumbnail unavailable');
+      this.position(); return;
     }
     const update = current => {
       if (!this.open || version !== this.version) return;

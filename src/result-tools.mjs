@@ -45,19 +45,19 @@ export class VersionGroups {
   constructor(app) {
     this.app = app; this.rows = new Map(); this.moves = new Map(); this.controls = new Map();
     this.tables = new WeakMap(); this.nextTable = 0; this.nextRow = 0; this.expanded = new Set(); this.collapsed = 0; this.groups = new Map();
-    this.layouts = new Map();
+    this.layouts = new Map(); this.candidates = new Map();
   }
-  captureOrder() {
-    for (const row of this.app.doc.querySelectorAll('tr.torrent')) if (!this.rows.has(row)) {
+  captureOrder(rows = this.app.doc.querySelectorAll('tr.torrent')) {
+    for (const row of rows) if (row.matches('tr.torrent') && !this.rows.has(row)) {
       this.rows.set(row, { order: ++this.nextRow, originalID: row.id });
     }
   }
-  refresh() {
-    const { doc, settings } = this.app;
-    if (!this.app.filtersReady || !settings.groupVersions) { this.clear(); return; }
-    this.captureOrder();
-    const groups = new Map();
-    for (const row of doc.querySelectorAll('tr.torrent')) {
+  collectCandidates(rows) {
+    this.captureOrder(rows);
+    const affected = new Set();
+    for (const row of rows) {
+      if (!row.isConnected || row.matches('.epc-revealed,.epc-seen-revealed,.epc-filter-hidden') || row.hidden ||
+          row.classList.contains('nseHardPassRemove') || row.classList.contains('hidden')) continue;
       const link = resultTitleLink(row); if (!link) continue;
       const entry = this.rows.get(row);
       const source = link.textContent;
@@ -71,62 +71,77 @@ export class VersionGroups {
       const category = row.querySelector('.cats_col [title],.cats_cols [title]')?.getAttribute('title') || '';
       // Games and image sets have different notions of a version; leave them intact.
       if (/games?|apps?|images?|pictures?|magazines?|manga|comics?/i.test(category)) continue;
-      // Show filtered is an explicit inspection request. Do not immediately
-      // tuck those rows back inside an automatically collapsed version group.
-      if (row.classList.contains('epc-revealed') || row.hidden || row.classList.contains('nseHardPassRemove') ||
-          row.classList.contains('hidden') && !row.classList.contains('epc-revealed')) continue;
       const key = this.tables.get(table) + ':' + category + ':' + parsed.key;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push({ row, link, parsed, entry });
+      if (!this.candidates.has(key)) this.candidates.set(key, []);
+      this.candidates.get(key).push({ row, link, parsed, entry }); affected.add(key);
     }
-    const desiredMoves = new Set(), representatives = new Set(), hidden = new Set(), members = new Set();
-    this.collapsed = 0; this.groups.clear();
-    for (const [key, group] of groups) {
-      if (group.length < 2 || !group.some(item => item.parsed.hits.length)) continue;
-      group.sort((a, b) => a.entry.order - b.entry.order);
-      const head = group[0], open = this.expanded.has(key); representatives.add(head.row);
-      const ids = group.slice(1).map(item => {
-        if (!item.row.id) item.row.id = 'epc-version-row-' + item.entry.order;
-        return item.row.id;
-      });
-      let control = this.controls.get(head.row);
-      if (!control) {
-        control = this.app.button('', () => {
-          this.toggleGroup(control.dataset.versionKey);
-        });
-        control.className = 'epc-version-control'; this.controls.set(head.row, control);
-      }
-      this.groups.set(key, { group, control });
-      control.dataset.versionKey = key;
-      const caption = (open ? 'Hide' : 'Show') + ' ' + group.length + ' versions';
-      if (control.textContent !== caption) control.textContent = caption;
-      control.setAttribute('aria-expanded', String(open)); control.setAttribute('aria-controls', ids.join(' '));
-      const labels = [...new Set(group.map(item => item.parsed.label))].join('\n');
-      control.title = 'Versions on loaded pages:\n' + labels;
-      if (head.link.nextElementSibling !== control) head.link.after(control);
-      let previous = head.row;
-      for (const item of group.slice(1)) {
-        const row = item.row; members.add(row); desiredMoves.add(row);
-        if (!this.moves.has(row)) {
-          const marker = doc.createComment('Companion original version position'); row.before(marker); this.moves.set(row, marker);
-        }
-        if (previous.nextElementSibling !== row) previous.after(row);
-        previous = row;
-        if (!open) { hidden.add(row); this.collapsed++; }
-      }
+    return affected;
+  }
+  renderGroup(key) {
+    const candidates = this.candidates.get(key);
+    if (candidates.length < 2 || !candidates.some(item => item.parsed.hits.length)) return;
+    const group = [...candidates].sort((a, b) => a.entry.order - b.entry.order);
+    const [head, ...members] = group, open = this.expanded.has(key);
+    const ids = members.map(({ row, entry }) => {
+      if (!row.id) row.id = 'epc-version-row-' + entry.order;
+      return row.id;
+    });
+    let control = this.controls.get(head.row);
+    if (!control) {
+      control = this.app.button('', () => this.toggleGroup(control.dataset.versionKey));
+      control.className = 'epc-version-control'; this.controls.set(head.row, control);
     }
-    for (const [row, marker] of this.moves) if (!desiredMoves.has(row) && row.isConnected) {
+    if (!open) this.collapsed += group.length - (this.groups.get(key)?.group.length || 1);
+    this.groups.set(key, { group, control });
+    control.dataset.versionKey = key;
+    const caption = (open ? 'Hide' : 'Show') + ' ' + group.length + ' versions';
+    if (control.textContent !== caption) control.textContent = caption;
+    control.setAttribute('aria-expanded', String(open)); control.setAttribute('aria-controls', ids.join(' '));
+    const labels = [...new Set(group.map(item => item.parsed.label))].join('\n');
+    control.title = 'Versions on loaded pages:\n' + labels;
+    if (head.link.nextElementSibling !== control) head.link.after(control);
+    let previous = head.row;
+    for (const { row } of members) {
+      if (!this.moves.has(row)) {
+        const marker = this.app.doc.createComment('Companion original version position');
+        row.before(marker); this.moves.set(row, marker);
+      }
+      if (previous.nextElementSibling !== row) previous.after(row);
+      previous = row;
+      this.toggle(row, 'epc-version-hidden', !open); this.toggle(row, 'epc-version-member', true);
+    }
+    return group;
+  }
+  append(rows) {
+    if (!this.app.filtersReady || !this.app.settings.groupVersions) return;
+    for (const key of this.collectCandidates(rows)) this.renderGroup(key);
+    this.hideCollapsedPreview();
+  }
+  refresh() {
+    const { doc, settings } = this.app;
+    if (!this.app.filtersReady || !settings.groupVersions) { this.clear(); return; }
+    this.collapsed = 0; this.groups.clear(); this.candidates.clear();
+    const representatives = new Set(), members = new Set();
+    for (const key of this.collectCandidates(doc.querySelectorAll('tr.torrent'))) {
+      const group = this.renderGroup(key);
+      if (!group) continue;
+      representatives.add(group[0].row);
+      for (const { row } of group.slice(1)) members.add(row);
+    }
+    for (const [row, marker] of this.moves) if (!members.has(row) && row.isConnected) {
       if (marker.isConnected) marker.before(row);
       marker.remove(); this.moves.delete(row);
     }
     for (const [row, control] of this.controls) if (!representatives.has(row)) { control.remove(); this.controls.delete(row); }
     for (const [row] of this.rows) {
-      this.toggle(row, 'epc-version-hidden', hidden.has(row)); this.toggle(row, 'epc-version-member', members.has(row));
+      if (!members.has(row)) {
+        this.toggle(row, 'epc-version-hidden', false); this.toggle(row, 'epc-version-member', false);
+      }
       if (!row.isConnected && !this.app.detachedFilterRows.has(row)) {
         this.moves.get(row)?.remove(); this.moves.delete(row); this.rows.delete(row);
       }
     }
-    if (!this.app.preview.pinned && this.app.preview.anchor?.closest('.epc-version-hidden')) this.app.preview.hide(true);
+    this.hideCollapsedPreview();
   }
   toggleGroup(key) {
     const current = this.groups.get(key); if (!current) return;
@@ -139,6 +154,9 @@ export class VersionGroups {
     control.setAttribute('aria-expanded', String(open));
     this.app.groupVisibilityChanged(difference);
     if (open) this.app.media.prepareThumbnails(group.map(item => item.row));
+    this.hideCollapsedPreview();
+  }
+  hideCollapsedPreview() {
     if (!this.app.preview.pinned && this.app.preview.anchor?.closest('.epc-version-hidden')) this.app.preview.hide(true);
   }
   toggle(row, name, wanted) { if (row.classList.contains(name) !== wanted) row.classList.toggle(name, wanted); }
@@ -196,7 +214,7 @@ export class VersionGroups {
       if (!row.isConnected && !this.app.detachedFilterRows.has(row)) this.rows.delete(row);
     }
     for (const control of this.controls.values()) control.remove();
-    this.controls.clear(); this.groups.clear(); this.collapsed = 0;
+    this.controls.clear(); this.groups.clear(); this.candidates.clear(); this.collapsed = 0;
   }
   dispose() { this.clear(); this.rows.clear(); }
 }
@@ -271,7 +289,9 @@ export class TagHighlights {
       for (const value of affected) for (const tag of this.index.get(value) || []) tags.add(tag);
     } else if (!root || queryChanged || !this.initialized) root = doc;
     if (root) {
-      for (const tag of root.matches?.(selector) ? [root] : root.querySelectorAll?.(selector) || []) tags.add(tag);
+      for (const scope of Array.isArray(root) ? root : [root]) {
+        for (const tag of scope.matches?.(selector) ? [scope] : scope.querySelectorAll?.(selector) || []) tags.add(tag);
+      }
     }
     this.initialized = true;
     for (const tag of tags) {

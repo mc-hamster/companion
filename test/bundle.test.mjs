@@ -160,7 +160,7 @@ test('one workspace owns filters, searches, images, and settings without legacy 
 });
 test('show filtered reveals matching rows alongside visible rows and keeps preview eligibility', async () => {
   const f = await setup({ nseTaglist: 'blocked' }, rowHTML(1, { tags: 'blocked' }) + rowHTML(2));
-  const button = [...f.doc.querySelectorAll('.epc-toolbar button')].find(b => b.textContent === 'Show filtered');
+  const button = f.doc.querySelector('[data-ep-reveal]');
   button.click();
   assert.equal(f.doc.querySelectorAll('tr.epc-revealed').length, 1);
   assert.equal(f.doc.querySelectorAll('tr.torrent:not(.hidden)').length, 2);
@@ -174,9 +174,9 @@ test('[FLT-08] Show filtered reveals a blocked alternate version instead of imme
   const f=await setup({nseTaglist:'blocked'},rows);
   try{
     const row=id=>f.doc.querySelector('[data-fixture-id="'+id+'"]');
-    const button=[...f.doc.querySelectorAll('.epc-toolbar button')].find(b=>b.textContent==='Show filtered');
+    const button=f.doc.querySelector('[data-ep-reveal]');
     assert.equal(f.win.getComputedStyle(row(2)).display,'none');button.click();await settle();
-    assert.equal(button.textContent,'Hide filtered');assert.equal(row(2).getAttribute('isNSEHidden'),'1');
+    assert.match(button.textContent,/^Hide filtered/);assert.equal(row(2).getAttribute('isNSEHidden'),'1');
     assert.equal(f.win.getComputedStyle(row(2)).display,'table-row','explicitly revealed variant must actually be visible');
     assert.equal(row(2).classList.contains('epc-version-hidden'),false);
     assert.equal(f.win.getComputedStyle(row(3)).display,'table-row');
@@ -190,7 +190,7 @@ test('[FLT-08] revealed versions load thumbnails and stay revealed after append 
     rowHTML(1,{title:'Mountain Walk [720p]',tags:'landscape'})+rowHTML(2,{title:'Mountain Walk [1080p]',tags:'blocked'}),
     overlayHTML(1,'https://hamsterimg.net/images/show-1.jpg')+overlayHTML(2,'https://hamsterimg.net/images/show-2.jpg'));
   try{
-    const button=[...f.doc.querySelectorAll('.epc-toolbar button')].find(b=>b.textContent==='Show filtered');
+    const button=f.doc.querySelector('[data-ep-reveal]');
     const image=()=>f.doc.querySelector('[data-fixture-id="2"] .epc-thumbnail img');
     assert.equal(image().getAttribute('src'),null);button.click();await settle();
     assert.match(image().getAttribute('src'),/show-2\.th\.jpg/,'revealed thumbnail must become eligible');
@@ -209,7 +209,7 @@ test('[FLT-09] reveal removes the native hidden class and synchronizes ordinary 
     '<div class="torrent_grid__torrent"><a href="/torrents.php?id=1">Cover</a></div>');
   try {
     const row=f.doc.querySelector('[data-fixture-id="1"]'),card=f.doc.querySelector('.torrent_grid__torrent');
-    const button=f.doc.querySelector('.epc-toolbar button[aria-pressed]');
+    const button=f.doc.querySelector('[data-ep-reveal]');
     assert.equal(card.classList.contains('epc-filter-hidden'),true);
     button.click();await settle();
     assert.equal(row.classList.contains('hidden'),false,'native theme hidden selectors must no longer match a revealed row');
@@ -228,7 +228,7 @@ test('[FLT-09] Show filtered restores removed Hard Pass rows and covers then hid
     rowHTML(1)+rowHTML(2,{tags:'hard'})+rowHTML(3,{tags:'blocked'}),cards);
   try {
     const row=id=>f.doc.querySelector('[data-fixture-id="'+id+'"]');
-    const button=f.doc.querySelector('.epc-toolbar button[aria-pressed]');
+    const button=f.doc.querySelector('[data-ep-reveal]');
     for(let i=0;i<3;i++) {
       button.click();await settle();assert.ok(row(2),'removed result must return on explicit reveal');
       assert.deepEqual([...f.doc.querySelectorAll('tr.torrent')].map(r=>r.dataset.fixtureId),['1','2','3']);
@@ -245,7 +245,7 @@ test('[FLT-09] Show filtered restores removed Hard Pass rows and covers then hid
 test('[FLT-09] all removed results can be revealed and rule edits restore them without duplicates', async () => {
   const f=await setup({nseHardPassEnabled:true,nseHardPassTaglist:'hard',nseRemoveHardPassResults:true},rowHTML(1,{tags:'hard'})+rowHTML(2,{tags:'hard'}));
   try {
-    const button=f.doc.querySelector('.epc-toolbar button[aria-pressed]');
+    const button=f.doc.querySelector('[data-ep-reveal]');
     assert.equal(button.hidden,false);assert.equal(button.disabled,false,'all-removed page still needs a working reveal action');
     button.click();await settle();assert.equal(f.doc.querySelectorAll('tr.epc-revealed').length,2);
     f.doc.querySelector('.epc-navigation button[data-pane="filters"]').click();
@@ -318,7 +318,7 @@ test('typing filter rules autosaves and updates existing results without navigat
   assert.equal(input.value, 'Sample.Tag '); assert.equal(input.selectionStart, input.value.length);
   assert.equal(f.doc.querySelectorAll('tr.torrent.hidden').length, 2);
   assert.equal(f.doc.querySelectorAll('.nseToggleHideButton').length, 2);
-  assert.equal(f.doc.querySelectorAll('button.epc-primary').length, 0);
+  assert.equal(f.doc.querySelectorAll('.epc-savebar button.epc-primary').length, 0);
   assert.equal(f.doc.querySelector('.epc-savebar [role="status"]').textContent, 'Saved automatically');
   f.doc.querySelector('.epc-savebar button').click();
   assert.equal(f.doc.querySelectorAll('tr.torrent.hidden').length, 0);
@@ -403,7 +403,7 @@ test('backfill uses the full filtering engine, preserves Show filtered and resto
     });
   try {
     assert.equal(calls, 0);
-    f.doc.querySelector('.epc-toolbar button[aria-pressed]').click();
+    f.doc.querySelector('[data-ep-reveal]').click();
     f.doc.querySelector('[data-ep-backfill]').click(); await settle(100);
     assert.equal(calls, 1);
     const row = id => f.doc.querySelector('[data-fixture-id="' + id + '"]');
@@ -441,9 +441,10 @@ test('the simplified interface shows three task areas and grid preferences and f
     f.doc.querySelector('.epc-navigation [data-pane="settings"]').click();
     const pane = f.doc.querySelector('.epc-pane[data-pane="settings"]');
     const visible = [...pane.querySelectorAll('input,select,textarea')].filter(exposed);
-    assert.equal(visible.length, 12);
+    assert.equal(visible.length, 11);
     assert.ok(visible.some(control => control.id === 'nseThemeDropdown'));
     assert.ok(visible.some(control => control.dataset.setting === 'thumbnailSize'));
+    assert.ok(visible.some(control => control.dataset.setting === 'gridCardWidth'));
     assert.equal(f.doc.querySelector('[data-option-group="advanced"]').open, false);
     f.doc.querySelector('.epc-navigation [data-pane="filters"]').click();
     assert.deepEqual([...f.doc.querySelectorAll('.epc-pane[data-pane="filters"] input,.epc-pane[data-pane="filters"] textarea')].filter(exposed).map(control => control.id),
@@ -518,7 +519,7 @@ test('saved searches remain primary while management opens only on request and r
 test('irrelevant toolbar actions are quiet and filtered-result access appears when needed', async () => {
   const f = await setup({}, undefined, '', 'https://www.empornium.sx/torrents.php?page=3');
   try {
-    const toggle = f.doc.querySelector('.epc-toolbar [aria-pressed]');
+    const toggle = f.doc.querySelector('[data-ep-reveal]');
     assert.equal(toggle.hidden, true);
     assert.equal(f.doc.querySelector('[data-ep-backfill]').hidden, true);
     f.doc.querySelector('.epc-navigation [data-pane="filters"]').click();
@@ -528,6 +529,28 @@ test('irrelevant toolbar actions are quiet and filtered-result access appears wh
     tags.value = ''; tags.dispatchEvent(new f.win.Event('change', { bubbles: true })); await settle();
     assert.equal(toggle.hidden, true);
     assert.equal(f.errors.length, 0, f.errors.join('\n'));
+  } finally { f.close(); }
+});
+
+test('Browse options keep result controls together and return focus on Escape', async () => {
+  const f = await setup({ nseTaglist: 'blocked' }, rowHTML(1, { tags: 'blocked' }) + rowHTML(2));
+  try {
+    const menu = f.doc.querySelector('.epc-browse-menu');
+    const trigger = menu.querySelector('summary');
+    const reveal = menu.querySelector('[data-ep-reveal]');
+    const freeleech = menu.querySelector('[data-setting=freeleechView]');
+    assert.equal(exposed(freeleech), false);
+    assert.equal(exposed(f.doc.querySelector('[data-ep-layout=list]')), true);
+    trigger.click();
+    assert.equal(exposed(freeleech), true);
+    assert.equal(exposed(reveal), true);
+    reveal.focus();
+    reveal.dispatchEvent(new f.win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    assert.equal(menu.open, false);
+    assert.equal(f.doc.activeElement, trigger);
+    trigger.click();
+    f.doc.querySelector('.epc-navigation [data-pane=filters]').click();
+    assert.equal(menu.open, false);
   } finally { f.close(); }
 });
 
@@ -544,7 +567,7 @@ test('version grouping respects live filtering and restores archived Hard Pass v
     const hard = f.doc.getElementById('nseHardPassTaglistArea'); hard.value = '';
     hard.dispatchEvent(new f.win.Event('change', { bubbles: true })); await settle(80);
     button = f.doc.querySelector('.epc-version-control'); assert.equal(button.textContent, 'Show 3 versions');
-    f.doc.querySelector('.epc-toolbar [aria-pressed]').click();
+    f.doc.querySelector('[data-ep-reveal]').click();
     button = f.doc.querySelector('.epc-version-control'); assert.equal(button.closest('tr').dataset.fixtureId, '2');
     assert.equal(button.textContent, 'Show 3 versions'); button.click();
     assert.equal(f.win.getComputedStyle(f.doc.querySelector('[data-fixture-id="1"]')).display,'table-row');
@@ -622,7 +645,7 @@ test('highlight lists autosave in the folded Filters section without adding prim
     assert.equal(f.doc.querySelector('.tags a').dataset.epTagTone, 'favorite');
     assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag');
     assert.equal(f.doc.querySelectorAll('.epc-navigation button').length, 3);
-    assert.equal(f.doc.querySelectorAll('.epc-basic-settings input,.epc-basic-settings select').length, 11);
+    assert.equal(f.doc.querySelectorAll('.epc-basic-settings input,.epc-basic-settings select').length, 10);
     f.doc.querySelector('[data-setting=groupVersions]').checked = false;
     f.doc.querySelector('[data-setting=groupVersions]').dispatchEvent(new f.win.Event('change', { bubbles: true })); await settle(80);
     assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag');

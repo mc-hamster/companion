@@ -42,6 +42,10 @@ No explicit license was found in the inspected file. Behavior and storage compat
 
 Both are behavioral references for the independent implementation in src/result-tools.mjs. Their source and runtime dependencies are not incorporated into the generated script.
 
+## LuminFilter design reference
+
+[LuminFilter 3.7.1](https://github.com/scruffynerf/LuminFilter/tree/6024a4a85cdbbdaa8ab88abd3cb04f2ecf28f67f), by scruffynerf and contributors, with conditional-rule syntax credited to xrt141. Companion's independent implementation uses the same Freeleech view choices and tag, title, and uploader rule syntax.
+
 ## Tag highlighting design references
 
 [Emp++ Tag Highlighter](https://github.com/allebady/Tag-Highlighter/blob/master/Emp%2B%2B_Tag_Highlighter.user.js), by allebady, reference version 0.6.3, Git blob c94510d956edf53abff0057aa5db7dedb7feccdd. [Luminance Tag Highlighter+](https://github.com/xrt141/Userscripts/blob/main/Luminance%20Tag%20Highlighter%2B.user.js), by xrt141 and allebady, reference version 2.8.4, Git blob 1e6f91e4c22662884999dd27dc1f99d1f5749f6d.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { gridCardSizeChoices } from './grid-view.mjs';
-import { keyboardShortcutList } from './workspace.mjs';
+import { keyboardShortcutList, applyWorkspaceTheme, companionIcon } from './workspace.mjs';
 // A draft of existing preferences, committed through the normal import transaction.
 export class OnboardingController {
   constructor(app) { this.app = app; this.open = false; }
@@ -14,9 +14,13 @@ export class OnboardingController {
     this.returnFocus = app.doc.activeElement;
     app.preview.hide(true);
     const dialog = app.node('dialog', null, 'epc-root epc-onboarding'); this.element = dialog;
+    applyWorkspaceTheme(app, [dialog]);
     dialog.setAttribute('aria-labelledby', 'epc-welcome-title');
     const title = app.node('h2', 'Welcome to Empornium Companion'); title.id = 'epc-welcome-title';
-    dialog.append(title, app.node('p', 'Reliable thumbnails, image grids, larger previews on hover, filters, grouped versions, saved searches, and more results on one page.'));
+    const heading = app.node('header', null, 'epc-welcome-heading');
+    const mark = app.node('span', null, 'epc-brand-mark'); mark.append(companionIcon(app, 'brand'));
+    heading.append(mark, title);
+    dialog.append(heading, app.node('p', 'Reliable thumbnails, image grids, larger previews on hover, filters, grouped versions, saved searches, and more results on one page.'));
     dialog.append(app.node('p', 'These options—and much more—are available in Settings anytime. Reopen this setup with Settings → Getting started.', 'epc-caption'));
     const form = app.node('form'); this.form = form;
     const fresh = this.firstUse && !app.hasExistingPreferences;
@@ -38,7 +42,7 @@ export class OnboardingController {
       countRow.hidden = selected !== 'pages'; this.pages.disabled = selected !== 'pages'; this.pages.required = selected === 'pages';
       detail.textContent = selected === 'pages' ? 'Added to the page already open, using your current search and filters.' :
         selected === 'all' ? 'Loads the remaining pages one at a time. Larger searches can use more memory. Stop is always available; loading pauses in the background.' :
-          'You can still add pages yourself with Backfill results.';
+          'You can still add pages yourself with Load more.';
     };
     backfill.addEventListener('change', syncMode); syncMode();
     this.size = app.node('select');
@@ -63,10 +67,7 @@ export class OnboardingController {
     this.gridSize = app.node('select'); gridCardSizeChoices(this.gridSize, app.settings.gridCardWidth);
     this.gridSize.dataset.welcomeSetting = 'gridCardWidth';
     field(form, 'Grid card size', this.gridSize);
-    this.gridLarge = app.node('input'); this.gridLarge.type = 'checkbox'; this.gridLarge.checked = app.settings.gridLargeImages;
-    this.gridLarge.dataset.welcomeSetting = 'gridLargeImages';
-    field(form, 'Automatically load larger images in grid view', this.gridLarge);
-    form.append(app.node('p', 'Grid cards show thumbnails first, then replace them with larger images when ready. Larger images use more data. Grid card width is separate from list thumbnail width.', 'epc-caption'));
+    form.append(app.node('p', 'Grid cards show thumbnails. Open an image preview to see the larger version. Grid card width is separate from list thumbnail width.', 'epc-caption'));
     this.shortcuts = app.node('input'); this.shortcuts.type = 'checkbox'; this.shortcuts.checked = app.settings.keyboardShortcuts;
     this.shortcuts.dataset.welcomeSetting = 'keyboardShortcuts';
     this.shortcuts.setAttribute('aria-controls', 'epc-welcome-shortcuts');
@@ -102,7 +103,7 @@ export class OnboardingController {
         backfillEnabled: mode !== 'off' || app.settings.backfillEnabled,
         backfillPages: mode === 'pages' ? Number(this.pages.value) : app.settings.backfillPages,
         thumbnailSize: Number(this.size.value), previews: this.hover.checked, groupVersions: this.group.checked,
-        resultsView: this.view.value, gridCardWidth: Number(this.gridSize.value), gridLargeImages: this.gridLarge.checked,
+        resultsView: this.view.value, gridCardWidth: Number(this.gridSize.value),
         keyboardShortcuts: this.shortcuts.checked,
         favoriteTags: this.tags.get('favoriteTags').value, cautionTags: this.tags.get('cautionTags').value };
       app.importData(JSON.stringify({ ...current, settings,

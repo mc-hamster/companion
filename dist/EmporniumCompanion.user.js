@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Empornium Companion
 // @namespace    empornium-companion.local
-// @version      2.12.3
+// @version      2.13.0
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion
@@ -46,7 +46,7 @@ const DEFAULTS = Object.freeze({
   enabled: true, previews: true, inlineThumbnails: true,
   thumbnailPlacement: 'title', categoryDisplay: 'keep', thumbnailMode: 'auto',
   thumbnailSize: 100, previewWidth: 440, hoverDelay: 140, hideDelay: 240,
-  resultsView: 'list', gridCardWidth: 320, gridLargeImages: true, gridShowDetails: false, gridShowTags: false,
+  resultsView: 'list', gridCardWidth: 320, gridShowDetails: false, gridShowTags: false,
   concurrency: 8, maxRetries: 2, stallMs: 8000, timeoutMs: 24000, thumbnailTimeoutMs: 4500,
   cacheEntries: 24, cacheMegapixels: 48, preloadScreens: 0.8,
   persistentImages: true, persistentCacheMB: 512,
@@ -54,7 +54,8 @@ const DEFAULTS = Object.freeze({
   prepareGalleries: true, reserveImageSpace: true, compactBodyImages: false,
   progressBar: true, keyboardShortcuts: true, globalArrowNavigation: false, navigationScope: 'off', diagnostics: false,
   backfillEnabled: true, backfillPages: 5, backfillMode: 'off', groupVersions: true,
-  favoriteTags: '', cautionTags: ''
+  favoriteTags: '', cautionTags: '', conditionalRules: '', seenMode: 'show',
+  freeleechView: 'all', bookmarkFreeleechView: 'all'
 });
 
 function clamp(value, min, max) {
@@ -88,8 +89,11 @@ function validateSettings(input = {}) {
   for (const [key, options] of Object.entries({
     thumbnailPlacement: ['title', 'category'], categoryDisplay: ['keep', 'overlay', 'hide'],
     thumbnailMode: ['auto', 'small', 'supplied', 'original'], navigationScope: ['off', 'results', 'site'],
-    backfillMode: ['off', 'pages', 'all'], resultsView: ['list', 'grid']
+    backfillMode: ['off', 'pages', 'all'], resultsView: ['list', 'grid'],
+    seenMode: ['show', 'dim', 'hide'], freeleechView: ['all', 'freeleech', 'sitewide'],
+    bookmarkFreeleechView: ['all', 'freeleech', 'sitewide']
   })) if (options.includes(input[key])) result[key] = input[key];
+  if (typeof input.conditionalRules === 'string') result.conditionalRules = input.conditionalRules;
   if (result.thumbnailMode === 'small') result.thumbnailMode = 'auto';
   for (const key of ['favoriteTags', 'cautionTags']) {
     if (typeof input[key] === 'string') {
@@ -284,6 +288,7 @@ class RetryBudget {
 class MediaPool {
   constructor(env, settings = DEFAULTS) {
     this.env = env; this.settings = settings; this.entries = new Map(); this.queue = [];
+    this.batchDepth = 0; this.queueDirty = false;
     this.active = 0; this.sequence = 0; this.hosts = new Map(); this.activeLanes = { thumbnail: 0, large: 0 };
     this.budget = new RetryBudget(() => env.now(), settings.maxRetries);
     this.listeners = new Set(); this.disposed = false;
@@ -295,10 +300,20 @@ class MediaPool {
     for (const listener of this.listeners) listener(entry);
     if (entry.keepAlive && !entry.listeners.size && entry.dimensions) this.trim();
   }
+  batch(operation) {
+    this.batchDepth++;
+    try { return operation(); }
+    finally {
+      if (!--this.batchDepth) {
+        if (this.pumpPending) this.pump();
+        if (this.trimPending) this.trim();
+      }
+    }
+  }
   request(url, options = {}) {
     const canonical = canonicalImageURL(url), tier = options.tier || 'normal', key = canonical + '|' + tier;
     let entry = this.entries.get(key);
-    if ((!entry || entry.status === 'failed') && !options.force) {
+    if ((!entry || entry.status === 'failed') && !options.force && !options.strictCandidates) {
       const shared = Array.from(this.entries.values()).find(e => !e.cancelled &&
         ['loading', 'streaming', 'stalled', 'ready', 'partial'].includes(e.status) &&
         canonicalImageURL(e.actualURL) === canonical);
@@ -323,7 +338,7 @@ class MediaPool {
       }
       entry.priority = Math.max(entry.priority, options.priority || 0);
       if (entry.image && entry.priority >= 50) entry.image.fetchPriority = 'high';
-      if (entry.status === 'queued') this.pump();
+      if (entry.status === 'queued') { this.queueDirty = true; this.pump(); }
       return entry;
     }
     if (options.rescue ? !this.budget.rescue(canonical) : options.force && !this.budget.manual(canonical)) return entry || null;
@@ -346,15 +361,20 @@ class MediaPool {
     entry.fullTimeoutMs = options.fullTimeoutMs || entry.timeoutMs;
     entry.smallFirst = !!options.smallFirst;
     entry.smallCandidates = new Set(options.smallCandidates || []);
+    entry.strictCandidates = !!options.strictCandidates;
     entry.singleAttempt = !!options.singleAttempt; entry.rescue = !!options.rescue;
     entry.rescueBase = this.budget.get(canonical).rescueFrom || 0;
-    if (options.failedAlready && this.settings.legacyFallback) {
+    if (options.failedAlready && this.settings.legacyFallback && !entry.strictCandidates) {
       const original = legacyOriginal(canonical);
       if (original) { entry.candidates = [original, ...candidates.filter(c => c !== original)]; entry.actualURL = original; }
     }
     entry.bustFirst = !!options.fresh;
-    this.entries.set(key, entry); this.queue.push(entry); this.emit(entry); this.pump(); this.trim();
+    this.entries.set(key, entry); this.enqueue(entry); this.trim();
     return entry;
+  }
+  enqueue(entry) {
+    this.queue.push(entry); this.queueDirty = true;
+    this.emit(entry); this.pump();
   }
   subscribe(entry, listener) {
     if (!entry) return () => {};
@@ -368,6 +388,7 @@ class MediaPool {
           // The popup is gone; keep the original warming without retaining its
           // DOM/hover eligibility closures or reserved interactive priority.
           live.priority = 10; live.priorityFor = null; live.eligible = null;
+          this.queueDirty ||= live.status === 'queued';
           live.touched = this.env.now();
           if (live.image) live.image.fetchPriority = 'low';
           reschedule = ['queued', 'loading', 'streaming', 'stalled', 'retrying'].includes(live.status);
@@ -397,21 +418,27 @@ class MediaPool {
   }
   pump() {
     if (this.disposed) return;
+    if (this.batchDepth) { this.pumpPending = true; return; }
+    this.pumpPending = false;
     const hidden = this.env.hidden();
     if (hidden && !this.wasHidden) for (const e of this.entries.values()) if (!e.released) e.hostTimingIgnored = true;
     this.wasHidden = hidden;
     this.env.clearTimeout(this.wakeTimer); this.wakeTimer = null;
-    for (const entry of this.queue) if (entry.priorityFor) entry.priority = entry.priorityFor();
-    this.queue.sort((a, b) => b.priority - a.priority || a.sequence - b.sequence);
+    const revision = this.env.priorityRevision?.();
+    if (this.queueDirty || revision === undefined || revision !== this.rankedRevision) {
+      for (const entry of this.queue) if (entry.priorityFor) entry.priority = entry.priorityFor();
+      this.queue.sort((a, b) => b.priority - a.priority || a.sequence - b.sequence);
+      this.queueDirty = false; this.rankedRevision = revision;
+    }
     while (this.active < this.settings.concurrency + 3 && this.queue.length) {
-      const index = this.queue.findIndex(e => !e.cancelled &&
-        (!e.eligible || e.eligible()) && this.hasSlot(e) &&
-        (e.priority >= 90 || !this.env.hidden()));
+      const index = this.queue.findIndex(e => !e.cancelled && (e.priority >= 90 || !hidden) &&
+        this.hasSlot(e) && (!e.eligible || e.eligible()));
       if (index < 0) {
         // One deadline timer for eligible host cooldowns; no idle polling.
         const now = this.env.now(); let deadline = Infinity;
-        for (const e of this.queue) if (!e.cancelled && (!e.eligible || e.eligible()) && (e.priority >= 90 || !this.env.hidden())) {
-          const host = this.hostFor(e); if (host.until > now) deadline = Math.min(deadline, host.until);
+        for (const e of this.queue) if (!e.cancelled && (e.priority >= 90 || !hidden)) {
+          const host = this.hostFor(e);
+          if (host.until > now && host.until < deadline && (!e.eligible || e.eligible())) deadline = host.until;
         }
         if (Number.isFinite(deadline)) this.wakeTimer = this.env.setTimeout(() => this.pump(), deadline - now + 1);
         break;
@@ -548,21 +575,23 @@ class MediaPool {
       if (entry.cancelled || entry.status === 'ready' || entry.status === 'failed') return;
       entry.abortTransfer?.(); entry.abortTransfer = null;
       if (entry.cacheHit) { void this.env.imageCache?.remove(entry.actualURL); entry.cacheFault = true; }
-      this.hostFeedback(entry, outcome); this.clearTimers(entry); this.release(entry); image.onload = image.onerror = null;
+      if (outcome !== 'missing') this.hostFeedback(entry, outcome);
+      this.clearTimers(entry); this.release(entry); image.onload = image.onerror = null;
       image.removeAttribute?.('src');
       const before = entry.candidateIndex;
       if (entry.candidateIndex + 1 < entry.candidates.length) entry.candidateIndex++;
-      else if (this.settings.legacyFallback) {
+      else if (this.settings.legacyFallback && !entry.strictCandidates) {
         const original = legacyOriginal(entry.url);
         if (original && !entry.candidates.includes(original)) { entry.candidates.push(original); entry.candidateIndex = entry.candidates.length - 1; }
       }
-      if (!entry.singleAttempt && this.budget.get(entry.url).attempts < this.settings.maxRetries + 1) {
+      if (!entry.singleAttempt && (outcome !== 'missing' || entry.candidateIndex !== before) &&
+          this.budget.get(entry.url).attempts < this.settings.maxRetries + 1) {
         entry.status = 'retrying'; entry.reason = reason;
         this.emit(entry);
         if (entry.cancelled || this.disposed) { this.pump(); return; }
         const timer = this.env.setTimeout(() => {
           if (entry.cancelled || this.disposed) return;
-          entry.status = 'queued'; this.queue.push(entry); this.emit(entry); this.pump();
+          entry.status = 'queued'; this.enqueue(entry);
         }, entry.candidateIndex !== before ? 0 : Math.min(4000, 700 * 2 ** (entry.attempts - 1)));
         entry.timers.push(timer);
       } else {
@@ -632,7 +661,11 @@ class MediaPool {
       }, result => {
         if (entry.cancelled || this.disposed || entry.loadVersion !== loadVersion || entry.image !== image) return;
         if (!result) { assign(url); return; }
-        if (result.failure) { failed('The image host returned HTTP ' + result.status + '.'); return; }
+        if (result.failure) {
+          // A confirmed missing grid variant says nothing about host capacity.
+          const missing = entry.strictCandidates && (result.status === 404 || result.status === 410);
+          failed('The image host returned HTTP ' + result.status + '.', missing ? 'missing' : 'error'); return;
+        }
         entry.cacheHit = result.hit; entry.cacheResult = result;
         if (result.hit) {
           entry.hostTimingIgnored = true;
@@ -669,6 +702,8 @@ class MediaPool {
     this.queue = this.queue.filter(e => e !== entry);
   }
   trim() {
+    if (this.batchDepth) { this.trimPending = true; return; }
+    this.trimPending = false;
     const idle = Array.from(this.entries.values()).filter(e => !e.listeners.size &&
       (['ready', 'failed', 'partial'].includes(e.status) || e.keepAlive &&
         ['queued', 'loading', 'streaming', 'stalled', 'retrying'].includes(e.status))).sort((a, b) =>
@@ -1065,28 +1100,33 @@ class PreferencesController {
     }
     if (app.undoPreferences) app.undoPreferences.hidden = false;
   }
-  flush() {
+  flush(conditionalRules = this.app.settings.conditionalRules) {
     const app = this.app;
     app.win.clearTimeout(this.timer); this.timer = null;
-    if (!app.dirty || app.composing || app.disposed) return true;
+    const wasDirty = app.dirty;
+    const updatingRules = conditionalRules !== app.settings.conditionalRules;
+    if (app.composing || app.disposed) return !updatingRules;
+    if (!wasDirty && !updatingRules) return true;
     const focused = app.doc.activeElement;
     const restore = focused?.matches?.('textarea[data-ep-filter-control],input[type=text][data-ep-filter-control]') ?
       { node: focused, value: focused.value, start: focused.selectionStart, end: focused.selectionEnd, scroll: focused.scrollTop } : null;
-    let snapshot, checkpointBefore = this.checkpoint, filterChanged;
+    let snapshot, checkpointBefore = this.checkpoint, filterChanged, conditionalChanged;
     const previousSettings = app.settings;
     try {
-      const next = { ...app.settings };
+      const next = { ...app.settings, conditionalRules };
       for (const [key, control] of app.controls) {
         const numeric = control.type === 'number' || control.hasAttribute('data-numeric');
         if (numeric && !control.checkValidity()) {
           control.setAttribute('aria-invalid', 'true'); this.status('Check the highlighted value.'); return false;
         }
-        control.removeAttribute('aria-invalid');
+        if (numeric) control.removeAttribute('aria-invalid');
         next[key] = control.type === 'checkbox' ? control.checked : numeric ? Number(control.value) : control.value;
       }
       filterChanged = app.filterDirty;
       next.globalArrowNavigation = next.navigationScope === 'site';
       const checked = validateSettings(next);
+      conditionalChanged = checked.conditionalRules !== previousSettings.conditionalRules;
+      if (conditionalChanged) compileConditionalRules(checked.conditionalRules);
       if (filterChanged) app.options.validateDraftFilters?.();
       const keys = new Set(['ep.settings', 'ep.preferenceUndo', 'nseArrowNavigationEnabled',
         ...(filterChanged ? app.storage.list().filter(key => key.startsWith('nse')) : [])]);
@@ -1106,10 +1146,11 @@ class PreferencesController {
         app.controls.get(key).value = checked[key];
       }
       app.dirty = app.filterDirty = false;
-      if (filterChanged) app.refreshFilters();
+      if (filterChanged || conditionalChanged) app.refreshFilters();
+      if (conditionalChanged) app.resultFilters.refreshRulesEditor();
       app.updateMediaPreferences(previous);
       app.applyAppearance();
-      this.status('Saved automatically');
+      this.status(conditionalChanged ? 'Rules saved' : 'Saved automatically');
       return true;
     } catch (error) {
       let restored = true;
@@ -1124,9 +1165,9 @@ class PreferencesController {
         }
         app.settings = previousSettings; this.checkpoint = checkpointBefore;
         if (app.undoPreferences) app.undoPreferences.hidden = !checkpointBefore;
-        if (filterChanged && restored) app.refreshFilters();
+        if ((filterChanged || conditionalChanged) && restored) app.refreshFilters();
       }
-      app.dirty = true;
+      app.dirty = wasDirty;
       if (filterChanged) app.filterDirty = true;
       this.status('Could not save. Your edits are still here.');
       app.toast(restored ? error.message || 'Preferences could not be saved.' : 'Storage failed and some preferences could not be restored. Your draft is still here.');
@@ -1159,15 +1200,16 @@ class PreferencesController {
   }
 }
 
-function captureFilterBaseline(app) {
+function captureFilterBaseline(app, rows) {
   app.filterRows ||= new Map(); app.filterTags ||= new Map(); app.categoryCells ||= new Map();
-  for (const row of app.doc.querySelectorAll('tr.torrent,#request_table tr')) if (!app.filterRows.has(row)) {
+  for (const row of rows || app.doc.querySelectorAll('tr.torrent,#request_table tr')) if (!app.filterRows.has(row)) {
     app.filterRows.set(row, { hidden: row.classList.contains('hidden'), background: row.style.backgroundColor });
   }
-  for (const tag of app.doc.querySelectorAll('#content div.tags')) if (!app.filterTags.has(tag)) {
+  const roots = rows || [app.doc];
+  for (const root of roots) for (const tag of root.querySelectorAll('#content div.tags')) if (!app.filterTags.has(tag)) {
     app.filterTags.set(tag, tag.classList.contains('hidden'));
   }
-  for (const cell of app.doc.querySelectorAll('#content .cats_col,#content .cats_cols')) if (!app.categoryCells.has(cell)) {
+  for (const root of roots) for (const cell of root.querySelectorAll('#content .cats_col,#content .cats_cols')) if (!app.categoryCells.has(cell)) {
     app.categoryCells.set(cell, { display: cell.style.display, next: cell.nextElementSibling,
       colspan: cell.nextElementSibling?.getAttribute('colspan') });
   }
@@ -1265,18 +1307,24 @@ class BackfillController {
     this.search = this.win.location.href; this.loaded = new Set(); this.seenIDs = new Set();
     this.generation = 0; this.overlaySequence = 1000000000; this.pages = 0; this.added = 0;
     this.busy = false; this.initialized = false; this.disposed = false; this.message = '';
+    this.lastRequestStartedAt = null;
   }
   table() { return this.doc.querySelector(TABLE); }
   supported() { return !!backfillURL(this.search, this.search) && !!this.table(); }
   mount() {
-    this.button = this.app.button('Backfill results', () => {
+    this.button = this.app.button('', () => {
       if (this.busy) this.stop(); else this.run();
     });
     this.button.dataset.epBackfill = '';
+    this.button.className = 'epc-primary epc-load-more';
+    this.buttonLabel = this.app.node('span', 'Load more');
+    const add = companionIcon(this.app, 'add'), stop = companionIcon(this.app, 'stop');
+    add.classList.add('epc-load-icon'); stop.classList.add('epc-stop-icon');
+    this.button.append(add, stop, this.buttonLabel);
     this.status = this.app.node('span', '', 'epc-backfill-status');
     this.status.setAttribute('role', 'status'); this.status.setAttribute('aria-live', 'polite');
-    this.app.toolbar.insertBefore(this.button, this.app.health);
-    this.app.toolbar.insertBefore(this.status, this.app.health);
+    this.app.contextActions.append(this.button);
+    this.app.toolbarStatus.append(this.status);
     this.sync();
   }
   sync() {
@@ -1290,7 +1338,7 @@ class BackfillController {
     }
     this.button.hidden = !available || !this.app.settings.backfillEnabled || this.initialized && !this.nextURL && !this.busy;
     this.status.hidden = !available || !this.app.settings.backfillEnabled;
-    this.button.textContent = this.busy ? 'Stop backfill' : 'Backfill results';
+    this.buttonLabel.textContent = this.busy ? 'Stop loading' : 'Load more';
     this.button.disabled = !this.app.filtersReady || this.app.options.waitForFilters && !this.app.engineReady || !this.nextURL && !this.busy;
     this.button.disabled ||= !this.busy && this.now() < (this.notBefore || 0);
     this.win.clearTimeout(this.cooldownTimer); this.cooldownTimer = null;
@@ -1307,7 +1355,6 @@ class BackfillController {
       this.status.append(this.doc.createTextNode(' '), link);
     }
     this.status.hidden ||= !this.message;
-    if (available) this.activateImages();
   }
   maybeAutomatic() {
     if (this.autoStarted || this.busy || this.disposed || !this.app.onboardingComplete || this.app.onboarding?.open ||
@@ -1349,12 +1396,18 @@ class BackfillController {
   async readWithRetry(url, generation) {
     for (let attempt = 0; attempt < 3; attempt++) {
       if (!await this.foreground(generation) || !this.active(generation)) return null;
+      if (!attempt && this.lastRequestStartedAt !== null) {
+        const interval = this.app.options.backfillIntervalMs ?? 1000;
+        // Fetch and append time count toward spacing. A zero wait still yields to input and rendering.
+        if (!await this.wait(Math.max(0, interval - (this.now() - this.lastRequestStartedAt)), generation)) return null;
+      }
       if (this.now() < (this.notBefore || 0) && !await this.wait(this.notBefore - this.now(), generation)) return null;
       if (!await this.foreground(generation) || !this.active(generation)) return null;
       const controller = new this.win.AbortController(); this.controller = controller;
       let timedOut = false, failure, result;
       const timeout = this.win.setTimeout(() => { timedOut = true; controller.abort(); }, this.app.options.backfillTimeoutMs || 20000);
       this.message = 'Loading page ' + pageNumber(url) + (attempt ? ' · attempt ' + (attempt + 1) + '/3' : ''); this.sync();
+      this.lastRequestStartedAt = this.now();
       try { result = await this.readPage(url, controller.signal); }
       catch (error) { failure = timedOut ? pageError('The page request timed out.', true) : error; }
       finally { this.win.clearTimeout(timeout); if (this.controller === controller) this.controller = null; }
@@ -1372,15 +1425,15 @@ class BackfillController {
       if (!await this.wait(delay, generation)) return null;
     }
   }
-  activateImages() {
-    for (const image of this.doc.querySelectorAll('tr.torrent img[data-ep-backfill-src],tr.torrent img[data-ep-backfill-srcset]')) {
+  activateImages(rows, cards) {
+    for (const row of rows) for (const image of row.querySelectorAll('img[data-ep-backfill-src],img[data-ep-backfill-srcset]')) {
       if (image.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden')) continue;
       for (const name of ['src', 'srcset']) {
         const value = image.getAttribute('data-ep-backfill-' + name);
         if (value) { image.setAttribute(name, value); image.removeAttribute('data-ep-backfill-' + name); }
       }
     }
-    for(const cover of this.doc.querySelectorAll('.torrent_grid__torrent .torrent__cover[data-ep-backfill-background]')){
+    for(const card of cards) for(const cover of card.querySelectorAll('.torrent__cover[data-ep-backfill-background]')){
       if(cover.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden'))continue;
       const source=safeImageURL(cover.dataset.epBackfillBackground,this.search);
       cover.removeAttribute('data-ep-backfill-background');if(source){
@@ -1502,62 +1555,67 @@ class BackfillController {
     this.app.versions?.releaseLayout(this.table());
     try {
       for (; pages < limit && this.nextURL; ) {
-        if (this.disposed || generation !== this.generation || !this.app.settings.backfillEnabled) return;
-        if (!await this.foreground(generation)) return;
-        if (this.disposed || generation !== this.generation || !this.app.settings.backfillEnabled) return;
+        if (!this.active(generation)) return;
         const url = this.nextURL;
         const result = await this.readWithRetry(url, generation);
         if (!result || !this.active(generation)) return;
-        const prepared = [],acceptedIDs=new Set();
+        const prepared = [], acceptedIDs = new Set();
         for (const source of result.rows) {
           const id = torrentID(source, url);
-          if (!id || this.seenIDs.has(id)) continue;
-          prepared.push(this.prepareRow(source, result.definitions, url)); this.seenIDs.add(id);acceptedIDs.add(id);
+          if (!id || this.seenIDs.has(id) || acceptedIDs.has(id)) continue;
+          prepared.push(this.prepareRow(source, result.definitions, url)); acceptedIDs.add(id);
         }
         const grid=this.doc.querySelector('#content .torrent_grid'),preparedCovers=[];
         if(grid){const coverIDs=new Set([...grid.querySelectorAll('.torrent_grid__torrent')].map(card=>torrentID(card,this.search)));
           for(const card of result.cards||[]){const id=torrentID(card,url);if(acceptedIDs.has(id)&&!coverIDs.has(id)){preparedCovers.push(this.prepareCover(card,url));coverIDs.add(id);}}}
         const target = this.table();
         if (!target) throw new Error('The results table is no longer available.');
-        const body = target.tBodies[0] || target.createTBody();
-        this.app.batchDOM(() => {
+        if (prepared.length) this.app.batchDOM(() => {
+          const body = target.tBodies[0] || target.createTBody();
           body.append(...prepared);
           grid?.append(...preparedCovers);
           // Use one filtering implementation for native and appended rows. Do this
           // synchronously before thumbnails or deferred native images can start.
-          try { this.app.options.newRows?.(body); }
+          try { this.app.options.newRows?.(body, prepared); }
           catch (error) {
             // A failed filter pass must not leave fresh rows visible and marked
             // as already seen. Keep earlier pages and allow this page to retry.
             for (const row of prepared) {
               const id = torrentID(row, url);
-              this.seenIDs.delete(id); this.app.removedFilterIDs.delete(id);
+              this.app.removedFilterIDs.delete(id);
               this.app.detachedFilterRows.get(row)?.remove(); this.app.detachedFilterRows.delete(row);
-              this.app.filterRows?.delete(row); row.remove();
+              this.app.filterRows?.delete(row);
+              for (const tag of row.querySelectorAll('div.tags')) this.app.filterTags?.delete(tag);
+              for (const cell of row.querySelectorAll('.cats_col,.cats_cols')) this.app.categoryCells?.delete(cell);
+              row.remove();
             }
             for(const card of preparedCovers)card.remove();
             this.app.refreshFilters(); throw pageError('A result on this page could not be processed. Loaded pages were kept.');
           }
-          this.app.syncGridFilters();
-          if (this.app.settings.enabled) for (const row of prepared) if (row.isConnected) {
-            this.app.media.scan(row); this.app.preview.scan(row);
+          this.app.syncGridFilters(true, prepared);
+          if (this.app.settings.enabled) {
+            for (const row of prepared) if (row.isConnected) {
+              this.app.media.scan(row, false); this.app.preview.scan(row);
+            }
+            for (const card of preparedCovers) {
+              this.app.media.scan(card, false); this.app.preview.scan(card);
+            }
+            this.app.media.prepareThumbnails(prepared, preparedCovers);
           }
-          if(this.app.settings.enabled)for(const card of preparedCovers){this.app.media.scan(card);this.app.preview.scan(card);}
         });
+        for (const id of acceptedIDs) this.seenIDs.add(id);
         pages++; added += prepared.length; this.pages++; this.added += prepared.length;
         this.loaded.add(url);
         this.nextURL = result.rows.length ? nextBackfillURL(result.page, url, this.search, this.loaded) ||
           nextBackfillURL(this.doc, url, this.search, this.loaded) : null;
         this.updatePager();
-        // Give rendering/input a turn between pages, without an idle poller.
-        if (this.nextURL && pages < limit && !await this.wait(this.app.options.backfillIntervalMs ?? 1000, generation)) return;
       }
       this.message = added + ' results added from ' + pages + (pages === 1 ? ' page' : ' pages') + (this.nextURL ? '' : ' · No more pages');
     } catch (error) {
       if (generation === this.generation && !this.disposed) {
         this.failedURL = this.nextURL;
         this.message = (pages ? pages + (pages === 1 ? ' page kept. ' : ' pages kept. ') : '') + 'Could not load page ' + pageNumber(this.nextURL) +
-          ': ' + error.message + (this.now() < (this.notBefore || 0) ? ' Backfill is available again after the cooldown.' : '') + ' Try Backfill results again.';
+          ': ' + error.message + (this.now() < (this.notBefore || 0) ? ' Loading is available again after the cooldown.' : '') + ' Try Load more again.';
       }
     } finally {
       if (generation === this.generation) {
@@ -1580,6 +1638,234 @@ class BackfillController {
 }
 
 // SPDX-License-Identifier: GPL-3.0-or-later
+
+const quickAddID = /^[1-9]\d{0,14}$/;
+const quickAddCollagePath = /^\/collage\/([1-9]\d{0,14})\/?$/;
+const quickAddDetails = '#content tr.torrentdetails';
+
+function quickAddPageID(url, pathname) {
+  const ids = url.searchParams.getAll('id');
+  return url.pathname === pathname && !url.searchParams.has('action') && ids.length === 1 && quickAddID.test(ids[0])
+    ? ids[0] : null;
+}
+
+function quickAddAccount(root, page) {
+  const href = root.querySelector('#userinfo_username a[href]')?.getAttribute('href');
+  if (!href || !URL.canParse(href, page)) return null;
+  const url = new URL(href, page);
+  return url.origin === page.origin ? quickAddPageID(url, '/user.php') : null;
+}
+
+function quickAddForm(root, collageURL) {
+  const form = root.querySelector('#content #addtorrent form');
+  if (form?.method !== 'post' || !form.querySelector('input[name="url"]:enabled')) return null;
+  const token = form.querySelector('input[type="hidden"][name="token"]:enabled')?.value;
+  const endpoint = new URL(collageURL.href + '/add');
+  const action = form.getAttribute('action');
+  return token && action && URL.canParse(action, collageURL) && new URL(action, collageURL).href === endpoint.href
+    ? { endpoint, token } : null;
+}
+
+function quickAddMembership(root, base) {
+  const ids = new Set();
+  for (const link of root.querySelectorAll('#content table#collages a[href], #content table#personal_collages a[href]')) {
+    const href = link.getAttribute('href');
+    if (!URL.canParse(href, base)) continue;
+    const url = new URL(href, base);
+    const id = quickAddCollagePath.exec(url.pathname)?.[1];
+    if (id && url.origin === base.origin && !url.search) ids.add(id);
+  }
+  return ids;
+}
+
+class CollageQuickAdd {
+  constructor(app) {
+    this.app = app;
+    this.page = new URL(app.win.location.href);
+    this.collageID = quickAddCollagePath.exec(this.page.pathname)?.[1];
+    this.torrentID = quickAddPageID(this.page, '/torrents.php');
+    this.added = new Set();
+    this.unconfirmed = new Set();
+  }
+
+  mount() {
+    if (this.tools || !this.collageID && !this.torrentID) return;
+    const { app, page } = this;
+    const heading = app.doc.querySelector('#content h2');
+    this.accountID = quickAddAccount(app.doc, page);
+    if (!heading || !this.accountID) return;
+
+    if (this.collageID) {
+      this.collageURL = this.urlFor(this.collageID);
+      this.title = heading.textContent.trim().slice(0, 300);
+      if (!this.title || !quickAddForm(app.doc, this.collageURL)) return;
+    } else {
+      if (!app.doc.querySelector(quickAddDetails)) return;
+      this.fetch = app.options.fetch || app.win.fetch?.bind(app.win);
+      if (!this.fetch) return;
+      this.torrentURL = new URL('/torrents.php?id=' + this.torrentID, page);
+      this.members = quickAddMembership(app.doc, page);
+    }
+
+    this.scope = 'ep.collageQuickAdd:' + page.origin + ':' + this.accountID;
+    this.pinPrefix = this.scope + ':pin:';
+    this.tools = app.node('div', null, 'epc-collage-tools');
+    this.button = app.button('', () => this.collageID ? this.togglePin() : void this.add());
+    if (this.torrentID) this.button.classList.add('epc-primary');
+    this.status = app.node('span', '', 'epc-collage-status');
+    this.status.setAttribute('role', 'status');
+    if (this.torrentID) {
+      this.select = app.node('select');
+      this.select.setAttribute('aria-label', 'Quick-add collage');
+      this.select.addEventListener('change', () => {
+        try { app.storage.set(this.scope + ':selected', this.select.value); this.status.textContent = ''; }
+        catch { this.status.textContent = 'Could not remember the selected collage.'; }
+        this.renderAdd();
+      });
+    }
+    this.tools.append(this.button);
+    if (this.select) this.tools.append(this.select);
+    app.contextActions.append(this.tools);
+    app.toolbarStatus.append(this.status);
+    app.on(app.win, 'focus', () => this.refresh());
+    app.on(app.win, 'pageshow', event => { if (event.persisted) this.refresh(); });
+    app.on(app.win, 'pagehide', () => this.dispose());
+    this.refresh();
+  }
+
+  urlFor(id) { return new URL('/collage/' + id, this.page); }
+
+  refresh() {
+    if (this.collageID) {
+      const pinned = !!this.app.storage.get(this.pinPrefix + this.collageID, '');
+      this.button.textContent = pinned ? 'Unpin collage' : 'Pin for quick add';
+      this.button.setAttribute('aria-pressed', String(pinned));
+      return;
+    }
+
+    const { app, pinPrefix } = this;
+    const pins = [];
+    for (const key of app.storage.list()) {
+      if (!key.startsWith(pinPrefix)) continue;
+      const id = key.slice(pinPrefix.length);
+      const title = app.storage.get(key, '');
+      if (quickAddID.test(id) && typeof title === 'string' && title.trim()) pins.push({ id, title: title.slice(0, 300) });
+    }
+    pins.sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
+    const selected = app.storage.get(this.scope + ':selected', this.select.value);
+    if (JSON.stringify(pins) !== JSON.stringify(this.pins)) {
+      this.pins = pins;
+      this.select.replaceChildren(...pins.map(pin => {
+        const option = app.node('option', pin.title);
+        option.value = pin.id;
+        return option;
+      }));
+    }
+    if (pins.some(pin => pin.id === selected)) this.select.value = selected;
+    this.renderAdd();
+  }
+
+  renderAdd() {
+    const pin = this.pins.find(item => item.id === this.select.value);
+    this.tools.hidden = !pin;
+    this.status.hidden = !pin;
+    this.select.hidden = this.pins.length < 2;
+    this.select.disabled = !!this.operation;
+    if (!pin) return;
+    const added = this.added.has(pin.id), present = this.members.has(pin.id);
+    this.button.textContent = (added ? 'Added to ' : present ? 'Already in ' : 'Add to ') + pin.title;
+    this.button.disabled = !!this.operation || added || present;
+    this.button.setAttribute('aria-busy', String(!!this.operation));
+  }
+
+  togglePin() {
+    const { storage } = this.app;
+    const key = this.pinPrefix + this.collageID;
+    try {
+      const pinned = !!storage.get(key, '');
+      if (pinned) storage.delete(key);
+      else storage.set(key, this.title);
+      this.status.textContent = pinned ? 'Collage unpinned.' : 'Pinned. Add torrents from their details pages.';
+      this.refresh();
+    } catch { this.status.textContent = 'Could not save the collage pin.'; }
+  }
+
+  async readPage(url, signal) {
+    const response = await this.fetch(url.href, {
+      credentials: 'same-origin', mode: 'same-origin', redirect: 'error', cache: 'no-store', signal
+    });
+    if (!response.ok || response.url && response.url !== url.href) throw new Error('Empornium could not load the page.');
+    const contentType = response.headers?.get('content-type');
+    if (contentType && !/\btext\/html\b/i.test(contentType)) throw new Error('Empornium did not return a page.');
+    const html = await response.text();
+    if (html.length > 8 * 1024 * 1024) throw new Error('The Empornium page was too large to check.');
+    const template = this.app.doc.createElement('template');
+    template.innerHTML = html;
+    if (quickAddAccount(template.content, url) !== this.accountID) throw new Error('Your Empornium session changed.');
+    return template.content;
+  }
+
+  async verifyMembership(id, signal) {
+    const detail = await this.readPage(this.torrentURL, signal);
+    if (!detail.querySelector(quickAddDetails)) throw new Error('Empornium did not return the torrent details.');
+    return quickAddMembership(detail, this.torrentURL).has(id);
+  }
+
+  async add() {
+    if (this.button.disabled || this.operation) return;
+    const pin = this.pins.find(item => item.id === this.select.value);
+    if (!pin) return;
+    const { id, title } = pin;
+    const controller = new this.app.win.AbortController();
+    this.operation = controller;
+    const { signal } = controller;
+    const timeout = this.app.win.setTimeout(() => controller.abort(), 20000);
+    this.renderAdd();
+    this.status.textContent = 'Checking ' + title + '…';
+    try {
+      if (this.unconfirmed.has(id) && await this.verifyMembership(id, signal)) {
+        this.unconfirmed.delete(id);
+        this.members.add(id);
+        this.status.textContent = 'Already in ' + title + '.';
+        return;
+      }
+      this.unconfirmed.delete(id);
+      const url = this.urlFor(id);
+      const page = await this.readPage(url, signal);
+      const form = quickAddForm(page, url);
+      if (!form) {
+        this.status.textContent = 'Empornium is not accepting adds to ' + title + '. Check the collage for access.';
+        return;
+      }
+      if (signal.aborted) throw new Error('The request was interrupted.');
+
+      this.status.textContent = 'Adding to ' + title + '…';
+      this.unconfirmed.add(id);
+      try {
+        await this.fetch(form.endpoint.href, {
+          method: 'POST', body: new URLSearchParams({ token: form.token, url: this.torrentURL.href }),
+          credentials: 'same-origin', mode: 'same-origin', redirect: 'manual', signal
+        });
+      } catch { /* The site may have accepted the add before the connection dropped. */ }
+      if (!await this.verifyMembership(id, signal)) throw new Error('The add could not be verified.');
+      this.unconfirmed.delete(id);
+      this.added.add(id);
+      this.status.textContent = 'Added to ' + title + '.';
+    } catch {
+      this.status.textContent = this.unconfirmed.has(id)
+        ? 'Could not confirm the add. Try again to check membership first.'
+        : 'Could not reach the collage. Check your sign-in and try again.';
+    } finally {
+      this.app.win.clearTimeout(timeout);
+      this.operation = null;
+      if (!this.app.disposed) this.refresh();
+    }
+  }
+
+  dispose() { this.operation?.abort(); }
+}
+
+// SPDX-License-Identifier: GPL-3.0-or-later
 // A draft of existing preferences, committed through the normal import transaction.
 class OnboardingController {
   constructor(app) { this.app = app; this.open = false; }
@@ -1593,9 +1879,13 @@ class OnboardingController {
     this.returnFocus = app.doc.activeElement;
     app.preview.hide(true);
     const dialog = app.node('dialog', null, 'epc-root epc-onboarding'); this.element = dialog;
+    applyWorkspaceTheme(app, [dialog]);
     dialog.setAttribute('aria-labelledby', 'epc-welcome-title');
     const title = app.node('h2', 'Welcome to Empornium Companion'); title.id = 'epc-welcome-title';
-    dialog.append(title, app.node('p', 'Reliable thumbnails, image grids, larger previews on hover, filters, grouped versions, saved searches, and more results on one page.'));
+    const heading = app.node('header', null, 'epc-welcome-heading');
+    const mark = app.node('span', null, 'epc-brand-mark'); mark.append(companionIcon(app, 'brand'));
+    heading.append(mark, title);
+    dialog.append(heading, app.node('p', 'Reliable thumbnails, image grids, larger previews on hover, filters, grouped versions, saved searches, and more results on one page.'));
     dialog.append(app.node('p', 'These options—and much more—are available in Settings anytime. Reopen this setup with Settings → Getting started.', 'epc-caption'));
     const form = app.node('form'); this.form = form;
     const fresh = this.firstUse && !app.hasExistingPreferences;
@@ -1617,7 +1907,7 @@ class OnboardingController {
       countRow.hidden = selected !== 'pages'; this.pages.disabled = selected !== 'pages'; this.pages.required = selected === 'pages';
       detail.textContent = selected === 'pages' ? 'Added to the page already open, using your current search and filters.' :
         selected === 'all' ? 'Loads the remaining pages one at a time. Larger searches can use more memory. Stop is always available; loading pauses in the background.' :
-          'You can still add pages yourself with Backfill results.';
+          'You can still add pages yourself with Load more.';
     };
     backfill.addEventListener('change', syncMode); syncMode();
     this.size = app.node('select');
@@ -1642,10 +1932,7 @@ class OnboardingController {
     this.gridSize = app.node('select'); gridCardSizeChoices(this.gridSize, app.settings.gridCardWidth);
     this.gridSize.dataset.welcomeSetting = 'gridCardWidth';
     field(form, 'Grid card size', this.gridSize);
-    this.gridLarge = app.node('input'); this.gridLarge.type = 'checkbox'; this.gridLarge.checked = app.settings.gridLargeImages;
-    this.gridLarge.dataset.welcomeSetting = 'gridLargeImages';
-    field(form, 'Automatically load larger images in grid view', this.gridLarge);
-    form.append(app.node('p', 'Grid cards show thumbnails first, then replace them with larger images when ready. Larger images use more data. Grid card width is separate from list thumbnail width.', 'epc-caption'));
+    form.append(app.node('p', 'Grid cards show thumbnails. Open an image preview to see the larger version. Grid card width is separate from list thumbnail width.', 'epc-caption'));
     this.shortcuts = app.node('input'); this.shortcuts.type = 'checkbox'; this.shortcuts.checked = app.settings.keyboardShortcuts;
     this.shortcuts.dataset.welcomeSetting = 'keyboardShortcuts';
     this.shortcuts.setAttribute('aria-controls', 'epc-welcome-shortcuts');
@@ -1681,7 +1968,7 @@ class OnboardingController {
         backfillEnabled: mode !== 'off' || app.settings.backfillEnabled,
         backfillPages: mode === 'pages' ? Number(this.pages.value) : app.settings.backfillPages,
         thumbnailSize: Number(this.size.value), previews: this.hover.checked, groupVersions: this.group.checked,
-        resultsView: this.view.value, gridCardWidth: Number(this.gridSize.value), gridLargeImages: this.gridLarge.checked,
+        resultsView: this.view.value, gridCardWidth: Number(this.gridSize.value),
         keyboardShortcuts: this.shortcuts.checked,
         favoriteTags: this.tags.get('favoriteTags').value, cautionTags: this.tags.get('cautionTags').value };
       app.importData(JSON.stringify({ ...current, settings,
@@ -1883,19 +2170,19 @@ class VersionGroups {
   constructor(app) {
     this.app = app; this.rows = new Map(); this.moves = new Map(); this.controls = new Map();
     this.tables = new WeakMap(); this.nextTable = 0; this.nextRow = 0; this.expanded = new Set(); this.collapsed = 0; this.groups = new Map();
-    this.layouts = new Map();
+    this.layouts = new Map(); this.candidates = new Map();
   }
-  captureOrder() {
-    for (const row of this.app.doc.querySelectorAll('tr.torrent')) if (!this.rows.has(row)) {
+  captureOrder(rows = this.app.doc.querySelectorAll('tr.torrent')) {
+    for (const row of rows) if (row.matches('tr.torrent') && !this.rows.has(row)) {
       this.rows.set(row, { order: ++this.nextRow, originalID: row.id });
     }
   }
-  refresh() {
-    const { doc, settings } = this.app;
-    if (!this.app.filtersReady || !settings.groupVersions) { this.clear(); return; }
-    this.captureOrder();
-    const groups = new Map();
-    for (const row of doc.querySelectorAll('tr.torrent')) {
+  collectCandidates(rows) {
+    this.captureOrder(rows);
+    const affected = new Set();
+    for (const row of rows) {
+      if (!row.isConnected || row.matches('.epc-revealed,.epc-seen-revealed,.epc-filter-hidden') || row.hidden ||
+          row.classList.contains('nseHardPassRemove') || row.classList.contains('hidden')) continue;
       const link = resultTitleLink(row); if (!link) continue;
       const entry = this.rows.get(row);
       const source = link.textContent;
@@ -1909,62 +2196,77 @@ class VersionGroups {
       const category = row.querySelector('.cats_col [title],.cats_cols [title]')?.getAttribute('title') || '';
       // Games and image sets have different notions of a version; leave them intact.
       if (/games?|apps?|images?|pictures?|magazines?|manga|comics?/i.test(category)) continue;
-      // Show filtered is an explicit inspection request. Do not immediately
-      // tuck those rows back inside an automatically collapsed version group.
-      if (row.classList.contains('epc-revealed') || row.hidden || row.classList.contains('nseHardPassRemove') ||
-          row.classList.contains('hidden') && !row.classList.contains('epc-revealed')) continue;
       const key = this.tables.get(table) + ':' + category + ':' + parsed.key;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push({ row, link, parsed, entry });
+      if (!this.candidates.has(key)) this.candidates.set(key, []);
+      this.candidates.get(key).push({ row, link, parsed, entry }); affected.add(key);
     }
-    const desiredMoves = new Set(), representatives = new Set(), hidden = new Set(), members = new Set();
-    this.collapsed = 0; this.groups.clear();
-    for (const [key, group] of groups) {
-      if (group.length < 2 || !group.some(item => item.parsed.hits.length)) continue;
-      group.sort((a, b) => a.entry.order - b.entry.order);
-      const head = group[0], open = this.expanded.has(key); representatives.add(head.row);
-      const ids = group.slice(1).map(item => {
-        if (!item.row.id) item.row.id = 'epc-version-row-' + item.entry.order;
-        return item.row.id;
-      });
-      let control = this.controls.get(head.row);
-      if (!control) {
-        control = this.app.button('', () => {
-          this.toggleGroup(control.dataset.versionKey);
-        });
-        control.className = 'epc-version-control'; this.controls.set(head.row, control);
-      }
-      this.groups.set(key, { group, control });
-      control.dataset.versionKey = key;
-      const caption = (open ? 'Hide' : 'Show') + ' ' + group.length + ' versions';
-      if (control.textContent !== caption) control.textContent = caption;
-      control.setAttribute('aria-expanded', String(open)); control.setAttribute('aria-controls', ids.join(' '));
-      const labels = [...new Set(group.map(item => item.parsed.label))].join('\n');
-      control.title = 'Versions on loaded pages:\n' + labels;
-      if (head.link.nextElementSibling !== control) head.link.after(control);
-      let previous = head.row;
-      for (const item of group.slice(1)) {
-        const row = item.row; members.add(row); desiredMoves.add(row);
-        if (!this.moves.has(row)) {
-          const marker = doc.createComment('Companion original version position'); row.before(marker); this.moves.set(row, marker);
-        }
-        if (previous.nextElementSibling !== row) previous.after(row);
-        previous = row;
-        if (!open) { hidden.add(row); this.collapsed++; }
-      }
+    return affected;
+  }
+  renderGroup(key) {
+    const candidates = this.candidates.get(key);
+    if (candidates.length < 2 || !candidates.some(item => item.parsed.hits.length)) return;
+    const group = [...candidates].sort((a, b) => a.entry.order - b.entry.order);
+    const [head, ...members] = group, open = this.expanded.has(key);
+    const ids = members.map(({ row, entry }) => {
+      if (!row.id) row.id = 'epc-version-row-' + entry.order;
+      return row.id;
+    });
+    let control = this.controls.get(head.row);
+    if (!control) {
+      control = this.app.button('', () => this.toggleGroup(control.dataset.versionKey));
+      control.className = 'epc-version-control'; this.controls.set(head.row, control);
     }
-    for (const [row, marker] of this.moves) if (!desiredMoves.has(row) && row.isConnected) {
+    if (!open) this.collapsed += group.length - (this.groups.get(key)?.group.length || 1);
+    this.groups.set(key, { group, control });
+    control.dataset.versionKey = key;
+    const caption = (open ? 'Hide' : 'Show') + ' ' + group.length + ' versions';
+    if (control.textContent !== caption) control.textContent = caption;
+    control.setAttribute('aria-expanded', String(open)); control.setAttribute('aria-controls', ids.join(' '));
+    const labels = [...new Set(group.map(item => item.parsed.label))].join('\n');
+    control.title = 'Versions on loaded pages:\n' + labels;
+    if (head.link.nextElementSibling !== control) head.link.after(control);
+    let previous = head.row;
+    for (const { row } of members) {
+      if (!this.moves.has(row)) {
+        const marker = this.app.doc.createComment('Companion original version position');
+        row.before(marker); this.moves.set(row, marker);
+      }
+      if (previous.nextElementSibling !== row) previous.after(row);
+      previous = row;
+      this.toggle(row, 'epc-version-hidden', !open); this.toggle(row, 'epc-version-member', true);
+    }
+    return group;
+  }
+  append(rows) {
+    if (!this.app.filtersReady || !this.app.settings.groupVersions) return;
+    for (const key of this.collectCandidates(rows)) this.renderGroup(key);
+    this.hideCollapsedPreview();
+  }
+  refresh() {
+    const { doc, settings } = this.app;
+    if (!this.app.filtersReady || !settings.groupVersions) { this.clear(); return; }
+    this.collapsed = 0; this.groups.clear(); this.candidates.clear();
+    const representatives = new Set(), members = new Set();
+    for (const key of this.collectCandidates(doc.querySelectorAll('tr.torrent'))) {
+      const group = this.renderGroup(key);
+      if (!group) continue;
+      representatives.add(group[0].row);
+      for (const { row } of group.slice(1)) members.add(row);
+    }
+    for (const [row, marker] of this.moves) if (!members.has(row) && row.isConnected) {
       if (marker.isConnected) marker.before(row);
       marker.remove(); this.moves.delete(row);
     }
     for (const [row, control] of this.controls) if (!representatives.has(row)) { control.remove(); this.controls.delete(row); }
     for (const [row] of this.rows) {
-      this.toggle(row, 'epc-version-hidden', hidden.has(row)); this.toggle(row, 'epc-version-member', members.has(row));
+      if (!members.has(row)) {
+        this.toggle(row, 'epc-version-hidden', false); this.toggle(row, 'epc-version-member', false);
+      }
       if (!row.isConnected && !this.app.detachedFilterRows.has(row)) {
         this.moves.get(row)?.remove(); this.moves.delete(row); this.rows.delete(row);
       }
     }
-    if (!this.app.preview.pinned && this.app.preview.anchor?.closest('.epc-version-hidden')) this.app.preview.hide(true);
+    this.hideCollapsedPreview();
   }
   toggleGroup(key) {
     const current = this.groups.get(key); if (!current) return;
@@ -1977,6 +2279,9 @@ class VersionGroups {
     control.setAttribute('aria-expanded', String(open));
     this.app.groupVisibilityChanged(difference);
     if (open) this.app.media.prepareThumbnails(group.map(item => item.row));
+    this.hideCollapsedPreview();
+  }
+  hideCollapsedPreview() {
     if (!this.app.preview.pinned && this.app.preview.anchor?.closest('.epc-version-hidden')) this.app.preview.hide(true);
   }
   toggle(row, name, wanted) { if (row.classList.contains(name) !== wanted) row.classList.toggle(name, wanted); }
@@ -2034,7 +2339,7 @@ class VersionGroups {
       if (!row.isConnected && !this.app.detachedFilterRows.has(row)) this.rows.delete(row);
     }
     for (const control of this.controls.values()) control.remove();
-    this.controls.clear(); this.groups.clear(); this.collapsed = 0;
+    this.controls.clear(); this.groups.clear(); this.candidates.clear(); this.collapsed = 0;
   }
   dispose() { this.clear(); this.rows.clear(); }
 }
@@ -2109,7 +2414,9 @@ class TagHighlights {
       for (const value of affected) for (const tag of this.index.get(value) || []) tags.add(tag);
     } else if (!root || queryChanged || !this.initialized) root = doc;
     if (root) {
-      for (const tag of root.matches?.(selector) ? [root] : root.querySelectorAll?.(selector) || []) tags.add(tag);
+      for (const scope of Array.isArray(root) ? root : [root]) {
+        for (const tag of scope.matches?.(selector) ? [scope] : scope.querySelectorAll?.(selector) || []) tags.add(tag);
+      }
     }
     this.initialized = true;
     for (const tag of tags) {
@@ -2200,30 +2507,41 @@ function gridCardSizeChoices(select, width) {
 
 // Keep native rows, links and controls: both layouts share filtering and backfill.
 class ResultGrid {
-  constructor(app) { this.app = app; this.tables = new Set(); this.cells = new Set(); this.headings = new Set(); }
+  constructor(app) { this.app = app; this.tables = new Map(); this.cells = new Set(); this.headings = new Set(); }
   mount() {
     const app = this.app;
-    this.toggle = app.button('Grid view', () => {
-      const next = app.settings.resultsView === 'grid' ? 'list' : 'grid';
-      if (!app.preferences.flush()) return;
-      if (app.settings.resultsView === next) return;
-      app.controls.get('resultsView').value = next;
-      app.dirty = true; app.preferences.flush();
-    });
-    this.toggle.dataset.epGridToggle = '';
-    this.toggle.setAttribute('aria-pressed', 'false');
-    app.toolbar.append(this.toggle);
+    this.layout = app.node('div', null, 'epc-layout-switch');
+    this.layout.setAttribute('role', 'group');
+    this.layout.setAttribute('aria-label', 'Results layout');
+    this.layout.hidden = true;
+    this.layoutButtons = new Map();
+    for (const [value, label, help] of [['list', 'List', 'Show results in a list'], ['grid', 'Grid', 'Show results as image cards']]) {
+      const button = app.button(label, () => {
+        if (!app.preferences.flush() || app.settings.resultsView === value) return;
+        app.controls.get('resultsView').value = value;
+        app.dirty = true; app.preferences.flush();
+      });
+      button.prepend(companionIcon(app, value));
+      button.dataset.epLayout = value;
+      button.title = help;
+      this.layoutButtons.set(value, button); this.layout.append(button);
+    }
+    this.syncControls();
+    app.browseTools.prepend(this.layout);
+  }
+  syncControls() {
+    for (const [value, button] of this.layoutButtons) button.setAttribute('aria-pressed', String(this.app.settings.resultsView === value));
   }
   refresh() {
     const app = this.app, grid = app.settings.resultsView === 'grid';
     app.batchDOM(() => {
-      for (const table of [...this.tables]) if (!table.isConnected || !grid) this.release(table);
-      const candidates = new Set([...app.doc.querySelectorAll('#content tr.torrent')].map(row => row.closest('table')));
+      for (const table of this.tables.keys()) if (!table.isConnected || !grid) this.release(table);
+      const candidates = new Set(this.tables.keys());
       // Retain managed tables when Hard Pass temporarily removes every row.
-      for (const table of this.tables) candidates.add(table);
+      if (grid) for (const row of app.doc.querySelectorAll('#content tr.torrent')) candidates.add(row.closest('table'));
       for (const table of candidates) {
         if (!table || !grid) continue;
-        this.tables.add(table); app.versions?.releaseLayout(table);
+        app.versions?.releaseLayout(table);
         table.classList.add('epc-result-grid');
         table.dataset.epGridDetails = String(app.settings.gridShowDetails);
         table.dataset.epGridTags = String(app.settings.gridShowTags);
@@ -2238,29 +2556,46 @@ class ResultGrid {
           const label = cell.textContent.trim() || cell.getAttribute('title') || cell.querySelector('[title]')?.getAttribute('title') || '';
           for (let i = 0; i < cell.colSpan; i++) labels.push(label);
         }
-        const fallback = ['Category', 'Name', 'Files', 'Comments', 'Added', 'Size', 'Snatches', 'Seeds', 'Peers', 'Uploader'];
-        for (const row of table.querySelectorAll('tr.torrent')) {
-          const link = resultTitleLink(row), title = link?.closest('td');
-          if (link) link.dataset.epGridTitle = '';
-          let column = 0;
-          for (const cell of row.cells) {
-            cell.dataset.epGridCell = cell === title ? 'title' : cell.matches('.cats_col,.cats_cols') ?
-              app.storage.get('nseHideCategoryIconsEnabled', false) || app.settings.categoryDisplay === 'hide' ? 'category-hidden' : 'category' : 'meta';
-            cell.dataset.epGridLabel = labels[column] || (row.cells.length === fallback.length ? fallback[column] : '');
-            column += cell.colSpan; this.cells.add(cell);
-          }
-        }
+        this.tables.set(table, labels);
+        this.decorateRows(table.querySelectorAll('tr.torrent'), labels);
       }
       for (const cell of this.cells) if (!cell.isConnected && !app.detachedFilterRows.has(cell.closest('tr'))) {
         for (const link of cell.querySelectorAll('[data-ep-grid-title]')) delete link.dataset.epGridTitle;
         delete cell.dataset.epGridCell; delete cell.dataset.epGridLabel; this.cells.delete(cell);
       }
     });
-    if (this.toggle) {
-      this.toggle.hidden = !(this.tables.size || app.doc.querySelector('#content tr.torrent') || app.detachedFilterRows.size);
-      this.toggle.textContent = grid ? 'List view' : 'Grid view';
-      this.toggle.setAttribute('aria-pressed', String(grid));
-      this.toggle.title = grid ? 'Switch results to a list' : 'Switch results to larger image cards';
+    if (this.layout) {
+      this.layout.hidden = !(this.tables.size || app.doc.querySelector('#content tr.torrent') || app.detachedFilterRows.size);
+      this.syncControls();
+    }
+  }
+  append(rows) {
+    if (this.app.settings.resultsView === 'grid') {
+      // One backfilled page appends to a single results table.
+      const table = rows[0]?.closest('table');
+      if (table && table.closest('#content')) {
+        const labels = this.tables.get(table);
+        if (!labels) { this.refresh(); return; }
+        this.decorateRows(rows, labels);
+      }
+    }
+    if (this.layout?.hidden && (rows.some(row => row.closest('#content')) || this.app.detachedFilterRows.size)) {
+      this.layout.hidden = false;
+    }
+  }
+  decorateRows(rows, labels) {
+    const { app } = this;
+    const category = app.storage.get('nseHideCategoryIconsEnabled', false) || app.settings.categoryDisplay === 'hide' ? 'category-hidden' : 'category';
+    const fallback = ['Category', 'Name', 'Files', 'Comments', 'Added', 'Size', 'Snatches', 'Seeds', 'Peers', 'Uploader'];
+    for (const row of rows) {
+      const link = resultTitleLink(row), title = link?.closest('td');
+      if (link) link.dataset.epGridTitle = '';
+      let column = 0;
+      for (const cell of row.cells) {
+        cell.dataset.epGridCell = cell === title ? 'title' : cell.matches('.cats_col,.cats_cols') ? category : 'meta';
+        cell.dataset.epGridLabel = labels[column] || (row.cells.length === fallback.length ? fallback[column] : '');
+        column += cell.colSpan; this.cells.add(cell);
+      }
     }
   }
   release(table) {
@@ -2275,7 +2610,7 @@ class ResultGrid {
       delete cell.dataset.epGridCell; delete cell.dataset.epGridLabel; this.cells.delete(cell);
     }
   }
-  dispose() { for (const table of this.tables) this.release(table); this.toggle?.remove(); }
+  dispose() { for (const table of this.tables.keys()) this.release(table); this.layout?.remove(); }
 }
 
 // SPDX-License-Identifier: GPL-3.0-or-later
@@ -2321,6 +2656,38 @@ function mutationChangesResults(mutation) {
 
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The filtering engine supplies behavior; Companion owns every visible control.
+const toolbarIcons = {
+  brand: 'm12 2 10 6-10 6L2 8l10-6Zm-10 10 10 6 10-6M2 16l10 6 10-6',
+  filters: 'M4 6h16M7 12h10m-7 6h4',
+  searches: 'M6 4h12v16l-6-4-6 4V4Z',
+  settings: 'M4 6h5m4 0h7M4 12h9m4 0h3M4 18h2m4 0h10M9 4v4m4 2v4m-7 2v4',
+  browse: 'M4 6h16M4 12h16M4 18h16M8 4v4m8 2v4m-7 2v4',
+  list: 'M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01',
+  grid: 'M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6z',
+  add: 'M12 5v14M5 12h14',
+  stop: 'M6 6h12v12H6z',
+  open: 'M7 17 17 7M7 7h10v10',
+  eye: 'M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Zm10-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z'
+};
+
+function companionIcon(app, name) {
+  const svg = app.doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  for (const [key, value] of Object.entries({ class: 'epc-icon', viewBox: '0 0 24 24', fill: 'none',
+    stroke: 'currentColor', 'stroke-width': '1.65', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+    'aria-hidden': 'true', focusable: 'false' })) svg.setAttribute(key, value);
+  const path = app.doc.createElementNS(svg.namespaceURI, 'path');
+  path.setAttribute('d', toolbarIcons[name]); svg.append(path);
+  return svg;
+}
+
+function toolbarPageName(url) {
+  const { pathname, searchParams } = new URL(url);
+  if (/^\/collage\//.test(pathname)) return 'Collage';
+  if (pathname === '/torrents.php') return searchParams.has('id') ? 'Torrent details' : 'Search results';
+  return ({ '/bookmarks.php': 'Bookmarks', '/collages.php': 'Collages', '/top10.php': 'Top 10',
+    '/requests.php': 'Requests', '/user.php': 'Account' })[pathname] || '';
+}
+
 function optionGroup(app, parent, title, { key = '', open = false, searchable = false } = {}) {
   const section = app.node('details', null, 'epc-group epc-option-group'); section.open = open;
   const summary = app.node('summary'); summary.append(app.node('span', title), app.node('small', '', 'epc-option-count'));
@@ -2409,10 +2776,12 @@ function mountFilterControls(app) {
     app.controls.get('backfillMode').value === 'all' ? 'All remaining pages on load' :
       (app.controls.get('backfillPages').value || app.settings.backfillPages) +
         (app.controls.get('backfillMode').value === 'pages' ? ' additional pages on load' : ' pages per manual batch') : 'Backfill off');
-  app.panes.filters.replaceChildren(app.node('p', 'Changes apply as you type. Separate tags with spaces.', 'epc-caption'));
+  app.panes.filters.replaceChildren(app.node('p', 'Tag lists update as you type. Separate tags with spaces.', 'epc-caption'));
   const grid = app.node('div', null, 'epc-rule-grid'); app.panes.filters.append(grid);
   field(grid, 'nseBlacklistTaglistArea', 'Blocked tags');
   field(grid, 'nseWhitelistTaglistArea', 'Allowed tags', 'Allowed matches override ordinary blocks.');
+  app.resultFilters.mountRules(app.panes.filters);
+  app.resultFilters.mountHistory(app.panes.filters);
   const highlights = optionGroup(app, app.panes.filters, 'Tag highlights', { key: 'tag-highlights' });
   highlights.append(app.node('p', 'Favorites are green; caution tags are amber. Both keep visibility unchanged. Search tags are emphasized automatically. Right-click a tag for a quick choice.', 'epc-caption'));
   for (const [key, label] of [['favoriteTags', 'Favorite tags'], ['cautionTags', 'Caution tags']]) {
@@ -2528,11 +2897,20 @@ function adoptRuleMenu(app, event, kind, value = '') {
   const footer = menu.querySelector(':scope > p:not([id])');
   if (footer) { footer.textContent = 'Rules save and update your results automatically.'; footer.hidden = kind === 'tag'; }
   app.tags.menu(menu, kind, value);
+  menu.querySelector('.epc-uploader-rule')?.remove();
   if (kind === 'tag') {
     const info = menu.querySelector('#nseRCMBoxInfoText'), tag = menu.querySelector('#nseRCMBoxTag');
     if (info && tag) {
       const status = app.node('span', 'Visibility rules', 'epc-caption epc-menu-caption');
       info.replaceChildren(app.node('strong', 'Tag: '), tag, status);
+    }
+    const row = app.ruleMenuOrigin.closest?.('tr.torrent');
+    const uploader = row?.querySelector(app.win.location.pathname === '/top10.php' ? 'td:nth-child(10) > a' : 'td.user > a')
+      ?.textContent.trim();
+    const tagName = app.ruleMenuOrigin.textContent.trim();
+    if (uploader && tagName && !/[{}\r\n]/.test(uploader + tagName)) {
+      const rule = app.button('Hide this tag for ' + uploader, () => app.resultFilters.addTagRule(tagName, uploader));
+      rule.className = 'epc-uploader-rule'; menu.append(rule);
     }
   }
   const rect = menu.getBoundingClientRect();
@@ -2540,9 +2918,9 @@ function adoptRuleMenu(app, event, kind, value = '') {
   menu.style.top = Math.max(12, Math.min(event.clientY, app.win.innerHeight - rect.height - 12)) + 'px';
 }
 
-function styleRowControls(app) {
+function styleRowControls(app, roots = [app.doc]) {
   app.rowKeys ||= new WeakSet();
-  for (const icon of app.doc.querySelectorAll('.nseToggleIcon')) {
+  for (const root of roots) for (const icon of root.querySelectorAll('.nseToggleIcon')) {
     const row = icon.closest('tr'); const hidden = row?.getAttribute('isNSEHidden') === '1';
     const label = icon.classList.contains('nseIndividuallyWhitelisted') ? 'Reset visibility override' :
       hidden ? 'Show this result' : 'Hide this result';
@@ -2576,10 +2954,10 @@ function adoptNotificationControls(app) {
   }
 }
 
-function applyWorkspaceTheme(app) {
+function applyWorkspaceTheme(app, roots = [app.root, app.preview?.element, app.onboarding?.element,
+  app.doc.getElementById('nseRCMBox'), ...app.doc.querySelectorAll('.epc-notification-control,.epc-search-feedback,.epc-media-retry')]) {
   const selected = app.storage.get('nseSelectedTheme', null);
   const palettes = {
-    nseThemeDefault: ['#f7f8fc', '#17213a', '#275de0', '#bac5d6'],
     nseThemeLegacy: ['#23395a', '#eef4ff', '#91c5ff', '#526b8e'],
     nseThemeEdgy: ['#19171c', '#ffe8eb', '#ff7f9a', '#664454'],
     nseThemeBaked: ['#202b23', '#e5f4d9', '#c9a7ff', '#53674c'],
@@ -2590,13 +2968,540 @@ function applyWorkspaceTheme(app) {
     const theme = app.storage.get('nseCustomTheme', {});
     colors = [theme.backgroundColor, theme.foregroundColor, theme.accentColor, theme.highlightColor];
   }
-  for (const root of [app.root, app.preview?.element, app.doc.getElementById('nseRCMBox'),
-    ...app.doc.querySelectorAll('.epc-notification-control')].filter(Boolean)) {
-    if (colors) ['--epc-bg', '--epc-fg', '--epc-accent', '--epc-line'].forEach((key, i) => root.style.setProperty(key, colors[i]));
+  for (const root of roots.filter(Boolean)) {
+    ['--epc-bg', '--epc-fg', '--epc-accent', '--epc-line'].forEach((key, i) => {
+      if (colors?.[i]) root.style.setProperty(key, colors[i]);
+      else root.style.removeProperty(key);
+    });
+    root.style.colorScheme = palettes[selected] ? 'dark' : '';
     const font = app.storage.get('nseUIFont', null);
-    if (font && /^[\w\s,'".-]{1,200}$/.test(font)) root.style.fontFamily = font;
+    root.style.fontFamily = font && /^[\w\s,'".-]{1,200}$/.test(font) ? font : '';
     const listFont = app.storage.get('nseTextAreaFont', null);
     if (listFont && /^[\w\s,'".-]{1,200}$/.test(listFont)) root.style.setProperty('--epc-list-font', listFont);
+    else root.style.removeProperty('--epc-list-font');
+  }
+}
+
+// SPDX-License-Identifier: GPL-3.0-or-later
+const CONDITIONAL_RULE_LIMIT = 20000;
+
+function compileCondition(source) {
+  const pattern = /\s*(?:\$(TA|TI|UP)\{([^{}]+)\}|(AND|OR|NOT)\b|([()]))/iy;
+  const tokens = [];
+  while (pattern.lastIndex < source.length) {
+    const match = pattern.exec(source);
+    if (!match) throw new Error('Expected a tag, title, uploader, or logical operator.');
+    const [, selector, value, operator, paren] = match;
+    if (selector && !value.trim()) throw new Error('A selector needs a value between braces.');
+    tokens.push(selector ? { selector: selector.toUpperCase(), value: value.trim(), key: value.trim().toLocaleLowerCase() } :
+      operator?.toUpperCase() || paren);
+    if (tokens.length > 128) throw new Error('Split this expression into smaller rules.');
+  }
+
+  let index = 0;
+  const take = token => {
+    if (tokens[index] !== token) return false;
+    index++;
+    return true;
+  };
+  function term() {
+    if (take('NOT')) {
+      const test = term();
+      return row => !test(row);
+    }
+    if (take('(')) {
+      const test = expression();
+      if (!take(')')) throw new Error('Missing a closing parenthesis.');
+      return test;
+    }
+    const atom = tokens[index++];
+    if (typeof atom !== 'object') throw new Error('Expected a selector or an opening parenthesis.');
+    if (atom.selector === 'TA') return row => row.tags.has(atom.key);
+    if (atom.selector === 'UP') return row => row.uploader === atom.key;
+    return row => row.title.includes(atom.key);
+  }
+  function conjunction() {
+    const tests = [term()];
+    while (take('AND')) tests.push(term());
+    return row => tests.every(test => test(row));
+  }
+  function expression() {
+    const tests = [conjunction()];
+    while (take('OR')) tests.push(conjunction());
+    return row => tests.some(test => test(row));
+  }
+  const test = expression();
+  if (index !== tokens.length) throw new Error('Expected AND or OR between conditions.');
+  return { test, tokens };
+}
+
+function compileConditionalRules(text) {
+  if (text.length > CONDITIONAL_RULE_LIMIT) throw new Error('Conditional rules exceed 20,000 characters.');
+  const rules = [];
+  for (const [index, raw] of text.split(/\r?\n/).entries()) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    try {
+      const match = /^(HIDE|SHOW|PASS)\s*:\s*(.+)$/i.exec(line);
+      if (!match) throw new Error('Start with HIDE, SHOW, or PASS followed by a colon and a condition.');
+      rules.push({ action: match[1].toUpperCase(), line: index, ...compileCondition(match[2]) });
+    } catch (error) {
+      throw new Error('Line ' + (index + 1) + ' · ' + error.message);
+    }
+  }
+  return rules;
+}
+
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+const RULE_ACTIONS = [
+  ['HIDE', 'Hide matching results', 'Hide'],
+  ['SHOW', 'Allow matching results', 'Allow'],
+  ['PASS', 'Hard Pass (overrides allow rules)', 'Hard Pass']
+];
+const RULE_FIELDS = {
+  TA: { positive: 'Has tag', negative: 'Lacks tag', label: 'Tag', example: 'e.g. example.tag',
+    describe: (value, negated) => 'tag ' + value + (negated ? ' is absent' : ' is present') },
+  TI: { positive: 'Title contains', negative: 'Title does not contain', label: 'Title text', example: 'e.g. collection',
+    describe: (value, negated) => 'title ' + (negated ? 'does not contain ' : 'contains ') + value },
+  UP: { positive: 'Uploaded by', negative: 'Uploader is different from', label: 'Uploader name', example: 'e.g. example-user',
+    describe: (value, negated) => 'uploader is ' + (negated ? 'different from ' : '') + value }
+};
+const RULE_MATCHES = Object.entries(RULE_FIELDS).flatMap(([key, field]) => [[key, field.positive], ['!' + key, field.negative]]);
+
+function ruleSelect(app, title, options) {
+  const field = app.node('label', null, 'epc-field'), select = app.node('select');
+  for (const [value, text] of options) {
+    const option = app.node('option', text); option.value = value; select.append(option);
+  }
+  field.append(app.node('span', title), select);
+  return { field, select };
+}
+
+function describeRule(rule) {
+  const action = RULE_ACTIONS.find(([key]) => key === rule.action)[2];
+  const conditions = rule.tokens.map((token, index, tokens) => {
+    if (typeof token === 'string') return token === 'NOT' && typeof tokens[index + 1] === 'object' ? '' : token.toLowerCase();
+    return RULE_FIELDS[token.selector].describe('“' + token.value + '”', tokens[index - 1] === 'NOT');
+  });
+  return action + ' when ' + conditions.filter(Boolean).join(' ');
+}
+
+// The form represents flat AND/OR rules. Grouped expressions remain editable as text.
+function editableRule(tokens) {
+  const conditions = [];
+  let join = 'AND';
+  for (let i = 0; i < tokens.length;) {
+    const negated = tokens[i] === 'NOT';
+    if (negated) i++;
+    const token = tokens[i++];
+    if (typeof token !== 'object') return null;
+    conditions.push({ match: (negated ? '!' : '') + token.selector, value: token.value });
+    if (i === tokens.length) break;
+    const next = tokens[i++];
+    if (!['AND', 'OR'].includes(next) || conditions.length > 1 && next !== join) return null;
+    join = next;
+  }
+  return { conditions, join };
+}
+
+class ConditionalRuleEditor {
+  constructor(app, parent) {
+    this.app = app;
+    const section = this.section = optionGroup(app, parent, 'Conditional rules', { key: 'conditional-rules' });
+    this.count = section.querySelector('.epc-option-count');
+    this.catalog = app.node('div');
+    this.list = app.node('ul', null, 'epc-conditional-list');
+    this.empty = app.node('p', 'No conditional rules yet.', 'epc-caption');
+    this.add = app.button('Add a rule', () => this.openBuilder());
+    this.add.classList.add('epc-primary');
+    this.catalog.append(this.empty, this.list, this.add);
+
+    this.builder = app.node('div', null, 'epc-conditional-builder');
+    this.builder.hidden = true;
+    this.heading = app.node('h3');
+    const action = ruleSelect(app, 'When conditions match', RULE_ACTIONS);
+    const match = ruleSelect(app, 'Match results that meet', [['AND', 'Every condition'], ['OR', 'Any condition']]);
+    this.action = action.select; this.join = match.select; this.joinField = match.field;
+    this.rows = app.node('div');
+    this.addCondition = app.button('Add condition', () => this.appendCondition().focus());
+    this.builderStatus = app.node('p', '', 'epc-caption');
+    this.builderStatus.setAttribute('role', 'status');
+    const controls = app.node('div', null, 'epc-actions');
+    const save = app.button('Save rule', () => this.saveBuilder()); save.classList.add('epc-primary');
+    controls.append(this.addCondition, save, app.button('Cancel', () => this.closeBuilder()));
+    this.builder.append(this.heading, action.field, this.rows, match.field, controls, this.builderStatus);
+
+    const raw = this.rawSection = app.node('details', null, 'epc-conditional-advanced');
+    this.raw = app.node('textarea');
+    this.raw.rows = 5; this.raw.maxLength = CONDITIONAL_RULE_LIMIT; this.raw.spellcheck = false;
+    this.rawStatus = app.node('p', '', 'epc-caption'); this.rawStatus.setAttribute('role', 'status');
+    this.rawStatus.id = 'epc-conditional-status';
+    this.raw.setAttribute('aria-describedby', this.rawStatus.id);
+    const label = app.node('label', null, 'epc-field'); label.append(app.node('span', 'Rule text'), this.raw);
+    this.applyText = app.button('Apply rule text', () => this.saveText(this.raw.value));
+    this.discardText = app.button('Discard draft', () => { this.raw.value = this.source; this.validateText(); });
+    const rawControls = app.node('div', null, 'epc-actions');
+    rawControls.append(this.applyText, this.discardText);
+    raw.append(app.node('summary', 'Advanced rule text'),
+      app.node('p', 'Enter one rule per line. Use AND, OR, NOT, and parentheses to group conditions.', 'epc-caption'),
+      app.node('code', 'HIDE: $UP{uploader} AND NOT ($TA{favorite.tag} OR $TI{collection})'), label, this.rawStatus, rawControls);
+    this.raw.addEventListener('input', () => this.validateText());
+    section.append(app.node('p', 'Combine tags, title text, and uploaders in one filter.', 'epc-caption'), this.catalog, this.builder, raw);
+    section.addEventListener('toggle', () => { if (section.open && !this.list.hasChildNodes()) this.renderRules(); });
+    this.refresh();
+  }
+  refresh() {
+    const source = this.app.settings.conditionalRules;
+    if (source === this.source) return;
+    this.source = source;
+    this.raw.value = source;
+    this.list.replaceChildren();
+    try { this.rules = compileConditionalRules(source); }
+    catch { this.rules = []; this.rawSection.open = true; }
+    this.count.textContent = this.rules.length ? this.rules.length + ' active' : 'None';
+    this.empty.hidden = this.rules.length > 0;
+    if (this.section.open) this.renderRules();
+    this.validateText();
+  }
+  renderRules() {
+    for (const [index, rule] of this.rules.entries()) {
+      const item = this.app.node('li'), edit = this.app.button('Edit', () => this.openBuilder(rule, edit), 'Edit rule ' + (index + 1));
+      const remove = this.app.button('Remove', () => {
+        if (!this.savedDraft()) return;
+        if (this.saveText(this.replaceLine(rule.line))) this.add.focus();
+      }, 'Remove rule ' + (index + 1));
+      const actions = this.app.node('div', null, 'epc-actions'); actions.append(edit, remove);
+      item.append(this.app.node('span', describeRule(rule)), actions); this.list.append(item);
+    }
+  }
+  validateText() {
+    const changed = this.raw.value !== this.source;
+    this.discardText.disabled = !changed;
+    this.applyText.disabled = true;
+    try {
+      compileConditionalRules(this.raw.value);
+      this.raw.removeAttribute('aria-invalid');
+      this.rawStatus.textContent = changed ? 'Ready to apply.' : '';
+      this.applyText.disabled = !changed;
+    } catch (error) {
+      this.raw.setAttribute('aria-invalid', 'true');
+      this.rawStatus.textContent = error.message;
+    }
+  }
+  savedDraft() {
+    if (this.raw.value === this.source) return true;
+    this.section.open = this.rawSection.open = true;
+    this.raw.focus();
+    this.app.toast('Apply or discard the advanced rule draft first.');
+    return false;
+  }
+  openBuilder(rule, opener = this.add) {
+    if (!this.savedDraft()) return;
+    const draft = rule && editableRule(rule.tokens);
+    if (rule && !draft) {
+      this.rawSection.open = true;
+      this.raw.focus();
+      const lines = this.source.split('\n'), start = lines.slice(0, rule.line).join('\n').length + (rule.line ? 1 : 0);
+      this.raw.setSelectionRange(start, start + lines[rule.line].length);
+      return;
+    }
+    this.opener = opener; this.editing = rule && { line: rule.line, source: this.source };
+    this.heading.textContent = rule ? 'Edit rule' : 'New rule';
+    this.action.value = rule?.action || 'HIDE';
+    this.join.value = draft?.join || 'AND';
+    this.rows.replaceChildren(); this.builderStatus.textContent = '';
+    this.builder.hidden = false; this.catalog.hidden = this.rawSection.hidden = true;
+    for (const condition of draft?.conditions || [{}]) this.appendCondition(condition);
+    this.rows.querySelector('input').focus();
+  }
+  appendCondition({ match = 'TA', value = '' } = {}) {
+    const row = this.app.node('div', null, 'epc-conditional-row');
+    const condition = ruleSelect(this.app, 'Condition', RULE_MATCHES);
+    condition.select.value = match;
+    const label = this.app.node('label', null, 'epc-field'), caption = this.app.node('span');
+    const input = this.app.node('input'); input.type = 'text'; input.value = value;
+    const sync = () => {
+      const field = RULE_FIELDS[condition.select.value.replace('!', '')];
+      caption.textContent = field.label;
+      input.placeholder = field.example;
+    };
+    condition.select.addEventListener('change', sync); sync();
+    input.addEventListener('input', () => input.removeAttribute('aria-invalid'));
+    label.append(caption, input);
+    const remove = this.app.button('Remove condition', () => {
+      row.remove(); this.syncConditions(); this.addCondition.focus();
+    });
+    row.append(condition.field, label, remove); this.rows.append(row);
+    this.syncConditions();
+    return input;
+  }
+  syncConditions() {
+    const multiple = this.rows.children.length > 1;
+    this.joinField.hidden = !multiple;
+    for (const [index, row] of [...this.rows.children].entries()) {
+      const label = row.querySelector('select').closest('label').firstChild;
+      label.textContent = multiple ? 'Condition ' + (index + 1) : 'Condition';
+      const remove = row.querySelector('button'); remove.hidden = !multiple;
+      remove.setAttribute('aria-label', 'Remove condition ' + (index + 1));
+    }
+  }
+  saveBuilder() {
+    const parts = [];
+    for (const row of this.rows.children) {
+      const input = row.querySelector('input'), value = input.value.trim(), match = row.querySelector('select').value;
+      if (!value || /[{}\r\n]/.test(value)) {
+        this.builderStatus.textContent = value ? 'Use text without braces.' : 'Enter text for this condition.';
+        input.setAttribute('aria-invalid', 'true'); input.focus(); return;
+      }
+      const atom = '$' + match.replace('!', '') + '{' + value + '}';
+      parts.push(match.startsWith('!') ? 'NOT ' + atom : atom);
+    }
+    const line = this.action.value + ': ' + parts.join(' ' + this.join.value + ' ');
+    if (this.editing && this.editing.source !== this.source) {
+      this.builderStatus.textContent = 'The saved rules changed. Reopen this rule to edit the latest version.'; return;
+    }
+    const text = this.editing ? this.replaceLine(this.editing.line, line) : [this.source.trimEnd(), line].filter(Boolean).join('\n');
+    if (this.saveText(text, this.builderStatus)) this.closeBuilder();
+  }
+  replaceLine(index, value) {
+    const lines = this.source.split('\n');
+    lines.splice(index, 1, ...(value ? [value] : []));
+    return lines.join('\n');
+  }
+  saveText(text, status = this.rawStatus) {
+    try { compileConditionalRules(text); }
+    catch (error) { status.textContent = error.message; return false; }
+    if (this.app.preferences.flush(text)) return true;
+    status.textContent = 'Could not apply the rules. Your draft is still here.';
+    return false;
+  }
+  addTagRule(tag, uploader) {
+    if (!this.savedDraft()) return false;
+    const line = 'HIDE: $TA{' + tag + '} AND $UP{' + uploader + '}';
+    if (this.source.split('\n').some(rule => rule.trim().toLocaleLowerCase() === line.toLocaleLowerCase())) return true;
+    return this.saveText([this.source.trimEnd(), line].filter(Boolean).join('\n'));
+  }
+  closeBuilder() {
+    this.builder.hidden = true; this.catalog.hidden = this.rawSection.hidden = false;
+    (this.opener?.isConnected ? this.opener : this.add).focus();
+  }
+}
+
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+const SEEN_PREFIX = 'ep.seen.';
+const IGNORED_KEY = 'nseIndividualUploadHidingBlacklist';
+const HISTORY_PAGE_SIZE = 25;
+const RESULT_ID = /^\d{1,15}$/;
+const FREELEECH_ICONS = '.sitewide_leech,.unlimited_leech,.freeleech,[title*="freeleech" i],[title*="free leech" i],[title*="free-leech" i]';
+
+function findFreeleech(row) {
+  let kind = '', icon = null;
+  for (const node of row.querySelectorAll(FREELEECH_ICONS)) {
+    const title = (node.getAttribute('title') || '').trim();
+    if (node.classList.contains('unlimited_leech') || /^unlimited\s+free[- ]?leech\b/i.test(title)) {
+      return { kind: 'unlimited', icon: node };
+    }
+    if (node.classList.contains('sitewide_leech') || /^site[- ]?wide\s+free[- ]?leech\b/i.test(title)) {
+      kind = 'sitewide'; icon = node;
+    } else if (!kind && (node.classList.contains('freeleech') || /^(?:personal\s+)?free[- ]?leech\b/i.test(title)) &&
+        !/\bdouble[- ]?seed/i.test(title)) {
+      kind = 'other'; icon = node;
+    }
+  }
+  return { kind, icon };
+}
+
+class ResultFilters {
+  constructor(app) {
+    this.app = app;
+    this.pageURL = new URL(app.win.location.href);
+    this.bookmarks = this.pageURL.pathname === '/bookmarks.php';
+    this.freeleechKey = this.bookmarks ? 'bookmarkFreeleechView' : 'freeleechView';
+    this.icons = new WeakMap();
+  }
+  mountFreeleech() {
+    const app = this.app;
+    const label = app.node('label', null, 'epc-freeleech-view');
+    const select = app.node('select');
+    select.dataset.setting = this.freeleechKey;
+    for (const [value, caption] of [['all', 'All results'], ['freeleech', 'Any freeleech'], ['sitewide', 'Sitewide only']]) {
+      const option = app.node('option', caption); option.value = value; select.append(option);
+    }
+    select.value = app.settings[this.freeleechKey];
+    const help = app.node('span', 'Any freeleech includes permanent and temporary offers. Sitewide only shows time-limited sitewide offers.');
+    help.id = 'epc-freeleech-help'; help.hidden = true;
+    select.setAttribute('aria-describedby', help.id); select.title = help.textContent;
+    label.append(app.node('span', 'Freeleech'), select, help);
+    label.hidden = true;
+    app.controls.set(this.freeleechKey, select);
+    app.browseControls.prepend(label);
+    this.freeleechControl = label;
+  }
+  mountRules(parent) {
+    this.ruleEditor = new ConditionalRuleEditor(this.app, parent);
+  }
+  refreshRulesEditor() { this.ruleEditor?.refresh(); }
+  addTagRule(tag, uploader) {
+    const app = this.app;
+    if (!app.preferences.flush()) return;
+    mountFilterControls(app);
+    if (!this.ruleEditor?.addTagRule(tag, uploader)) return;
+    app.doc.getElementById('nseRCMBox')?.classList.add('hidden');
+    app.ruleMenuOrigin?.focus({ preventScroll: true });
+    app.toast('Conditional rule saved.');
+  }
+  conditionalMatcher() {
+    const source = this.app.settings.conditionalRules;
+    if (source === this.ruleSource) return this.matchRules;
+    this.ruleSource = source;
+    let rules;
+    try { rules = compileConditionalRules(source); }
+    catch { rules = []; }
+    this.matchRules = rules.length ? (tags, title, uploader) => {
+      const row = {
+        tags: new Set([...tags.querySelectorAll('a')].map(tag => tag.textContent.trim().toLocaleLowerCase())),
+        title: title?.textContent.trim().toLocaleLowerCase() || '',
+        uploader: uploader?.textContent.trim().toLocaleLowerCase() || ''
+      };
+      const actions = new Set();
+      for (const rule of rules) if (!actions.has(rule.action) && rule.test(row)) actions.add(rule.action);
+      return actions;
+    } : null;
+    return this.matchRules;
+  }
+  readSeenIDs() {
+    return new Set(this.app.storage.list().filter(key => key.startsWith(SEEN_PREFIX))
+      .map(key => key.slice(SEEN_PREFIX.length)).filter(id => RESULT_ID.test(id)));
+  }
+  recordVisit() {
+    const { app, pageURL } = this;
+    const id = pageURL.searchParams.get('id');
+    if (pageURL.pathname !== '/torrents.php' || pageURL.searchParams.has('action') || !RESULT_ID.test(id || '') ||
+        !app.doc.querySelector('#content #torrent_tags_list')) return;
+    const title = app.doc.querySelector('#content h2')?.textContent.trim().replace(/\s+/g, ' ').slice(0, 240) || '';
+    try {
+      app.storage.set(SEEN_PREFIX + id, { title, time: Date.now() });
+      const ids = this.seen = this.readSeenIDs();
+      if (ids.size > 2000) {
+        // Prune in batches so ordinary detail opens never have to read every entry.
+        const oldest = [...ids].map(id => [id, app.storage.get(SEEN_PREFIX + id, null)?.time || 0])
+          .sort((a, b) => a[1] - b[1]).slice(0, ids.size - 1800);
+        for (const [id, time] of oldest) if ((app.storage.get(SEEN_PREFIX + id, null)?.time || 0) === time) {
+          app.storage.delete(SEEN_PREFIX + id); ids.delete(id);
+        }
+      }
+    } catch { app.report('Seen history could not be updated.'); }
+  }
+  applyRow(row) {
+    const { app } = this;
+    const { kind, icon } = findFreeleech(row);
+    const previous = this.icons.get(row);
+    if (previous && previous !== icon) delete previous.dataset.epFreeleech;
+    if (icon) { icon.dataset.epFreeleech = kind; this.icons.set(row, icon); }
+    else this.icons.delete(row);
+    const view = app.settings[this.freeleechKey];
+    const outsideView = view === 'sitewide' ? kind !== 'sitewide' : view === 'freeleech' && !kind;
+    const mode = app.settings.seenMode;
+    const seen = mode !== 'show' && (this.seen ||= this.readSeenIDs()).has(torrentID(row, this.pageURL.href));
+    const seenFiltered = seen && mode === 'hide';
+    row.classList.toggle('epc-filter-hidden', outsideView || seenFiltered && !app.revealingFiltered);
+    row.classList.toggle('epc-seen-revealed', seenFiltered && !!app.revealingFiltered);
+    row.classList.toggle('epc-seen-dim', seen && mode === 'dim');
+    return seenFiltered;
+  }
+  refreshSeen() {
+    const showingHistory = this.historyVisible();
+    if (this.app.settings.seenMode === 'show' && !showingHistory) { this.seen = null; return; }
+    const next = this.readSeenIDs(), previous = this.seen;
+    this.seen = next;
+    if ((!previous || previous.size !== next.size || [...next].some(id => !previous.has(id))) &&
+        this.app.settings.seenMode !== 'show' && this.app.filtersReady && this.app.mounted) this.refreshView();
+    if (showingHistory) this.renderHistory();
+  }
+  historyVisible() {
+    return this.history?.open && this.app.activePane === 'filters' && !this.app.panel.hidden;
+  }
+  refreshView() {
+    this.app.syncGridFilters(false);
+    this.app.media.prepareThumbnails();
+    this.app.scheduleHealth();
+  }
+  mountHistory(parent) {
+    if (this.history?.isConnected) return;
+    const app = this.app;
+    const section = this.history = optionGroup(app, parent, 'Seen & Ignored', { key: 'result-history' });
+    const label = app.node('label', null, 'epc-field');
+    const mode = app.node('select'); mode.dataset.setting = 'seenMode';
+    for (const [value, caption] of [['show', 'Show normally'], ['dim', 'Dim opened results'], ['hide', 'Hide opened results']]) {
+      const option = app.node('option', caption); option.value = value; mode.append(option);
+    }
+    mode.value = app.settings.seenMode;
+    label.append(app.node('span', 'Previously opened torrents'), mode);
+    app.controls.set('seenMode', mode);
+    const listLabel = app.node('label', null, 'epc-field');
+    const listType = this.historyType = app.node('select');
+    for (const [value, caption] of [['seen', 'Seen torrents'], ['ignored', 'Ignored torrents']]) {
+      const option = app.node('option', caption); option.value = value; listType.append(option);
+    }
+    listLabel.append(app.node('span', 'Review history'), listType);
+    this.historyList = app.node('ul', null, 'epc-history-list');
+    this.historyCount = app.node('p', '', 'epc-caption');
+    this.historyCount.setAttribute('role', 'status');
+    const paging = app.node('div', null, 'epc-actions');
+    this.historyPage = 0;
+    this.historyPrev = app.button('Previous entries', () => { this.historyPage--; this.renderHistory(); });
+    this.historyNext = app.button('Next entries', () => { this.historyPage++; this.renderHistory(); });
+    paging.append(this.historyPrev, this.historyNext);
+    const help = app.node('p', 'Opening a torrent’s details marks it seen in this browser. Choose ', 'epc-caption');
+    help.append(app.node('strong', 'Hide this result'), ' (the eye icon) to ignore a torrent.');
+    section.append(help, label,
+      listLabel, this.historyCount, this.historyList, paging);
+    section.addEventListener('toggle', () => { if (section.open) this.refreshSeen(); });
+    listType.addEventListener('change', () => { this.historyPage = 0; this.renderHistory(); });
+  }
+  ignoredIDs() {
+    const stored = this.app.storage.get(IGNORED_KEY, []);
+    return Array.isArray(stored) ? [...new Set(stored.map(String).filter(id => RESULT_ID.test(id)))] : [];
+  }
+  renderHistory() {
+    const app = this.app, ignored = this.historyType.value === 'ignored';
+    const ids = ignored ? this.ignoredIDs() : [...(this.seen ||= this.readSeenIDs())];
+    ids.sort((a, b) => Number(b) - Number(a));
+    const last = Math.max(0, Math.ceil(ids.length / HISTORY_PAGE_SIZE) - 1);
+    this.historyPage = Math.max(0, Math.min(last, this.historyPage));
+    const offset = this.historyPage * HISTORY_PAGE_SIZE;
+    this.historyList.replaceChildren();
+    for (const id of ids.slice(offset, offset + HISTORY_PAGE_SIZE)) {
+      const record = app.storage.get(SEEN_PREFIX + id, null);
+      const title = typeof record?.title === 'string' ? record.title : '';
+      const link = app.node('a', title || 'Torrent #' + id); link.href = '/torrents.php?id=' + id;
+      const item = app.node('li');
+      item.append(link, app.button(ignored ? 'Unignore' : 'Mark unseen', () => this.removeHistory(id, ignored),
+        (ignored ? 'Unignore ' : 'Mark unseen ') + link.textContent));
+      this.historyList.append(item);
+    }
+    this.historyCount.textContent = ids.length ? (offset + 1) + '–' + Math.min(offset + HISTORY_PAGE_SIZE, ids.length) + ' of ' + ids.length :
+      (ignored ? 'No ignored torrents.' : 'No seen torrents.');
+    this.historyPrev.hidden = this.historyNext.hidden = last === 0;
+    this.historyPrev.disabled = this.historyPage === 0;
+    this.historyNext.disabled = this.historyPage === last;
+  }
+  removeHistory(id, ignored) {
+    const app = this.app;
+    try {
+      if (ignored) {
+        app.preferences.beforeChange();
+        app.storage.set(IGNORED_KEY, this.ignoredIDs().filter(value => value !== id));
+        app.refreshFilters(true);
+      } else {
+        app.storage.delete(SEEN_PREFIX + id);
+        this.seen?.delete(id);
+        if (app.settings.seenMode !== 'show') this.refreshView();
+      }
+      this.renderHistory(); this.historyType.focus();
+    } catch (error) { app.toast(error.message || 'Could not update history.'); }
   }
 }
 
@@ -2678,6 +3583,7 @@ class CompanionApp {
     this.removedFilterIDs = new Set();
     this.detachedFilterRows = new Map();
     this.preferences = new PreferencesController(this);
+    this.resultFilters = new ResultFilters(this);
     try {
       const existing = storage.get(SEARCH_KEY, null);
       this.searches = validateSearches(existing || JSON.parse(storage.get('empSavedSearches', '[]')));
@@ -2738,6 +3644,7 @@ class CompanionApp {
     this.media = new PageMedia(this);
     this.preview = new PreviewController(this);
     this.backfill = new BackfillController(this);
+    this.collageQuickAdd = new CollageQuickAdd(this);
     this.onboarding = new OnboardingController(this);
     this.on(this.doc,'securitypolicyviolation',event=>{
       if(/^img-src/.test(event.violatedDirective||'')&&/^data(?::|$)/.test(event.blockedURI||''))this.imageCache.displayBlocked=true;
@@ -2767,10 +3674,10 @@ class CompanionApp {
     });
     this.on(this.doc, 'visibilitychange', () => { this.media.pool.pump(); this.onboarding.maybeOpen(); this.backfill.maybeAutomatic(); });
     this.on(this.win, 'online', () => this.media.resumeAutomaticRecovery(true));
-    this.on(this.win, 'focus', () => this.refreshSavedSearches());
+    this.on(this.win, 'focus', () => { this.refreshSavedSearches(); this.resultFilters.refreshSeen(); });
     this.on(this.doc, 'visibilitychange', () => {
       if(this.doc.hidden)this.cancelCacheUsage();
-      else{this.refreshSavedSearches();void this.refreshCacheUsage();}
+      else{this.refreshSavedSearches();this.resultFilters.refreshSeen();void this.refreshCacheUsage();}
     });
     this.observer = new this.win.MutationObserver(mutations => {
       if (this.media.coverGatePending) this.media.syncCoverGate();
@@ -2778,6 +3685,8 @@ class CompanionApp {
       let removed = false;
       for (const mutation of mutations) {
         if (mutation.target.nodeType === 1 && mutation.target.closest?.(OWN)) continue;
+        if (mutation.type === 'childList' && [...mutation.addedNodes, ...mutation.removedNodes].every(node =>
+          node.nodeType === 1 && node.matches('.epc-thumbnail,.epc-cover-image,.epc-cover-status'))) continue;
         if (presentationMutation(mutation)) continue;
         const results = mutationChangesResults(mutation);
         if (mutation.type === 'attributes') this.schedule(mutation.target, results);
@@ -2796,8 +3705,13 @@ class CompanionApp {
     });
     this.observeDOM();
     if (this.doc.body) this.mount();
-    this.on(this.doc, 'DOMContentLoaded', () => { this.mount(); this.schedule(this.doc.body); });
-    this.on(this.win, 'pageshow', event => { if (event.persisted && this.doc.body) this.schedule(this.doc.body); });
+    if (this.doc.readyState !== 'loading') this.resultFilters.recordVisit();
+    this.on(this.doc, 'DOMContentLoaded', () => {
+      this.resultFilters.recordVisit(); this.mount(); this.schedule(this.doc.body);
+    }, { once: true });
+    this.on(this.win, 'pageshow', event => {
+      if (event.persisted && this.doc.body) { this.resultFilters.recordVisit(); this.schedule(this.doc.body); }
+    });
     return this;
   }
   observeDOM() {
@@ -2823,6 +3737,7 @@ class CompanionApp {
   schedule(root, results = true) {
     if (this.disposed || !this.win.document || !this.doc.documentElement || !root || root.nodeType !== 1 || root.closest?.(OWN)) return;
     this.roots.add(root);
+    if (results && !this.resultsDirty) this.media.invalidateLayout();
     this.resultsDirty ||= results;
     if (!this.filtersReady) return;
     if (this.scanPending) return;
@@ -2854,9 +3769,14 @@ class CompanionApp {
     this.root = this.node('section', null, 'epc-root epc-workspace');
     this.root.setAttribute('aria-label', 'Empornium Companion');
     this.toolbar = this.node('header', null, 'epc-toolbar');
+    const main = this.node('div', null, 'epc-toolbar-main');
+    const brand = this.node('div', null, 'epc-toolbar-brand');
+    const mark = this.node('span', null, 'epc-brand-mark'); mark.append(companionIcon(this, 'brand'));
     this.launcher = this.node('strong', 'Companion', 'epc-brand');
-    this.filterSummary = this.node('span', '', 'epc-result-summary');
-    this.toolbar.append(this.launcher, this.filterSummary);
+    const pageName = toolbarPageName(this.win.location.href);
+    brand.append(mark, this.launcher);
+    if (pageName) brand.append(this.node('span', pageName, 'epc-page-name'));
+    main.append(brand);
     this.panel = this.node('section', null, 'epc-panel'); this.panel.hidden = true;
     const heading = this.node('header', null, 'epc-panel-heading');
     this.paneHeading = this.node('strong', 'Companion');
@@ -2870,20 +3790,49 @@ class CompanionApp {
       const button = this.button(title, () => this.openPane(key));
       button.dataset.pane = key; button.setAttribute('aria-controls', pane.id); button.setAttribute('aria-expanded', 'false');
       this.paneButtons.set(key, button); this.panes[key] = pane;
-      if (key !== 'images') navigation.append(button);
+      if (key !== 'images') { button.prepend(companionIcon(this, key)); navigation.append(button); }
       this.panel.append(pane);
     }
-    this.toolbar.append(navigation);
+    main.append(navigation);
+    const context = this.node('div', null, 'epc-toolbar-context');
+    this.browseTools = this.node('div', null, 'epc-browse-tools');
+    this.browseMenu = this.node('details', null, 'epc-browse-menu'); this.browseMenu.hidden = true;
+    const browseTrigger = this.node('summary', 'Browse options');
+    browseTrigger.prepend(companionIcon(this, 'browse'));
+    this.browseControls = this.node('div', null, 'epc-browse-controls');
+    this.browseMenu.append(browseTrigger, this.browseControls); this.browseTools.append(this.browseMenu);
+    this.contextActions = this.node('div', null, 'epc-context-actions');
+    context.append(this.browseTools, this.contextActions);
+    this.on(this.doc, 'pointerdown', event => {
+      if (this.browseMenu.open && !this.browseMenu.contains(event.target)) this.browseMenu.open = false;
+    });
+    this.browseMenu.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || !this.browseMenu.open || event.defaultPrevented) return;
+      event.preventDefault(); event.stopPropagation();
+      this.browseMenu.open = false; browseTrigger.focus();
+    });
+    const footer = this.node('div', null, 'epc-toolbar-footer');
+    this.toolbarUtilities = this.node('div', null, 'epc-toolbar-utilities');
+    this.toolbarStatus = this.node('div', null, 'epc-toolbar-status');
+    this.filterSummary = this.node('span', '', 'epc-result-summary');
     this.notice = this.node('p', '', 'epc-notice'); this.notice.setAttribute('role', 'status');
-    this.health = this.node('span', '', 'epc-health');
-    this.toggleFiltered = this.button('Show filtered', () => {
+    this.health = this.node('span', '', 'epc-health'); this.health.hidden = true;
+    this.toolbarStatus.append(this.filterSummary, this.health);
+    footer.append(this.toolbarUtilities, this.toolbarStatus);
+    this.toolbar.append(main, context, footer);
+    const filteredLabel = this.node('span', 'Show filtered');
+    this.filteredCount = this.node('span', '', 'epc-filtered-count');
+    this.filteredCount.setAttribute('aria-hidden', 'true');
+    this.toggleFiltered = this.button('', () => {
       this.revealingFiltered = !this.revealingFiltered;
       this.toggleFiltered.setAttribute('aria-pressed', String(this.revealingFiltered));
-      this.toggleFiltered.textContent = this.revealingFiltered ? 'Hide filtered' : 'Show filtered';
+      filteredLabel.textContent = this.revealingFiltered ? 'Hide filtered' : 'Show filtered';
       this.syncGridFilters(); this.media.demandListener?.();
     });
+    this.toggleFiltered.dataset.epReveal = '';
     this.toggleFiltered.setAttribute('aria-pressed', 'false');
-    this.toolbar.append(this.toggleFiltered, this.health);
+    this.toggleFiltered.append(companionIcon(this, 'eye'), filteredLabel, this.filteredCount);
+    this.browseControls.append(this.toggleFiltered);
     this.grid.mount();
     this.backfill.mount();
     this.panes.filters.append(this.node('p', 'Loading filter preferences…', 'epc-filter-placeholder'));
@@ -2940,6 +3889,7 @@ class CompanionApp {
     const imageKeys = new Set(['enabled', 'previews', 'inlineThumbnails', 'compactBodyImages', 'thumbnailPlacement',
       'categoryDisplay', 'thumbnailMode', 'previewWidth', 'progressBar']);
     this.controls = new Map();
+    this.resultFilters.mountFreeleech();
     const schema = [
       ['enabled', 'Enable image improvements', 'checkbox'],
       ['previews', 'Enlarge images on hover', 'checkbox'],
@@ -2952,7 +3902,6 @@ class CompanionApp {
       ['gridCardWidth', 'Grid card size', [240, 320, 420, 540]],
       ['gridShowDetails', 'Show details in grid cards', 'checkbox'],
       ['gridShowTags', 'Show tags in grid cards', 'checkbox'],
-      ['gridLargeImages', 'Automatically load larger images in grid view', 'checkbox'],
       ['previewWidth', 'Preview width', 'number', 240, 800],
       ['hoverDelay', 'Title hover delay (ms)', 'number', 0, 1500],
       ['hideDelay', 'Popup grace period (ms)', 'number', 100, 1500],
@@ -2976,7 +3925,7 @@ class CompanionApp {
       ['keyboardShortcuts', 'Use keyboard shortcuts', 'checkbox'],
       ['navigationScope', 'Arrow key pagination', ['off', 'results', 'site']],
       ['diagnostics', 'Keep a local diagnostic history', 'checkbox'],
-      ['backfillEnabled', 'Show Backfill results action', 'checkbox'],
+      ['backfillEnabled', 'Show Load more action', 'checkbox'],
       ['backfillMode', 'Load more pages', ['off', 'pages', 'all']],
       ['backfillPages', 'Additional pages per batch', 'number', 1, 15],
       ['groupVersions', 'Group alternate video versions', 'checkbox']
@@ -3005,7 +3954,7 @@ class CompanionApp {
       if (key === 'gridCardWidth') { gridCardSizeChoices(control, this.settings.gridCardWidth); control.dataset.numeric = ''; }
       control.dataset.setting = key; this.controls.set(key, control); row.append(control);
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
-      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridShowDetails','gridShowTags','gridLargeImages'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
+      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
         key === 'diagnostics' ? this.optionGroups.diagnostics : ['keyboardShortcuts', 'navigationScope'].includes(key) ? this.optionGroups.interaction :
         imageKeys.has(key) ? this.optionGroups.images : this.optionGroups.loading;
@@ -3066,7 +4015,8 @@ class CompanionApp {
     this.saveBar.append(this.saveStatus, this.undoPreferences); this.panel.append(this.saveBar);
     this.savedShortcuts = this.node('nav', null, 'epc-saved-shortcuts');
     this.savedShortcuts.setAttribute('aria-label', 'Saved searches'); this.savedShortcuts.hidden = true;
-    this.root.append(this.toolbar, this.savedShortcuts, this.notice, this.panel); this.doc.body.append(this.root);
+    this.toolbarUtilities.append(this.savedShortcuts);
+    this.root.append(this.toolbar, this.notice, this.panel); this.doc.body.append(this.root);
     this.root.addEventListener('input', event => this.markDirty(event.target, event));
     this.root.addEventListener('change', event => {
       if(event.target.dataset.setting==='backfillMode')this.controls.get('backfillEnabled').checked=true;
@@ -3097,11 +4047,13 @@ class CompanionApp {
     const table = this.doc.querySelector('#content .torrent_table,#content .torrent_grid');
     if (anchor && this.workspaceAnchor !== anchor) { anchor.after(this.root); this.workspaceAnchor = anchor; }
     else if (!anchor && table && this.workspaceAnchor !== table) { table.before(this.root); this.workspaceAnchor = table; }
+    this.collageQuickAdd.mount();
   }
   openPane(key) {
     if (key === 'images') key = 'settings';
     this.preferences.flush();
     if (!this.panes?.[key]) return;
+    this.browseMenu.open = false;
     if (key === 'filters' || key === 'settings') mountFilterControls(this);
     if (key === 'searches') this.ensureSavedSearchUI();
     if (key === 'searches' && !this.savedDrawer) {
@@ -3115,6 +4067,7 @@ class CompanionApp {
     }
     this.paneHeading.textContent = ({ filters: 'Filter your results', searches: 'Saved searches', images: 'Images & previews', settings: 'Settings' })[key];
     this.saveBar.hidden = key === 'searches';
+    if (key === 'filters' && this.resultFilters.history?.open) this.resultFilters.refreshSeen();
     this.storage.set('ep.searchDrawerOpen', key === 'searches');
     if(key==='settings')void this.refreshCacheUsage();
     else this.cancelCacheUsage();
@@ -3181,7 +4134,7 @@ class CompanionApp {
   }
   markDirty(target, event) { this.preferences.changed(target, event); this.refreshOptionSummaries?.(); }
   applyChanges() { return this.preferences.flush(); }
-  captureFilterBaseline() { this.versions?.captureOrder(); captureFilterBaseline(this); }
+  captureFilterBaseline(rows) { this.versions?.captureOrder(rows); captureFilterBaseline(this, rows); }
   restoreFilterBaseline() { restoreFilterBaseline(this); }
   detachFilteredRow(row) {
     if (!row.isConnected) return;
@@ -3210,6 +4163,7 @@ class CompanionApp {
     if (this.preview.open && !this.preview.pinned &&
         (!this.preview.anchor?.isConnected || this.preview.anchor.closest('.hidden:not(.epc-revealed),[hidden],.epc-version-hidden'))) this.preview.hide(true);
     this.versions.refresh(); this.tags.refresh();
+    if (this.resultFilters.historyVisible()) this.resultFilters.renderHistory();
   }
   syncFilterActions() {
     const available = this.options.resultActionsAvailable?.() !== false;
@@ -3242,13 +4196,16 @@ class CompanionApp {
     this.backfill?.sync();
     this.backfill?.maybeAutomatic();
     if(previous.persistentCacheMB!==this.settings.persistentCacheMB)void this.imageCache.prune(this.imageCache.limit());
-    if (previous.groupVersions !== this.settings.groupVersions) {
-      this.syncGridFilters(false); this.media.prepareThumbnails(); this.updateHealth();
+    if (previous.seenMode !== this.settings.seenMode) this.resultFilters.seen = null;
+    if (previous.groupVersions !== this.settings.groupVersions || previous.seenMode !== this.settings.seenMode ||
+        previous[this.resultFilters.freeleechKey] !== this.settings[this.resultFilters.freeleechKey]) {
+      this.resultFilters.refreshView();
     }
     if (previous.favoriteTags !== this.settings.favoriteTags || previous.cautionTags !== this.settings.cautionTags) this.tags.refresh();
     if (previous.keyboardShortcuts !== this.settings.keyboardShortcuts) this.preview.syncShortcutLabels();
     const other = new Set(['groupVersions', 'favoriteTags', 'cautionTags', 'backfillEnabled', 'backfillPages', 'backfillMode',
-      'keyboardShortcuts', 'navigationScope', 'globalArrowNavigation', 'diagnostics', 'persistentImages', 'persistentCacheMB']);
+      'keyboardShortcuts', 'navigationScope', 'globalArrowNavigation', 'diagnostics', 'persistentImages', 'persistentCacheMB',
+      'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView']);
     if (!Object.keys(this.settings).some(key => !other.has(key) && previous[key] !== this.settings[key])) return;
     if (previous.enabled !== this.settings.enabled) {
       this.restartMedia(); return;
@@ -3268,7 +4225,10 @@ class CompanionApp {
   }
   adoptEngine() {
     if (!this.doc.getElementById('nseOuter')) {
-      this.panes.filters.replaceChildren(this.node('p', 'Filtering is available on torrent lists and detail pages.'));
+      if (this.resultFilters.bookmarks) {
+        this.panes.filters.replaceChildren();
+        this.resultFilters.mountHistory(this.panes.filters);
+      } else this.panes.filters.replaceChildren(this.node('p', 'Filtering is available on torrent lists and detail pages.'));
       return;
     }
     this.engineReady = true;
@@ -3309,7 +4269,10 @@ class CompanionApp {
     else if (parsed.format === 'empornium-companion') {
       if (parsed.version !== 1) throw new Error('Unsupported backup version.');
       settings = validateSettings(parsed.settings);
-      if (!Object.hasOwn(parsed.settings ?? {}, 'keyboardShortcuts')) settings.keyboardShortcuts = this.settings.keyboardShortcuts;
+      if (Object.hasOwn(parsed.settings ?? {}, 'conditionalRules')) compileConditionalRules(settings.conditionalRules);
+      for (const key of ['keyboardShortcuts', 'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView']) {
+        if (!Object.hasOwn(parsed.settings ?? {}, key)) settings[key] = this.settings[key];
+      }
       searches = validateSearches(parsed.searches);
       nse = this.options.validateNSE?.(parsed.nse || {}) || parsed.nse;
       drawer = !!parsed.searchDrawerOpen;
@@ -3359,14 +4322,16 @@ class CompanionApp {
       }
       throw error;
     }
+    const conditionalChanged = settings && settings.conditionalRules !== this.settings.conditionalRules;
     if (settings) {
       const before = this.settings; this.settings = settings;
       for (const [key, control] of this.controls || []) {
         if (control.type === 'checkbox') control.checked = settings[key]; else control.value = settings[key];
       }
       if (this.mounted) this.updateMediaPreferences(before);
+      this.resultFilters.refreshRulesEditor();
     }
-    if (nse && this.mounted) { this.refreshFilters(true); this.applyAppearance(); }
+    if ((nse || conditionalChanged) && this.mounted) { this.refreshFilters(true); this.applyAppearance(); }
     if (searches) { this.searches = searches; this.renderSavedSearches(); }
     // Legacy drawer state only restores management. Saved shortcuts are always visible.
     // Old drawer flags do not reopen management or hide the primary shortcuts.
@@ -3385,7 +4350,7 @@ class CompanionApp {
       this.doc.getElementById('search_form') : null;
     const changed = this.savedForm !== form; this.savedForm = form;
     if (!this.savedDrawer?.isConnected) {
-      this.savedDrawer = this.node('div', null, 'epc-root epc-saved');
+      this.savedDrawer = this.node('div', null, 'epc-saved');
       this.searchName = this.node('input'); this.searchName.type = 'text'; this.searchName.maxLength = 300;
       this.searchName.placeholder = 'Name this search'; this.searchName.setAttribute('aria-label', 'Saved search name');
       this.saveNamedSearch = this.button('Save current search', () => this.saveCurrentSearch());
@@ -3400,9 +4365,10 @@ class CompanionApp {
     this.namedSearch.hidden = !form;
     this.savedFormHint.hidden = !!form;
     if (!this.quickSaveSearch) {
-      const tools = this.node('div', null, 'epc-quick-search');
       this.quickSaveSearch = this.button('Save search', () => this.saveCurrentSearch());
-      tools.append(this.quickSaveSearch); this.toolbar.insertBefore(tools, this.health);
+      this.quickSaveSearch.className = 'epc-quiet epc-quick-search';
+      this.quickSaveSearch.prepend(companionIcon(this, 'add'));
+      this.toolbarUtilities.append(this.quickSaveSearch);
     }
     this.quickSaveSearch.hidden = !form;
     if (form && changed) {
@@ -3438,7 +4404,6 @@ class CompanionApp {
   updateQuickSearch() {
     if (!this.quickSaveSearch || !this.savedForm) return;
     const saved = this.searchSignatures?.has(searchSignature(captureSearch(this.savedForm)));
-    this.quickSaveSearch.textContent = saved ? 'Search saved' : 'Save search';
     this.quickSaveSearch.disabled = !!saved;
     this.quickSaveSearch.hidden = !!saved;
   }
@@ -3455,6 +4420,7 @@ class CompanionApp {
       this.savedShortcuts.replaceChildren(this.node('strong', 'Saved searches'));
       for (const saved of searches) {
         const link = this.searchLink(saved); link.className = 'epc-saved-shortcut';
+        link.append(companionIcon(this, 'open'));
         this.savedShortcuts.append(link);
       }
       this.savedShortcuts.hidden = !searches.length;
@@ -3646,16 +4612,20 @@ class CompanionApp {
       if (link?.href) { event.preventDefault(); this.navigate(link.href); break; }
     }
   }
-  syncGridFilters(refreshTags = true) {
-    const visibility = new Map(Array.from(this.removedFilterIDs, id => [id, true]));
+  syncGridFilters(refreshTags = true, appended) {
+    const previous = appended && !this.resultsDirty ? this.resultCounts : null;
+    const newRows = previous ? appended : null;
+    const seenFiltered = new Set();
+    let rows;
     this.batchDOM(() => {
-      for (const [row, marker] of this.detachedFilterRows) {
+      if (!newRows) for (const [row, marker] of this.detachedFilterRows) {
         if (!marker.isConnected) continue;
         if (this.revealingFiltered && !row.isConnected) {
           marker.after(row); this.schedule(row, false);
         } else if (!this.revealingFiltered && row.isConnected) this.detachFilteredRow(row);
       }
-      for (const row of this.doc.querySelectorAll('tr.torrent')) {
+      rows = newRows ? newRows.filter(row => row.isConnected) : [...this.doc.querySelectorAll('tr.torrent')];
+      for (const row of rows) {
         const filtered = row.getAttribute('isNSEHidden') === '1';
         const revealed = !!this.revealingFiltered && filtered;
         // Native themes may hide .hidden with a more specific !important rule.
@@ -3665,41 +4635,68 @@ class CompanionApp {
         const hidden = filtered && !revealed;
         if ((filtered || wasRevealed) && row.classList.contains('hidden') !== hidden) row.classList.toggle('hidden', hidden);
         if (wasRevealed !== revealed) row.classList.toggle('epc-revealed', revealed);
+        if (this.resultFilters.applyRow(row)) seenFiltered.add(row);
       }
     });
-    for (const row of this.doc.querySelectorAll('tr.torrent')) {
-      const link = row.querySelector('a[href*="torrents.php?id="]');
-      if (!link) continue;
-      const id = new URL(link.href).searchParams.get('id');
-      visibility.set(id, !row.classList.contains('epc-revealed') && (row.classList.contains('hidden') || row.classList.contains('nseHardPassRemove')));
+    const cards = this.doc.querySelectorAll('.torrent_grid__torrent'), affectedCards = [];
+    if (cards.length) {
+      const visibility = new Map(newRows ? [] : Array.from(this.removedFilterIDs, id => [id, { hidden: true }]));
+      for (const row of newRows || rows) {
+        const id = torrentID(row, this.win.location.href);
+        if (!id) continue;
+        visibility.set(id, {
+          hidden: !row.isConnected || row.classList.contains('epc-filter-hidden') || !row.classList.contains('epc-revealed') &&
+            (row.classList.contains('hidden') || row.classList.contains('nseHardPassRemove')),
+          dim: row.classList.contains('epc-seen-dim')
+        });
+      }
+      for (const card of cards) {
+        const state = visibility.get(torrentID(card, this.win.location.href));
+        if (state) {
+          card.classList.toggle('epc-filter-hidden', state.hidden);
+          card.classList.toggle('epc-seen-dim', !!state.dim);
+          affectedCards.push(card);
+        } else if (!newRows) this.resultFilters.applyRow(card);
+      }
     }
-    for (const card of this.doc.querySelectorAll('.torrent_grid__torrent')) {
-      const link = card.querySelector('a[href*="torrents.php?id="]');
-      const id = link && new URL(link.href).searchParams.get('id');
-      if (visibility.has(id)) card.classList.toggle('epc-filter-hidden', visibility.get(id));
+    this.resultFilters.freeleechControl.hidden = !(rows.length || cards.length || previous?.total || this.detachedFilterRows.size);
+    if (newRows) {
+      this.versions?.append(newRows); this.grid?.append(rows);
+    } else {
+      this.batchDOM(() => this.versions?.refresh()); this.grid?.refresh();
     }
-    this.batchDOM(() => this.versions?.refresh()); this.grid?.refresh(); if (refreshTags) this.tags?.refresh();
-    this.media?.scheduleGridUpgrades();
+    if (refreshTags) this.tags?.refresh(newRows ? rows : undefined);
     if (this.filterSummary) {
-      const rows = Array.from(this.doc.querySelectorAll('tr.torrent'));
-      const removed = [...this.detachedFilterRows.keys()].filter(row => !row.isConnected).length;
-      const filtered = rows.filter(row => row.getAttribute('isNSEHidden') === '1').length;
+      const archived = newRows ? newRows.filter(row => this.detachedFilterRows.has(row)) : [...this.detachedFilterRows.keys()];
+      const removed = (previous?.removed || 0) + archived.filter(row => !row.isConnected).length;
+      const filtered = (previous?.filtered || 0) + rows.filter(row => row.getAttribute('isNSEHidden') === '1' || seenFiltered.has(row)).length;
       const grouped = this.versions?.collapsed || 0;
-      const shown = rows.filter(row => !row.hidden && !row.classList.contains('epc-version-hidden') &&
+      const eligible = rows.filter(row => !row.hidden && !row.classList.contains('epc-filter-hidden') &&
+        (newRows || !row.classList.contains('epc-version-hidden')) &&
         (row.classList.contains('epc-revealed') || !row.classList.contains('nseHardPassRemove') && !row.classList.contains('hidden'))).length;
-      this.resultCounts = { total: rows.length, shown, grouped, filtered, removed }; this.renderResultSummary();
+      // A new version can also collapse existing rows that had no group before.
+      const shown = previous ? previous.shown + eligible - (grouped - previous.grouped) : eligible;
+      this.resultCounts = { total: (previous?.total || 0) + rows.length, shown, grouped, filtered, removed }; this.renderResultSummary();
       this.toggleFiltered.disabled = !filtered && !removed;
       this.toggleFiltered.hidden = !filtered && !removed || !this.storage.get('nseFloatingToggleButtonEnabled', true);
-      styleRowControls(this);
+      this.filteredCount.textContent = (filtered + removed).toLocaleString();
+      this.browseMenu.hidden = this.resultFilters.freeleechControl.hidden && this.toggleFiltered.hidden;
+      if (this.browseMenu.hidden) this.browseMenu.open = false;
+      this.browseMenu.toggleAttribute('data-active', !!this.revealingFiltered ||
+        this.settings[this.resultFilters.freeleechKey] !== 'all');
+      styleRowControls(this, newRows ? rows : undefined);
     }
     this.backfill?.sync();
+    this.backfill?.activateImages(rows, newRows ? affectedCards : cards);
+    this.media?.invalidateLayout();
+    if (this.preview?.open && !this.preview.pinned && this.preview.anchor?.closest('.epc-filter-hidden')) this.preview.hide(true);
   }
   groupVisibilityChanged(difference) {
     if (this.resultCounts) {
       this.resultCounts.shown += difference; this.resultCounts.grouped -= difference; this.renderResultSummary();
     }
     this.scheduleHealth();
-    this.media?.scheduleGridUpgrades();
+    this.media?.invalidateLayout();
   }
   renderResultSummary() {
     if (!this.resultCounts || !this.filterSummary) return;
@@ -3766,6 +4763,7 @@ class CompanionApp {
   }
   dispose() {
     this.disposed = true; this.observer?.disconnect(); this.backfill?.dispose(); this.preview?.dispose(); this.media?.dispose();
+    this.collageQuickAdd?.dispose();
     this.onboarding?.dispose();
     this.cancelCacheUsage();this.cacheUsageUnsubscribe?.();
     this.imageCache?.close();
@@ -3788,12 +4786,14 @@ class PageMedia {
     this.app = app; this.win = app.win; this.doc = app.doc;
     this.definitions = new Map(); this.scriptText = new WeakMap(); this.knownVariants = new Map();
     this.records = new Map(); this.thumbnails = new Map(); this.near = new Map();
+    this.layoutVersion = 0;
     this.nativeTimers = new Set(); this.disposed = false;
     this.syncCoverGate();
     this.pool = new MediaPool({
       Image: app.options.Image || this.win.Image, now: () => Date.now(),
       imageCache: app.imageCache,
       hostHistory: app.storage.get('ep.hostHistory', []), saveHosts: history => app.storage.set('ep.hostHistory', history),
+      priorityRevision: () => `${this.layoutVersion}/${this.win.scrollY}/${this.win.innerHeight}/${app.settings.preloadScreens}`,
       setTimeout: this.win.setTimeout.bind(this.win), clearTimeout: this.win.clearTimeout.bind(this.win),
       hidden: () => this.doc.hidden, report: error => app.report(error)
     }, app.settings);
@@ -3806,9 +4806,10 @@ class PageMedia {
       Array.isArray(item) && item.length === 2 && typeof item[1] === 'object' && item[1] &&
       Date.now() - item[1].time < 7 * 86400000 && safeImageURL(item[1].src, this.win.location.href)));
     this.makeObserver();
-    this.resizeListener = () => { this.makeObserver(); this.app.preview?.position(); };
+    this.resizeListener = () => { this.makeObserver(); this.invalidateLayout(); this.demandListener(); this.app.preview?.position(); };
     this.win.addEventListener('resize', this.resizeListener, { passive: true });
-    this.demandListener = () => {
+    this.demandListener = event => {
+      if (event?.target?.nodeType === 1) this.invalidateLayout(); // Scrolling an inner container changes document-relative positions.
       if (this.demandPending) return;
       this.demandPending = true;
       this.win.requestAnimationFrame(() => {
@@ -3816,12 +4817,14 @@ class PageMedia {
         if (this.disposed) return;
         for (const [target, callback] of this.near) if (this.visible(target, true)) callback();
         this.prepareThumbnails();
-        this.pool.pump();
         this.planAutomaticRecovery();
       });
     };
-    this.win.addEventListener('scroll', this.demandListener, { passive: true });
+    this.win.addEventListener('scroll', this.demandListener, { passive: true, capture: true });
     this.doc.addEventListener('visibilitychange', this.demandListener);
+    if (this.win.ResizeObserver) this.layoutObserver = new this.win.ResizeObserver(() => {
+      this.invalidateLayout(); this.demandListener();
+    });
   }
   makeObserver() {
     this.intersection?.disconnect();
@@ -3845,6 +4848,7 @@ class PageMedia {
   }
   updateSettings(previous) {
     const settings = this.app.settings;
+    this.invalidateLayout();
     this.syncCoverGate();
     this.pool.settings = settings; this.pool.budget.maxRetries = settings.maxRetries;
     for (const [element, record] of this.records) if (record.kind === 'background' &&
@@ -3853,8 +4857,6 @@ class PageMedia {
       this.records.delete(element); this.pool.abandon(record.lastEntry);
     }
     for (const [row, record] of this.thumbnails) {
-      if (settings.resultsView !== previous.resultsView || settings.gridLargeImages !== previous.gridLargeImages ||
-          settings.thumbnailMode !== previous.thumbnailMode || !this.thumbnailsEnabled(row)) this.clearGridUpgrade(record);
       if (!this.thumbnailsEnabled(row)) {
         record.unsubscribe?.(); this.intersection?.unobserve(record.element); this.near.delete(record.element);
         this.pool.abandon(record.lastEntry);
@@ -3873,16 +4875,28 @@ class PageMedia {
         const name = 'epc-category-' + value, wanted = value === settings.categoryDisplay;
         if (row.classList.contains(name) !== wanted) row.classList.toggle(name, wanted);
       }
-      const enteringGrid = settings.resultsView === 'grid' && previous.resultsView !== 'grid';
-      if (settings.thumbnailMode !== previous.thumbnailMode || enteringGrid &&
-          !record.lastEntry?.key.endsWith('|thumbnail:auto') && !['ready', 'partial'].includes(record.state)) {
-        record.unsubscribe?.(); record.unsubscribe = null; this.pool.abandon(record.lastEntry);
-        record.state = 'deferred'; this.loadThumbnail(record);
+      const grid = row.closest('table')?.classList.contains('epc-result-grid');
+      const entry = record.lastEntry, usable = ['ready', 'partial'].includes(record.state);
+      const changedLayout = settings.resultsView !== previous.resultsView;
+      const layoutNeedsReload = changedLayout && (!usable || grid && (!entry ||
+        !this.thumbnailOptions(record.source, null, 'grid')?.candidates.includes(canonicalImageURL(entry.actualURL))));
+      if (layoutNeedsReload || !grid && settings.thumbnailMode !== previous.thumbnailMode) {
+        record.unsubscribe?.(); record.unsubscribe = null; this.pool.abandon(entry);
+        if (entry?.target === record.image && !entry.cancelled) {
+          // The previous image can still serve a preview. Keep its source
+          // intact and give the new thumbnail its own element.
+          const image = record.image.cloneNode(false);
+          record.image.replaceWith(image); record.image = image;
+          entry.target = null;
+        }
+        record.image.removeAttribute('src'); delete record.image.dataset.epImageSource;
+        record.lastEntry = null; record.state = 'deferred'; record.element.dataset.state = 'deferred';
+        record.failedAt = null; record.autoRecoveryAttempted = false;
+        record.status.textContent = 'Waiting'; record.status.hidden = false;
       }
     }
     if (settings.preloadScreens !== previous.preloadScreens) this.makeObserver();
     this.pool.trim(); this.pool.pump();
-    this.scheduleGridUpgrades();
     this.app.schedule(this.doc.getElementById('content') || this.doc.body);
   }
   failedRecords() {
@@ -3908,7 +4922,7 @@ class PageMedia {
     const records = this.failedRecords();
     if (!records.length) return;
     const deadline = Math.min(...records.map(record =>
-      Math.max(record.failedAt, this.pool.budget.get(record.source).last) + 31000));
+      Math.max(record.failedAt, this.pool.budget.get(record.lastEntry.url).last) + 31000));
     this.recoveryTimer = this.pool.env.setTimeout(() => this.resumeAutomaticRecovery(),
       Math.max(0, deadline - this.pool.env.now()));
   }
@@ -3916,7 +4930,7 @@ class PageMedia {
     if (this.disposed || !this.app.settings.maxRetries || this.doc.hidden || this.win.navigator.onLine === false) return;
     const now = this.pool.env.now();
     for (const record of this.failedRecords()) {
-      if (!online && now < Math.max(record.failedAt, this.pool.budget.get(record.source).last) + 31000) continue;
+      if (!online && now < Math.max(record.failedAt, this.pool.budget.get(record.lastEntry.url).last) + 31000) continue;
       record.autoRecoveryAttempted = true;
       if (record.kind === 'image') this.recover(record, true, true, true);
       else if (record.kind === 'background') this.loadBackground(record, true, true);
@@ -3924,119 +4938,60 @@ class PageMedia {
     }
     this.planAutomaticRecovery();
   }
-  displayed(element) {
-    if (!element?.isConnected || !element.getClientRects().length || element.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden')) return false;
-    const style = this.win.getComputedStyle(element);
-    return style.visibility !== 'hidden' && style.display !== 'none';
+  invalidateLayout() { this.layoutVersion++; }
+  displayed(element, record) {
+    if (!element?.isConnected || element.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden')) return false;
+    const position = record && this.thumbnailPosition(record);
+    if (position?.displayed !== undefined) return position.displayed;
+    const style = element.getClientRects().length && this.win.getComputedStyle(element);
+    const displayed = !!style && style.visibility !== 'hidden' && style.display !== 'none';
+    if (position) position.displayed = displayed;
+    return displayed;
   }
   visible(element, ahead = false) {
     if (!this.displayed(element)) return false;
     const rect = element.getBoundingClientRect(), margin = ahead ? this.win.innerHeight * this.app.settings.preloadScreens : 0;
     return rect.bottom >= -margin && rect.top <= this.win.innerHeight + margin;
   }
+  thumbnailPosition(record) {
+    if (record.position?.version !== this.layoutVersion) {
+      // Document coordinates remain useful while the window scrolls.
+      const rect = record.element.getBoundingClientRect(), scroll = this.win.scrollY;
+      record.position = { version: this.layoutVersion, top: rect.top + scroll, bottom: rect.bottom + scroll };
+    }
+    return record.position;
+  }
+  thumbnailDistance(record) {
+    const { top, bottom } = this.thumbnailPosition(record), scroll = this.win.scrollY;
+    const height = Math.max(1, this.win.innerHeight);
+    return Math.max(top - scroll - height, scroll - bottom, 0) / height;
+  }
   thumbnailPriority(record) {
-    const rect = record.element.getBoundingClientRect(), height = Math.max(1, this.win.innerHeight);
-    if (rect.bottom >= 0 && rect.top <= height) return 80;
-    const distance = Math.max(rect.top - height, -rect.bottom, 0) / height;
+    const distance = this.thumbnailDistance(record);
+    if (!distance) return 80;
     return distance <= this.app.settings.preloadScreens ? 40 - distance : 10 / (1 + distance);
   }
-  prepareThumbnails(rows) {
+  prepareThumbnails(rows, cards) {
     if (this.disposed || !this.app.filtersReady || this.doc.hidden) return;
     // Warm the current result list as slots finish, even when the user stays at
     // the top. Nearby rows lead; filtering and closed galleries still apply.
-    const records = (rows ? rows.map(row => this.thumbnails.get(row)).filter(Boolean) : [...this.thumbnails.values()])
-      .filter(record => this.thumbnailsEnabled(record.row) && record.state === 'deferred' && this.displayed(record.element));
-    records.sort((a, b) => this.thumbnailPriority(b) - this.thumbnailPriority(a));
-    for (const record of records) this.loadThumbnail(record);
-    if (!rows && this.app.settings.recoverBackgrounds) {
-      const covers = [...this.records.values()].filter(record => record.coverArt && record.state === 'deferred' && this.displayed(record.element));
-      covers.sort((a,b)=>this.thumbnailPriority(b)-this.thumbnailPriority(a));
-      for (const record of covers) this.loadBackground(record);
-    }
-    this.pool.pump();
-    this.scheduleGridUpgrades();
-  }
-  thumbnailsEnabled(row) {
-    return this.app.settings.inlineThumbnails || this.app.settings.resultsView === 'grid' &&
-      (row ? row.closest('table')?.classList.contains('epc-result-grid') : true);
-  }
-  gridUpgradeEligible(record) {
-    return !this.disposed && this.app.settings.enabled && this.app.settings.resultsView === 'grid' &&
-      this.app.settings.gridLargeImages && this.app.filtersReady &&
-      record.row.closest('table')?.classList.contains('epc-result-grid') && this.displayed(record.element);
-  }
-  scheduleGridUpgrades() {
-    if (this.disposed || this.gridFrame || this.app.settings.resultsView !== 'grid' ||
-        !this.app.settings.enabled || !this.app.settings.gridLargeImages) return;
-    this.gridFrame = this.win.requestAnimationFrame(() => {
-      this.gridFrame = null;
-      if (this.disposed) return;
-      const records = [...this.thumbnails.values()];
-      for (const record of records) if (record.gridUpgrade && !this.gridUpgradeEligible(record)) this.clearGridUpgrade(record);
-      if (this.doc.hidden) return;
-      this.gridThumbnailsPending = records.some(record => this.thumbnailsEnabled(record.row) &&
-        this.displayed(record.element) && !['ready', 'partial', 'failed'].includes(record.state));
-      // Finish the thumbnail pass before spending slots on automatic originals.
-      if (this.gridThumbnailsPending) return;
-      for (const record of records) {
-        if (record.state !== 'ready' || record.gridUpgrade || !this.gridUpgradeEligible(record)) continue;
-        if (fullSizeURL(record.source) === canonicalImageURL(record.lastEntry.actualURL)) continue;
-        this.loadGridUpgrade(record);
+    const records = rows ? rows.map(row => this.thumbnails.get(row)).filter(Boolean) : this.thumbnails.values();
+    this.pool.batch(() => {
+      for (const record of records) this.loadThumbnail(record);
+      if (this.app.settings.recoverBackgrounds) {
+        if (!rows) {
+          for (const record of this.records.values()) if (record.coverArt) this.loadBackground(record);
+        } else if (cards) for (const card of cards) for (const cover of card.querySelectorAll('.torrent__cover')) {
+          const record = this.records.get(cover);
+          if (record?.coverArt) this.loadBackground(record);
+        }
       }
       this.pool.pump();
     });
   }
-  clearGridUpgrade(record) {
-    const upgrade = record.gridUpgrade; if (!upgrade) return;
-    record.gridUpgrade = null;
-    upgrade.unsubscribe?.();
-    if (upgrade.image) { upgrade.image.onload = upgrade.image.onerror = null; upgrade.image.remove(); }
-    this.pool.abandon(upgrade.entry);
-    record.image.hidden = false;
-    record.status.hidden = record.state === 'ready' || record.state === 'partial';
-    delete record.element.dataset.gridImage;
-  }
-  loadGridUpgrade(record) {
-    const upgrade = { entry: null, unsubscribe: null, image: null }; record.gridUpgrade = upgrade;
-    const active = () => record.gridUpgrade === upgrade && this.gridUpgradeEligible(record);
-    const source = fullSizeURL(record.source);
-    const entry = this.pool.request(source, {
-      lane: 'large', cacheMode: /\.gif(?:\?|$)/i.test(source) ? 'lookup' : 'network', priority: 15,
-      priorityFor: () => Math.min(30, this.thumbnailPriority(record)),
-      eligible: () => active() && !this.doc.hidden && !this.gridThumbnailsPending,
-      target: this.app.options.Image ? null : this.app.node('img')
-    });
-    upgrade.entry = entry;
-    if (!entry) { record.gridUpgrade = null; return; }
-    const update = item => {
-      if (!active()) return;
-      record.element.dataset.gridImage = item.status;
-      const fail = () => {
-        record.element.dataset.gridImage = 'failed';
-        record.status.textContent = 'Larger image unavailable · showing thumbnail'; record.status.hidden = false;
-      };
-      if (item.status === 'ready' && item.image?.naturalWidth) {
-        if (upgrade.image) return;
-        const adopt = item.image instanceof this.win.HTMLImageElement && !item.image.isConnected;
-        const image = adopt ? item.image : this.app.node('img'); upgrade.image = image;
-        const show = () => {
-          if (!active()) return;
-          image.onload = image.onerror = null; image.alt = ''; image.draggable = false; image.hidden = false;
-          image.dataset.epImageSource = item.actualURL;
-          record.image.after(image); record.image.hidden = true; record.status.hidden = true;
-          // A preview must not move this live card image out of the page.
-          if (image === item.image) item.target = image;
-        };
-        if (adopt) show();
-        else {
-          image.onload = show; image.onerror = fail; image.decoding = 'async';
-          image.src = item.displayURL || item.actualURL;
-          if (!(item.image instanceof this.win.HTMLImageElement)) show();
-        }
-      } else if (['failed', 'partial'].includes(item.status)) fail();
-      else { record.status.textContent = 'Loading larger image…'; record.status.hidden = false; }
-    };
-    upgrade.unsubscribe = this.pool.subscribe(entry, update);
+  thumbnailsEnabled(row) {
+    return this.app.settings.inlineThumbnails || this.app.settings.resultsView === 'grid' &&
+      (row ? row.closest('table')?.classList.contains('epc-result-grid') : true);
   }
   watchNear(element, callback) {
     this.near.set(element, callback);
@@ -4074,8 +5029,11 @@ class PageMedia {
       this.knownVariants.get(key).add(def.thumbnail);
     }
   }
-  scan(root) {
+  scan(root, prepare = true) {
     if (this.disposed || !this.app.settings.enabled || root.closest?.(OWN)) return;
+    if (!this.observedLayout && this.doc.body && this.layoutObserver) {
+      this.layoutObserver.observe(this.doc.body); this.observedLayout = true;
+    }
     this.collectDefinitions(root);
     const images = root.tagName === 'IMG' ? [root] : Array.from(root.querySelectorAll?.('img') || []);
     for (const image of images) this.inspect(image);
@@ -4089,7 +5047,7 @@ class PageMedia {
       const covers = root.matches?.('.torrent__cover') ? [root] : Array.from(root.querySelectorAll?.('.torrent__cover') || []);
       for (const cover of covers) this.addBackground(cover);
     }
-    if (!root.matches?.('img,source')) this.prepareThumbnails();
+    if (prepare && !root.matches?.('img,source')) this.prepareThumbnails();
     this.app.scheduleHealth();
   }
   rememberVariant(src) {
@@ -4260,21 +5218,26 @@ class PageMedia {
     if (!row.classList.contains(categoryClass)) row.classList.add(categoryClass);
     const record = { element: host, row, image, status, link, source: definition.src, state: 'deferred', unsubscribe: null };
     this.thumbnails.set(row, record);
-    if (this.app.settings.resultsView === 'grid') this.gridThumbnailsPending = true;
+    this.invalidateLayout();
     // Hover offers a temporary enlargement; clicking either image opens controls.
     this.app.preview.bind(button, { ...definition, title: this.app.preview.titleOf(link), href: link.href });
-    this.watchNear(host, () => this.loadThumbnail(record));
   }
   thumbnailOptions(source, rescueEntry, mode = this.app.settings.thumbnailMode) {
+    const grid = mode === 'grid', original = fullSizeURL(canonicalImageURL(source));
     const smallCandidates = (rescueEntry ? [...rescueEntry.smallCandidates] :
       [this.thumbnailHistory.get(canonicalImageURL(source))?.src,
         ...Array.from(this.knownVariants.get(fullSizeURL(source)) || [])].filter(Boolean))
-      .filter(candidate => mode !== 'auto' || candidate !== fullSizeURL(source));
-    const candidates = rescueEntry ? [canonicalImageURL(rescueEntry.actualURL)] :
-      thumbnailCandidates(source, mode, smallCandidates);
-    const smallFirst = /\.(?:th|md)\.[^/.?]+(?:\?|$)/i.test(candidates[0]) ||
-      candidates[0] !== fullSizeURL(source) && smallCandidates.includes(candidates[0]);
-    return { candidates, smallCandidates, smallFirst, cacheMode: 'thumbnail',
+      .filter(candidate => mode !== 'auto' && !grid || canonicalImageURL(candidate) !== original);
+    let candidates = rescueEntry ? [canonicalImageURL(rescueEntry.actualURL)] :
+      thumbnailCandidates(source, grid ? 'auto' : mode, smallCandidates);
+    if (grid) {
+      candidates = candidates.map(canonicalImageURL).filter(candidate => candidate !== original);
+      if (!candidates.length) return null;
+    }
+    const smallFirst = grid || /\.(?:th|md)\.[^/.?]+(?:\?|$)/i.test(candidates[0]) ||
+      candidates[0] !== original && smallCandidates.includes(candidates[0]);
+    return { candidates, smallCandidates: grid ? candidates : smallCandidates, smallFirst, cacheMode: 'thumbnail',
+      strictCandidates: grid,
       lane: mode === 'original' || !smallFirst ? 'large' : 'thumbnail',
       tier: 'thumbnail:' + mode,
       timeoutMs: this.app.settings.thumbnailTimeoutMs, fullTimeoutMs: this.app.settings.timeoutMs };
@@ -4293,18 +5256,22 @@ class PageMedia {
   }
   loadThumbnail(record, force = false, rescue = false) {
     if (!force && record.state !== 'deferred') return;
-    if (!this.app.filtersReady || this.disposed || !this.thumbnailsEnabled(record.row) || !this.displayed(record.element) || this.doc.hidden) return;
-    this.clearGridUpgrade(record);
-    if (this.app.settings.resultsView === 'grid') this.gridThumbnailsPending = true;
-    const options = this.thumbnailOptions(record.source, rescue ? record.lastEntry : null,
-      record.row.closest('table')?.classList.contains('epc-result-grid') ? 'auto' : this.app.settings.thumbnailMode);
-    const { smallFirst } = options;
-    const entry = this.pool.request(record.source, {
+    if (!this.app.filtersReady || this.disposed || !this.thumbnailsEnabled(record.row) || this.doc.hidden || !this.displayed(record.element, record)) return;
+    const grid = !!record.row.closest('.epc-result-grid');
+    const options = this.thumbnailOptions(record.source, rescue ? record.lastEntry : null, grid ? 'grid' : this.app.settings.thumbnailMode);
+    if (!options) {
+      record.state = 'failed'; record.element.dataset.state = 'failed';
+      record.status.textContent = 'Thumbnail unavailable'; record.status.hidden = false;
+      this.app.scheduleHealth(); return;
+    }
+    // Thumbnail failures must never exhaust the retry budget for a requested original.
+    const source = grid ? (rescue ? record.lastEntry.url : options.candidates[0]) : record.source;
+    const entry = this.pool.request(source, {
       ...options,
       priority: this.thumbnailPriority(record),
       priorityFor: () => this.thumbnailPriority(record),
       eligible: () => !this.disposed && this.app.filtersReady && this.thumbnailsEnabled(record.row) &&
-        !this.doc.hidden && this.displayed(record.element),
+        grid === !!record.row.closest('.epc-result-grid') && !this.doc.hidden && this.displayed(record.element, record),
       force,
       rescue, singleAttempt: rescue, fresh: rescue,
       // Use the real inline element: no detached preload followed by a second
@@ -4312,16 +5279,13 @@ class PageMedia {
       target: this.app.options.Image ? null : record.image
     });
     if (!entry) return;
-    // Queued thumbnails use pool eligibility and distance priority. They no
-    // longer need an intersection/scroll callback that reads their layout.
-    this.near.delete(record.element); this.intersection?.unobserve(record.element);
     record.unsubscribe?.();
     const update = item => {
       if (this.disposed || !record.element.isConnected) return;
       record.state = item.status;
       this.trackRecovery(record, item);
       record.status.textContent = ({ queued: 'Waiting', loading: 'Loading', retrying: 'Retrying',
-        stalled: 'Slow load', failed: record.autoRecoveryAttempted || !this.app.settings.maxRetries ? 'Unavailable' : 'Retrying soon',
+        stalled: 'Slow load', failed: grid ? 'Thumbnail unavailable' : record.autoRecoveryAttempted || !this.app.settings.maxRetries ? 'Unavailable' : 'Retrying soon',
         streaming: 'Loading', partial: '', ready: '' })[item.status] || '';
       if (item.image?.naturalWidth && ['streaming', 'partial', 'ready'].includes(item.status)) {
         const displayURL=item.displayURL||item.actualURL;
@@ -4332,7 +5296,6 @@ class PageMedia {
       record.element.dataset.state = item.status;
       if (['ready', 'failed', 'partial'].includes(item.status)) { record.unsubscribe?.(); record.unsubscribe = null; }
       if (item.status === 'ready') this.rememberThumbnail(record,item);
-      if (['ready', 'failed', 'partial'].includes(item.status)) this.scheduleGridUpgrades();
       this.app.scheduleHealth();
     };
     record.unsubscribe = this.pool.subscribe(entry, update);
@@ -4390,13 +5353,13 @@ class PageMedia {
   loadBackground(record, force = false, rescue = false) {
     if (!force && record.state !== 'deferred') return;
     if (!this.app.filtersReady || this.disposed || !this.app.settings.recoverBackgrounds ||
-        !(record.coverArt ? this.displayed(record.element) : this.visible(record.element, true)) || this.doc.hidden) return;
+        !(record.coverArt ? this.displayed(record.element, record) : this.visible(record.element, true)) || this.doc.hidden) return;
     const entry = this.pool.request(record.source, {
       ...(record.coverArt ? this.thumbnailOptions(record.originalSource, rescue ? record.lastEntry : null) : { lane: 'large' }),
       priority: record.coverArt ? this.thumbnailPriority(record) : this.visible(record.element) ? 30 : 5,
       ...(record.coverArt ? { priorityFor: () => this.thumbnailPriority(record), target: this.app.options.Image ? null : record.image } : {}), force,
       eligible: () => !this.disposed && this.app.settings.recoverBackgrounds && !this.doc.hidden &&
-        (record.coverArt ? this.displayed(record.element) : this.visible(record.element, true)), rescue, singleAttempt: rescue, fresh: rescue });
+        (record.coverArt ? this.displayed(record.element, record) : this.visible(record.element, true)), rescue, singleAttempt: rescue, fresh: rescue });
     if (!entry) return;
     record.unsubscribe?.();
     const update = item => {
@@ -4463,18 +5426,17 @@ class PageMedia {
     }
     for (const row of [root, ...root.querySelectorAll('tr')]) {
       const record = this.thumbnails.get(row); if (!record || row.isConnected) continue;
-      this.clearGridUpgrade(record);
+      this.invalidateLayout();
       record.unsubscribe?.(); record.element.remove(); this.intersection?.unobserve(record.element); this.near.delete(record.element); this.thumbnails.delete(row);
       this.pool.abandon(record.lastEntry);
     }
   }
   dispose() {
-    this.disposed = true; this.intersection?.disconnect(); this.pool.dispose();
-    if (this.gridFrame) this.win.cancelAnimationFrame(this.gridFrame);
+    this.disposed = true; this.intersection?.disconnect(); this.layoutObserver?.disconnect(); this.pool.dispose();
     this.doc.documentElement?.classList.remove('epc-cover-art');
     this.pool.env.clearTimeout(this.recoveryTimer);
     this.win.removeEventListener('resize', this.resizeListener);
-    this.win.removeEventListener('scroll', this.demandListener);
+    this.win.removeEventListener('scroll', this.demandListener, true);
     this.doc.removeEventListener('visibilitychange', this.demandListener);
     this.flushThumbnailHistory();
     if (this.fallbackListener) {
@@ -4489,7 +5451,6 @@ class PageMedia {
       }
     }
     for (const record of this.thumbnails.values()) {
-      this.clearGridUpgrade(record);
       record.unsubscribe?.(); record.element.remove();
       record.row.classList.remove('epc-category-keep', 'epc-category-overlay', 'epc-category-hide');
     }
@@ -4769,14 +5730,21 @@ class PreviewController {
     }
     const readyThumbnail = thumbnail?.lastEntry && ['ready', 'partial'].includes(thumbnail.lastEntry.status);
     if(titleHover&&readyThumbnail&&!options.force)this.app.imageCache.recordActivity?.('hit',thumbnail.lastEntry.cacheBytes);
-    const entry = titleHover && readyThumbnail && !options.force ? thumbnail.lastEntry : this.app.media.pool.request(source, {
-      ...(titleHover ? this.app.media.thumbnailOptions(source) : { lane: 'large', keepAlive: true,
-        cacheMode: thumbnail?.image.naturalWidth && !/\.gif(?:\?|$)/i.test(source) ? 'network' : 'lookup' }), priority: 100, force: !!options.force,
+    const gridTitle = titleHover && row?.closest('table')?.classList.contains('epc-result-grid');
+    const requestOptions = titleHover ? this.app.media.thumbnailOptions(source, null, gridTitle ? 'grid' : undefined) : {
+      lane: 'large', keepAlive: true,
+      cacheMode: thumbnail?.image.naturalWidth && !/\.gif(?:\?|$)/i.test(source) ? 'network' : 'lookup',
+      candidates: Array.from(new Set([source, item.metadata.src]))
+    };
+    const entry = titleHover && readyThumbnail && !options.force ? thumbnail.lastEntry : requestOptions &&
+      this.app.media.pool.request(gridTitle ? requestOptions.candidates[0] : source, {
+      ...requestOptions, priority: 100, force: !!options.force,
       eligible: () => this.open && version === this.version,
-      fresh: !!options.force, ...(!titleHover ? { candidates: Array.from(new Set([source, item.metadata.src])) } : {}) });
+      fresh: !!options.force });
     if (!entry) {
       previousUnsubscribe?.();
-      this.clearLoadStats(); this.setStatusText('Retry limit reached. Try again after a short pause.'); this.position(); return;
+      this.clearLoadStats(); this.setStatusText(requestOptions ? 'Retry limit reached. Try again after a short pause.' : 'Thumbnail unavailable');
+      this.position(); return;
     }
     const update = current => {
       if (!this.open || version !== this.version) return;
@@ -4983,7 +5951,7 @@ const epStorage = {
   list: () => GM_listValues(),
   delete: key => GM_deleteValue(key)
 };
-GM_addStyle("/* SPDX-License-Identifier: GPL-3.0-or-later */\n.epc-root,.epc-thumbnail{--epc-bg:#f7f8fc;--epc-fg:#17213a;--epc-line:#b8c3d8;--epc-accent:#275de0;box-sizing:border-box;font:13px/1.45 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:var(--epc-fg)}\n.epc-root *,.epc-thumbnail *{box-sizing:border-box}\n.epc-root [hidden],.epc-root[hidden],.epc-filter-hidden{display:none!important}\n.epc-root button,.epc-root input,.epc-root select{font:inherit;color:inherit;border:1px solid var(--epc-line);border-radius:5px;background:var(--epc-bg);padding:5px 8px;margin:2px;max-width:100%}\n.epc-root button{cursor:pointer;min-height:30px}\n.epc-root button:hover{border-color:var(--epc-accent)}\n.epc-root button:focus-visible,.epc-root a:focus-visible,.epc-root input:focus-visible,.epc-root select:focus-visible{outline:2px solid var(--epc-accent);outline-offset:2px}\n.epc-root a{color:var(--epc-accent);text-decoration:underline}\n.epc-root p{margin:8px 0}\n.epc-root summary{cursor:pointer;font-weight:650;padding:7px 0}\n.epc-tools{position:fixed;right:16px;bottom:16px;z-index:2147483000}\n.epc-launcher{border-radius:999px!important;background:var(--epc-accent)!important;color:white!important;font-weight:750!important;padding:9px 13px!important;box-shadow:0 2px 12px #0003}\n.epc-panel{position:absolute;right:0;bottom:50px;width:min(460px,calc(100vw - 32px));max-height:calc(100vh - 100px);overflow:auto;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:10px;box-shadow:0 12px 40px #0004;padding:14px}\n.epc-panel-heading,.epc-preview-heading{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:7px}\n.epc-panel-heading strong{font-size:16px}\n.epc-panel details{border-top:1px solid var(--epc-line);margin-top:8px}\n.epc-setting{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0}\n.epc-setting input[type=number],.epc-setting select{width:100px;flex-shrink:0}\n.epc-setting select[data-setting=gridCardWidth]{width:180px}\n.epc-setting input[type=checkbox]{width:18px;height:18px}\n.epc-actions{display:flex;flex-wrap:wrap;gap:4px;align-items:center}\n.epc-notice{white-space:pre-wrap;font-size:12px;color:var(--epc-accent)}\n.epc-health{font-variant-numeric:tabular-nums}\n.epc-log{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;font:11px/1.4 ui-monospace,monospace}\n.epc-saved{background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:7px;padding:6px 12px;margin:10px 0}\n.epc-saved-list{display:grid;gap:6px;margin-top:8px}\n.epc-saved-row{display:flex;gap:3px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--epc-line);padding-top:5px}\n.epc-search-name{flex:1;min-width:130px;text-align:left}\n.epc-progress{position:fixed;z-index:2147482998;bottom:0;left:0;width:100%;height:4px;background:#0002;pointer-events:none}\n.epc-progress>div{height:100%;background:#3979ef;transition:width .15s linear}\n.epc-thumbnail{display:inline-flex;float:left;position:relative;margin:0 8px 5px 0;vertical-align:top}\n.epc-thumb-button{display:flex;position:relative;justify-content:center;align-items:center;width:var(--epc-thumb-size);height:var(--epc-thumb-size);padding:0;border:1px solid var(--epc-line);border-radius:5px;background:#dbe2ef;overflow:hidden;cursor:zoom-in}\n.epc-thumb-button>img{display:block;width:100%;height:100%;object-fit:contain;border:0;margin:0}\n.epc-thumb-status{position:absolute;inset:auto 2px 2px;background:#17213ae8;color:#fff;font:11px/1.3 system-ui,sans-serif;text-align:center;padding:2px;border-radius:3px}\n.epc-thumb-button>img:not([src]){visibility:hidden}\n.epc-thumbnail [hidden]{display:none!important}\nhtml.epc-cover-art .torrent_grid__torrent .torrent__cover[style*=\"background\"]:not(.epc-native-cover),.torrent__cover.epc-managed-cover{background-image:none!important}\n.torrent__cover.epc-cover-positioned{position:relative}\n.epc-cover-image{position:absolute!important;inset:0;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover;object-position:center;pointer-events:none}\n.epc-cover-image:not([src]){visibility:hidden}\n.epc-cover-status{position:absolute;bottom:5px;left:5px;right:5px;text-align:center;font:11px system-ui;color:#fff;background:#17213abf;border-radius:3px;padding:2px;pointer-events:none}\n.epc-cover-status[hidden]{display:none!important}\n.epc-category-overlay .cats_col,.epc-category-overlay .cats_cols{position:relative}\n.epc-category-overlay .cats_col>div[title],.epc-category-overlay .cats_cols>div[title]{position:absolute;top:2px;left:2px;z-index:1;width:24px;overflow:hidden}\n.epc-category-hide .cats_col>div[title],.epc-category-hide .cats_cols>div[title]{display:none!important}\n.epc-preview{position:fixed;z-index:2147482999;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:10px;box-shadow:0 8px 36px #0005;padding:12px;overflow:auto;max-width:calc(100vw - 24px)}\n.epc-preview-heading strong{font-size:13px;overflow-wrap:anywhere}\n.epc-preview-heading button{flex-shrink:0}\n.epc-preview-frame{display:flex;align-items:center;justify-content:center;min-height:90px;overflow:hidden;background:#dbe2ef;border-radius:5px}\n.epc-preview-frame>img{display:block;max-width:100%;max-height:inherit;width:auto;height:auto;object-fit:contain;margin:auto}\n.epc-preview-status{font-size:12px;min-height:18px}\n.epc-preview-stats{color:var(--epc-fg);opacity:.65;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}\n.epc-preview-summary{font-size:11px;max-height:65px;overflow:auto;overflow-wrap:anywhere}\n.epc-thumb-button,.epc-preview-frame{user-select:none}\n.epc-preview[data-mode=zoom]{padding:6px;overflow:hidden;cursor:zoom-in}\n.epc-preview[data-mode=zoom] .epc-preview-frame>img{width:100%;height:auto}\n.epc-preview[data-mode=zoom] .epc-preview-status:empty{display:none}\n.epc-preview[data-mode=tooltip]{padding:8px;overflow:hidden}\n.epc-preview[data-mode=tooltip] .epc-preview-frame{min-height:0;background:none}\n.epc-preview[data-mode=tooltip] .epc-preview-status:empty{display:none}\n.epc-preview[data-state=failed] .epc-preview-status,.epc-preview[data-state=stalled] .epc-preview-status{color:#a3391a}\n.epc-media-retry{display:inline-block;background:var(--epc-bg);padding:3px 7px;vertical-align:middle}\n#content img.epc-page-image{max-width:min(100%,calc(100vw - 48px))!important;height:auto}\n#content img.epc-page-image.epc-compact{max-height:75vh!important;object-fit:contain}\n@media(prefers-color-scheme:dark){.epc-root,.epc-thumbnail{--epc-bg:#1d2535;--epc-fg:#e6edfa;--epc-line:#56617a;--epc-accent:#96b9ff}.epc-preview-frame,.epc-thumb-button{background:#101723}.epc-preview[data-state=failed] .epc-preview-status,.epc-preview[data-state=stalled] .epc-preview-status{color:#ffb194}}\n@media(prefers-reduced-motion:reduce){.epc-progress>div{transition:none}}\n\n/* One in-page workspace. Engine DOM is private behavior infrastructure. */\n.epc-engine,#nseOuter,#nseFloatyBoi,#nseUpdateToast{display:none!important}\n.epc-workspace{display:block;margin:16px 0 20px;padding:0;border:1px solid var(--epc-line);border-radius:10px;background:var(--epc-bg);color:var(--epc-fg);clear:both;max-width:100%;text-align:left}\n.epc-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px}\n.epc-root .epc-brand{font-weight:750;letter-spacing:-.025em;font-size:16px;border:0;background:transparent;padding:2px 4px;margin:0}\n.epc-result-summary,.epc-health{font-size:11px;color:var(--epc-fg);opacity:.72;font-variant-numeric:tabular-nums}\n.epc-result-summary{margin-right:auto}\n.epc-backfill-status{font-size:11px;max-width:300px;overflow-wrap:anywhere}\n.epc-root button:disabled{cursor:default;opacity:.6}\na.epc-backfilled-page{text-decoration:line-through!important;opacity:.65}\na.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;pointer-events:none}\n.epc-health{margin-left:auto}\n.epc-navigation{display:flex;align-items:center;gap:2px;flex-wrap:wrap}\n.epc-navigation button{background:transparent;border-color:transparent;margin:0}\n.epc-navigation button[aria-expanded=true]{color:var(--epc-accent);background:color-mix(in srgb,var(--epc-accent) 12%,transparent);border-color:color-mix(in srgb,var(--epc-accent) 40%,transparent)}\n.epc-workspace>.epc-panel{display:block;position:static;width:auto;max-height:none;border:0;border-top:1px solid var(--epc-line);border-radius:0 0 10px 10px;box-shadow:none;overflow:visible;padding:16px}\n.epc-panel-heading{margin-bottom:8px}\n.epc-panel-heading strong{font-size:17px;letter-spacing:-.025em}\n.epc-root .epc-caption{font-size:12px;color:var(--epc-fg);opacity:.72;line-height:1.5;margin:4px 0 12px}\n.epc-root .epc-shortcut-list{padding-inline-start:20px;list-style:disc}\n.epc-root .epc-notice{margin:0 12px 8px;padding:8px 10px;border-radius:5px;background:color-mix(in srgb,var(--epc-accent) 10%,transparent)}\n.epc-root .epc-notice:empty{display:none}\n.epc-rule-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}\n.epc-root .epc-group{display:block!important;margin:12px 0;padding:0;border:0}\n.epc-root .epc-option-group[hidden]{display:none!important}\n.epc-root .epc-option-group{border-top:1px solid var(--epc-line);padding:5px 0;margin:8px 0}\n.epc-option-group>summary{display:flex;align-items:center;gap:10px;list-style:none}\n.epc-option-group>summary::-webkit-details-marker{display:none}\n.epc-option-group>summary:before{content:\"›\";font-size:18px;line-height:1;transition:transform .1s}\n.epc-option-group[open]>summary:before{transform:rotate(90deg)}\n.epc-option-count{font-size:11px;font-weight:400;opacity:.65;margin-left:auto}\n.epc-basic-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;max-width:700px;margin:12px 0 18px}\n.epc-basic-settings .epc-field,.epc-basic-settings .epc-setting{margin:0}\n.epc-basic-settings .epc-setting{font-size:12px;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:5px}\n.epc-basic-settings .epc-setting input,.epc-basic-settings .epc-setting select{width:100%;margin:0}\n.epc-settings-section{margin:10px 0 18px;max-width:700px}\n.epc-settings-section>h3{font-size:13px;margin:0 0 10px;font-weight:650}\n.epc-settings-section .epc-basic-settings{margin:0;gap:12px 20px}\n.epc-basic-settings .epc-setting-toggle{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px}\n.epc-basic-settings .epc-setting-toggle input{width:16px;height:16px;margin:0}\n.epc-settings-help{font-size:12px;margin-top:10px}\n.epc-cache-usage .epc-option-group{margin-bottom:0}\n.epc-settings-section[hidden]{display:none!important}\n.epc-settings-search{display:block;width:min(100%,480px);margin:8px 0 12px!important}\n.epc-search-more{margin:0!important;border:0!important}\n.epc-search-more>summary{font-size:12px;font-weight:400;padding:4px 8px}\n.epc-search-more[open]{flex-basis:100%}\n.epc-is-editing>.epc-search-more>button{display:none}\n.epc-search-editor{padding:12px;margin:6px 0;border:1px solid var(--epc-line);border-radius:6px;background:var(--epc-bg)}\n.epc-search-editor>strong{display:block;margin-bottom:8px}\n.epc-search-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}\n.epc-search-editor .epc-field input:not([type=checkbox]),.epc-search-editor .epc-field select{width:100%}\n.epc-search-editor-extra{margin:8px 0}\n.epc-search-editor-status:empty{display:none}\n.epc-root h3{font:650 13px/1.5 system-ui,sans-serif;color:var(--epc-fg);margin:0 0 8px}\n.epc-root .epc-field{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:500;margin:10px 0}\n.epc-root textarea{width:100%;resize:vertical;min-height:65px;border:1px solid var(--epc-line);border-radius:5px;background:color-mix(in srgb,var(--epc-bg) 90%,var(--epc-fg));color:var(--epc-fg);font:12px/1.5 ui-monospace,monospace;padding:8px;box-sizing:border-box}\n.epc-root textarea{font-family:var(--epc-list-font,ui-monospace,monospace)}\n.epc-root .epc-field input,.epc-root .epc-field select{margin:0}\n.epc-check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 20px}\n.epc-root .epc-check{display:flex;flex-direction:row;align-items:center;margin:3px 0;gap:8px;font-weight:400}\n.epc-check input{accent-color:var(--epc-accent)}\n.epc-root .epc-check input[type=checkbox]{flex:0 0 16px;width:16px;height:16px}\n.epc-root .epc-savebar{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--epc-line);margin-top:14px;padding-top:12px}\n.epc-root .epc-savebar .epc-caption{margin:0}\n.epc-root .epc-primary{background:var(--epc-accent);border-color:var(--epc-accent);color:var(--epc-bg);font-weight:650}\n.epc-root button:disabled{cursor:default;opacity:.5}\n.epc-saved{border:0;padding:0;margin:0}\n.epc-statistics{display:grid;grid-template-columns:1fr auto;gap:5px 16px;font-size:12px;max-width:500px}\n.epc-statistics dd{margin:0;font-variant-numeric:tabular-nums}\n.epc-setting{max-width:650px}\n.epc-setting:nth-child(n+12){font-size:12px}\n.epc-revealed{opacity:.75}\n.nseToggleIcon{display:inline-flex!important;width:22px;height:22px;align-items:center;justify-content:center;cursor:pointer;border:1px solid #8a98ad!important;border-radius:5px!important;background:transparent!important;font:14px/1 system-ui,sans-serif!important;color:inherit}\n.nseToggleIcon>img{display:none!important}\n.nseToggleIcon:before{content:\"−\";font:14px/1 system-ui,sans-serif!important}\n.nseToggleIcon.nseIndividuallyBlacklisted:before{content:\"+\"}\n.nseToggleIcon.nseIndividuallyWhitelisted:before{content:\"↺\"}\n.nseToggleIcon:focus-visible{outline:2px solid var(--epc-accent,#4289dd);outline-offset:2px}\n#nseRCMBox.epc-root{position:fixed!important;z-index:2147483001!important;width:min(340px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;padding:14px;border-radius:10px;background:var(--epc-bg)!important;color:var(--epc-fg)!important;border:1px solid var(--epc-line)!important;box-shadow:0 10px 30px #0004}\n#nseRCMBox .nseRCMButton{display:inline-block;background:var(--epc-bg)!important;color:var(--epc-fg)!important;border:1px solid var(--epc-line);border-radius:5px;font:12px/1.5 system-ui,sans-serif;padding:5px 8px;margin:3px 0;cursor:pointer}\n#nseRCMBox #nseRCMClose{font:12px/1.5 system-ui,sans-serif;cursor:pointer}\n.epc-rule-import{display:inline-block;border:1px solid var(--epc-line);border-radius:5px;background:var(--epc-bg);padding:5px 8px;cursor:pointer}\n.epc-rule-import:focus-visible{outline:2px solid var(--epc-accent);outline-offset:2px}\n.epc-quick-search{display:flex;align-items:center;gap:3px;flex-wrap:wrap}\n.epc-saved-shortcuts{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:9px 12px;border-top:1px solid var(--epc-line)}\n.epc-saved-shortcuts>strong{font-size:11px;opacity:.75;margin-right:5px}\n.epc-root a.epc-saved-shortcut{display:inline-block;max-width:100%;padding:4px 9px;border:1px solid var(--epc-line);border-radius:5px;text-decoration:none;overflow-wrap:anywhere}\n.epc-root a.epc-saved-shortcut:hover{background:color-mix(in srgb,var(--epc-accent) 10%,transparent);border-color:var(--epc-accent)}\n.epc-search-name{overflow-wrap:anywhere}\n.epc-search-feedback{display:flex;align-items:center;flex-wrap:wrap;gap:8px;grid-column:1/-1;margin:8px 0;padding:9px 12px;border:1px solid var(--epc-line);border-radius:5px;background:var(--epc-bg)}\n.epc-savebar [role=status]{font-size:12px;opacity:.72}\n.epc-root [aria-invalid=true]{border-color:#bf493e!important;outline:1px solid #bf493e}\n#content .nseHiddenTag,#content .nseHiddenTitle,#content .nseHiddenUploader,#content .nseBlacklistIdentifier{color:var(--epc-blocked,#f00)!important}\n#content .nseWhitelistedTag,#content .nseWhitelistedTitle,#content .nseWhitelistedUploader{color:var(--epc-allowed,#0f0)!important}\n#content .nseHardPassTag,#content .nseHardPassTitle{color:var(--epc-hard-pass,#a00)!important}\n/* Result tools share the existing list and rule menu. No extra toolbar. */\n#content tr.epc-version-hidden{display:none!important}\n#content tr.epc-version-member>td:nth-child(2){border-inline-start:2px solid #7a8ba780}\n#content .epc-version-control{display:inline-block;margin:3px 0 3px 8px;padding:2px 7px;border:1px solid #7a8ba780;border-radius:4px;background:transparent;color:inherit;font:11px/1.6 system-ui,sans-serif;cursor:pointer;vertical-align:middle}\n#content .epc-version-control:before{content:\"▸\";margin-inline-end:4px}\n#content .epc-version-control[aria-expanded=true]:before{content:\"▾\"}\n#content .epc-version-control:hover{background:#7a8ba720}\n#content .epc-version-control:focus-visible{outline:2px solid #4289dd;outline-offset:2px}\n#content a[data-ep-tag-tone=favorite]:not(.nseHiddenTag):not(.nseHardPassTag){background:#ccefe0;color:#154f39!important;box-shadow:inset 0 -2px #298661;border-radius:3px}\n#content a[data-ep-tag-tone=caution]:not(.nseHiddenTag):not(.nseHardPassTag){background:#ffe2a8;color:#68420b!important;box-shadow:inset 0 -2px #b67816;border-radius:3px}\n#content table.epc-stable-columns{table-layout:fixed;width:100%;min-width:var(--epc-table-min-width,0px)}\n#content table.epc-stable-columns td[width],#content table.epc-stable-columns th[width]{width:auto}\n#content table.epc-stable-columns td.user,#content table.epc-stable-columns .tags{overflow-wrap:anywhere}\n#content a.epc-tag-match{text-decoration:underline!important;text-decoration-thickness:2px!important;text-underline-offset:3px;font-weight:700}\n#nseRCMBox .epc-highlight-actions{margin-top:10px;padding-top:8px;border-top:1px solid var(--epc-line)}\n#nseRCMBox .epc-highlight-actions p{margin:0 0 5px}\n#nseRCMBox .epc-highlight-actions button{padding:4px 7px;margin:0 5px 4px 0}\n#nseRCMBox .epc-highlight-actions button[aria-pressed=true]{box-shadow:inset 0 0 0 2px var(--epc-accent)}\n#nseRCMBox .epc-menu-caption{display:block;margin-top:8px}\n#nseRCMBox[data-ep-rule-kind=tag] #nseRCMBoxChoices{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}\n#nseRCMBox[data-ep-rule-kind=tag] #nseRCMBoxChoices br{display:none}\n@media(max-width:700px){.epc-rule-grid,.epc-basic-settings,.epc-search-editor-fields{grid-template-columns:1fr}.epc-navigation{order:3;width:100%}.epc-check-grid{grid-template-columns:1fr}.epc-toolbar{gap:6px}.epc-health{font-size:10px}.epc-savebar{flex-wrap:wrap}}\n\n/* First-use setup reuses the workspace's visual language and settings. */\n.epc-onboarding{width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 32px);overflow:auto;margin:auto;padding:22px;border:1px solid var(--epc-line);border-radius:12px;background:var(--epc-bg);color:var(--epc-fg);text-align:left;box-shadow:0 16px 64px #0005}\n.epc-onboarding::backdrop{background:#1017239c}\n.epc-onboarding h2{margin:0 0 10px;font-size:21px;line-height:1.25;color:inherit}\n.epc-onboarding fieldset{margin:16px 0 12px;padding:12px;border:1px solid var(--epc-line);border-radius:8px;min-width:0}\n.epc-onboarding legend{padding:0 5px;font-weight:650}\n.epc-welcome-choice{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer}\n.epc-welcome-field{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}\n.epc-welcome-field input[type=number]{width:70px}\n.epc-onboarding textarea{width:100%;font:inherit;color:inherit;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:5px;padding:7px;resize:vertical}\n.epc-onboarding details{border-top:1px solid var(--epc-line);margin-top:16px;padding-top:4px}\n.epc-onboarding details .epc-welcome-field{display:block}\n.epc-welcome-sample{width:var(--epc-sample-width);max-width:100%;height:64px;border-radius:5px;margin:8px 0 12px;display:grid;place-items:center;color:#fff;background:linear-gradient(145deg,#334f7b 50%,#497f91 50%,#497f91 65%,#234451 65%);font-size:11px}\n.epc-onboarding .epc-actions{justify-content:flex-end;margin-top:16px}\n.epc-root .epc-primary{background:var(--epc-accent);color:var(--epc-bg);font-weight:650}\n@media(max-width:420px){.epc-onboarding{padding:16px}.epc-welcome-field{flex-wrap:wrap}.epc-onboarding h2{font-size:19px}}\n.epc-onboarding{padding:18px}\n.epc-onboarding p{margin:6px 0}\n.epc-onboarding fieldset{margin:12px 0 10px;padding:10px}\n.epc-welcome-choice{padding:2px 0}\n.epc-welcome-sample{height:40px}\n.epc-onboarding .epc-actions{position:sticky;bottom:-18px;padding:10px 0 4px;background:var(--epc-bg);box-shadow:0 -8px 8px var(--epc-bg)}\n@media(max-width:420px){.epc-onboarding .epc-actions{bottom:-16px}}\n/* A single quiet summary in Settings; cache controls stay in Advanced. */\n.epc-cache-usage{margin:12px 0;padding:12px;border:1px solid var(--epc-line);border-radius:7px;max-width:560px}\n.epc-cache-usage>strong{font-size:13px}\n.epc-cache-usage dl{margin:6px 0}\n.epc-cache-usage dl>div{display:flex;justify-content:space-between;gap:16px;padding:2px 0}\n.epc-cache-usage dt,.epc-cache-usage dd{margin:0}\n.epc-cache-usage dd{font-variant-numeric:tabular-nums;text-align:right}\n.epc-cache-usage p{margin:4px 0 0}\n.epc-cache-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}\n.epc-cache-heading strong{font-size:13px}\n.epc-cache-heading button{font-size:11px;min-height:25px;padding:3px 7px}\n.epc-cache-activity{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;table-layout:auto}\n.epc-cache-activity th,.epc-cache-activity td{padding:4px 3px;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}\n.epc-cache-activity th{font-size:11px;font-weight:600}\n.epc-cache-activity th:first-child{text-align:left;width:18%}\n.epc-cache-activity thead th{border-bottom:1px solid var(--epc-line)}\n.epc-cache-activity tbody th{font-weight:400}\n.epc-cache-activity tbody tr:last-child>*{border-top:1px solid var(--epc-line)}\n@media(max-width:420px){.epc-cache-usage{padding:10px 8px}.epc-cache-activity{font-size:11px}.epc-cache-activity th{font-size:10px}.epc-cache-activity th,.epc-cache-activity td{padding:4px 2px}}\n\n/* Grid presentation of the native result rows. */\n#content table.epc-result-grid{display:block!important;width:100%!important;min-width:0!important;table-layout:auto!important;border:0;border-spacing:0}\n#content .epc-result-grid>colgroup{display:none!important}\n#content .epc-result-grid>tbody{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--epc-grid-width,320px)),1fr));gap:16px;align-items:start;width:100%}\n#content .epc-result-grid>thead,#content .epc-result-grid>tfoot{display:block;width:100%;margin-bottom:12px}\n#content .epc-result-grid tr:not(.torrent){display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}\n#content .epc-result-grid tr[data-ep-grid-header=static]{display:none!important}\n#content .epc-result-grid tr[data-ep-grid-header=sortable]:before{content:\"Sort by\";align-self:center;font:11px system-ui,sans-serif;opacity:.65}\n#content .epc-result-grid tr:not(.torrent)>th,#content .epc-result-grid tr:not(.torrent)>td{display:block;width:auto!important;padding:5px;border:0}\n#content .epc-result-grid tr:not(.torrent)>th:empty{display:none}\n#content .epc-result-grid tr.torrent{display:flex;flex-wrap:wrap;align-content:start;gap:0;min-width:0;max-width:100%;height:auto!important;min-height:0!important;margin:0;padding:12px;border:1px solid #7a8ba760;border-radius:10px;box-sizing:border-box;overflow:hidden;box-shadow:0 2px 7px #0000000a}\n#content .epc-result-grid tr.torrent[hidden],#content .epc-result-grid tr.torrent.hidden:not(.epc-revealed),#content .epc-result-grid tr.epc-version-hidden{display:none!important}\n#content .epc-result-grid tr.torrent>td{display:block!important;box-sizing:border-box;min-width:0!important;width:auto!important;max-width:100%;height:auto!important;min-height:0!important;border:0!important;padding:6px 10px 6px 0;text-align:left;vertical-align:top;overflow-wrap:anywhere}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category-hidden],#content .epc-result-grid tr.torrent>td[hidden],#content .epc-result-grid tr.torrent>td.hidden{display:none!important}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=title]{order:0;flex:0 0 100%;padding:0 0 10px;font-size:14px;line-height:1.5}\n#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=title]{padding-bottom:0}\n#content .epc-result-grid [data-ep-grid-cell=title]>br{display:none}\n#content .epc-result-grid [data-ep-grid-cell=title]>a{font-weight:650}\n#content .epc-result-grid [data-ep-grid-title]{display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;max-height:3em;line-height:1.5;overflow-wrap:anywhere}\n#content .epc-result-grid [data-ep-grid-cell=title] .tags{margin-top:8px;font-size:12px;line-height:1.7}\n#content .epc-result-grid:not([data-ep-grid-tags=true]) tr.torrent .tags{display:none!important}\n#content .epc-result-grid [data-ep-grid-cell=title] .tags>a{display:inline-block;margin-inline-end:5px;max-width:100%;overflow-wrap:anywhere}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category]{order:2;flex:0 0 100%;font-size:11px;opacity:.8}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=meta]{order:1;flex:1 0 30%;font-size:12px;border-top:1px solid #7a8ba730!important}\n#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=meta],#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=category]{display:none!important}\n#content .epc-result-grid [data-ep-grid-cell=meta]:before{content:attr(data-ep-grid-label);display:block;font:10px/1.5 system-ui,sans-serif;opacity:.65}\n#content .epc-result-grid .epc-thumbnail{display:block;float:none;width:100%;margin:0 0 12px}\n#content .epc-result-grid .epc-thumb-button{width:100%;height:auto;aspect-ratio:4/3;min-height:120px;max-height:none;border:0;border-radius:6px}\n#content .epc-result-grid .epc-thumb-button>img{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain}\n#content .epc-result-grid .epc-version-control{display:none!important}\n#content .epc-result-grid .cats_col>div[title],#content .epc-result-grid .cats_cols>div[title]{position:static}\n@media(max-width:520px){#content .epc-result-grid>tbody{gap:12px}#content .epc-result-grid tr.torrent{padding:10px}}\n");
+GM_addStyle("/* SPDX-License-Identifier: GPL-3.0-or-later */\n.epc-root,.epc-thumbnail{\n  --epc-bg:#fbfcfe;--epc-fg:#18243a;--epc-line:#dbe2ee;--epc-accent:#274f9d;\n  --epc-muted:color-mix(in srgb,var(--epc-fg) 77%,var(--epc-bg));\n  --epc-subtle:color-mix(in srgb,var(--epc-bg) 95%,var(--epc-fg));\n  --epc-soft:color-mix(in srgb,var(--epc-bg) 88%,var(--epc-accent));\n  --epc-radius:12px;--epc-control-radius:7px;--epc-shadow:0 8px 24px #12234124;\n  box-sizing:border-box;font:13px/1.45 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:var(--epc-fg);color-scheme:light dark\n}\n.epc-root *,.epc-thumbnail *{box-sizing:border-box}\n.epc-root [hidden],.epc-root[hidden],.epc-filter-hidden{display:none!important}\n.epc-root :is(button,input,select),button.epc-root.epc-media-retry{\n  font:inherit;color:inherit;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);\n  background:var(--epc-bg);padding:5px 8px;margin:2px;max-width:100%;box-shadow:none!important;text-shadow:none\n}\n.epc-root button,button.epc-root.epc-media-retry{appearance:none;cursor:pointer;min-height:32px}\n.epc-root button:hover,button.epc-root.epc-media-retry:hover{background:var(--epc-subtle)}\n.epc-root :is(button,a,input,select,textarea,summary):focus-visible,button.epc-root.epc-media-retry:focus-visible{outline:2px solid var(--epc-accent);outline-offset:2px}\n.epc-root :is(input[type=radio],input[type=checkbox]){accent-color:var(--epc-accent)}\n.epc-root a{color:var(--epc-accent);text-decoration:underline}\n.epc-root p{margin:8px 0}\n.epc-root summary{cursor:pointer;font-weight:650;padding:7px 0}\n.epc-tools{position:fixed;right:16px;bottom:16px;z-index:2147483000}\n.epc-launcher{border-radius:999px!important;background:var(--epc-accent)!important;color:white!important;font-weight:750!important;padding:9px 13px!important;box-shadow:0 2px 12px #0003}\n.epc-panel{position:absolute;right:0;bottom:50px;width:min(460px,calc(100vw - 32px));max-height:calc(100vh - 100px);overflow:auto;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:10px;box-shadow:0 12px 40px #0004;padding:14px}\n.epc-panel-heading,.epc-preview-heading{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:7px}\n.epc-panel-heading strong{font-size:16px}\n.epc-panel details{border-top:1px solid var(--epc-line);margin-top:8px}\n.epc-setting{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0}\n.epc-setting input[type=number],.epc-setting select{width:100px;flex-shrink:0}\n.epc-setting select[data-setting=gridCardWidth]{width:180px}\n.epc-setting input[type=checkbox]{width:18px;height:18px}\n.epc-actions{display:flex;flex-wrap:wrap;gap:4px;align-items:center}\n.epc-notice{white-space:pre-wrap;font-size:12px;color:var(--epc-accent)}\n.epc-health{font-variant-numeric:tabular-nums}\n.epc-log{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;font:11px/1.4 ui-monospace,monospace}\n.epc-saved{background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:7px;padding:6px 12px;margin:10px 0}\n.epc-saved-list{display:grid;gap:6px;margin-top:8px}\n.epc-saved-row{display:flex;gap:3px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--epc-line);padding-top:5px}\n.epc-search-name{flex:1;min-width:130px;text-align:left}\n.epc-progress{position:fixed;z-index:2147482998;bottom:0;left:0;width:100%;height:4px;background:#0002;pointer-events:none}\n.epc-progress>div{height:100%;background:#3979ef;transition:width .15s linear}\n.epc-thumbnail{display:inline-flex;float:left;position:relative;margin:0 8px 5px 0;vertical-align:top}\n.epc-thumb-button{display:flex;position:relative;justify-content:center;align-items:center;width:var(--epc-thumb-size);height:var(--epc-thumb-size);padding:0;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle);overflow:hidden;cursor:zoom-in}\n.epc-thumb-button>img{display:block;width:100%;height:100%;object-fit:contain;border:0;margin:0}\n.epc-thumb-status{position:absolute;inset:auto 2px 2px;background:#17213ae8;color:#fff;font:11px/1.3 system-ui,sans-serif;text-align:center;padding:2px;border-radius:3px}\n.epc-thumb-button>img:not([src]){visibility:hidden}\n.epc-thumbnail [hidden]{display:none!important}\nhtml.epc-cover-art .torrent_grid__torrent .torrent__cover[style*=\"background\"]:not(.epc-native-cover),.torrent__cover.epc-managed-cover{background-image:none!important}\n.torrent__cover.epc-cover-positioned{position:relative}\n.epc-cover-image{position:absolute!important;inset:0;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover;object-position:center;pointer-events:none}\n.epc-cover-image:not([src]){visibility:hidden}\n.epc-cover-status{position:absolute;bottom:5px;left:5px;right:5px;text-align:center;font:11px system-ui;color:#fff;background:#17213abf;border-radius:3px;padding:2px;pointer-events:none}\n.epc-cover-status[hidden]{display:none!important}\n.epc-category-overlay .cats_col,.epc-category-overlay .cats_cols{position:relative}\n.epc-category-overlay .cats_col>div[title],.epc-category-overlay .cats_cols>div[title]{position:absolute;top:2px;left:2px;z-index:1;width:24px;overflow:hidden}\n.epc-category-hide .cats_col>div[title],.epc-category-hide .cats_cols>div[title]{display:none!important}\n.epc-preview{position:fixed;z-index:2147482999;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:var(--epc-radius);box-shadow:var(--epc-shadow);padding:12px;overflow:auto;max-width:calc(100vw - 24px)}\n.epc-preview-heading strong{font-size:13px;overflow-wrap:anywhere}\n.epc-preview-heading button{flex-shrink:0}\n.epc-preview-frame{display:flex;align-items:center;justify-content:center;min-height:90px;overflow:hidden;background:var(--epc-subtle);border-radius:var(--epc-control-radius)}\n.epc-preview-frame>img{display:block;max-width:100%;max-height:inherit;width:auto;height:auto;object-fit:contain;margin:auto}\n.epc-preview-status{font-size:12px;min-height:18px}\n.epc-preview-stats{color:var(--epc-fg);opacity:.65;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}\n.epc-preview-summary{font-size:11px;max-height:65px;overflow:auto;overflow-wrap:anywhere}\n.epc-thumb-button,.epc-preview-frame{user-select:none}\n.epc-preview[data-mode=zoom]{padding:6px;overflow:hidden;cursor:zoom-in}\n.epc-preview[data-mode=zoom] .epc-preview-frame>img{width:100%;height:auto}\n.epc-preview[data-mode=zoom] .epc-preview-status:empty{display:none}\n.epc-preview[data-mode=tooltip]{padding:8px;overflow:hidden}\n.epc-preview[data-mode=tooltip] .epc-preview-frame{min-height:0;background:none}\n.epc-preview[data-mode=tooltip] .epc-preview-status:empty{display:none}\n.epc-preview[data-state=failed] .epc-preview-status,.epc-preview[data-state=stalled] .epc-preview-status{color:#a3391a}\n.epc-media-retry{display:inline-block;background:var(--epc-bg);padding:3px 7px;vertical-align:middle}\n#content img.epc-page-image{max-width:min(100%,calc(100vw - 48px))!important;height:auto}\n#content img.epc-page-image.epc-compact{max-height:75vh!important;object-fit:contain}\n@media(prefers-color-scheme:dark){.epc-root,.epc-thumbnail{--epc-bg:#1e2532;--epc-fg:#edf2fd;--epc-line:#3c495e;--epc-accent:#a8c0ff;--epc-shadow:0 8px 24px #0006}.epc-preview[data-state=failed] .epc-preview-status,.epc-preview[data-state=stalled] .epc-preview-status{color:#ffb194}}\n@media(prefers-reduced-motion:reduce){.epc-progress>div{transition:none}}\n\n/* One in-page workspace. Engine DOM is private behavior infrastructure. */\n.epc-engine,#nseOuter,#nseFloatyBoi,#nseUpdateToast{display:none!important}\n.epc-workspace{display:block;margin:16px 0 20px;padding:0;border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);color:var(--epc-fg);clear:both;max-width:100%;text-align:left}\n.epc-toolbar{position:relative}\n.epc-toolbar-main,.epc-toolbar-context,.epc-toolbar-footer{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;padding:10px 14px;min-width:0}\n.epc-toolbar-main{gap:6px 12px;padding-block:11px}\n.epc-toolbar-brand{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}\n.epc-brand-mark{display:grid;place-items:center;width:31px;height:31px;border-radius:8px;background:var(--epc-soft);color:var(--epc-accent)}\n.epc-root .epc-brand{font-weight:680;letter-spacing:-.025em;font-size:15px;margin:0}\n.epc-page-name{font-size:12px;color:var(--epc-muted)}\n.epc-icon{display:inline-block;width:15px;height:15px;flex:none;vertical-align:middle}\n.epc-toolbar :is(button,summary){display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:0}\n.epc-toolbar-context{border-top:1px solid var(--epc-line);background:var(--epc-subtle);padding-block:8px}\n.epc-toolbar-context:not(:has(.epc-layout-switch:not([hidden]),.epc-browse-menu:not([hidden]),.epc-context-actions> :not([hidden]))){display:none}\n.epc-browse-tools,.epc-context-actions,.epc-toolbar-utilities,.epc-toolbar-status,.epc-collage-tools{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap;min-width:0}\n.epc-context-actions{justify-content:flex-end;margin-inline-start:auto;max-width:100%}\n.epc-context-actions:not(:has(> :not([hidden]))),.epc-browse-tools:not(:has(> :not([hidden]))){display:none}\n.epc-layout-switch{display:inline-flex;padding:2px;border-radius:9px;border:1px solid var(--epc-line);gap:2px}\n.epc-root .epc-layout-switch button{min-height:27px;padding:3px 8px;border-radius:5px;background:transparent;border-color:transparent;color:var(--epc-muted)}\n.epc-root .epc-layout-switch button[aria-pressed=true]{background:var(--epc-bg);color:var(--epc-accent);border-color:var(--epc-line);font-weight:650}\n.epc-root .epc-browse-menu>summary{list-style:none;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-bg);padding:5px 8px;min-height:32px;font-weight:500}\n.epc-browse-menu>summary::-webkit-details-marker{display:none}\n.epc-root .epc-browse-menu>summary:hover{background:var(--epc-soft)}\n.epc-root .epc-browse-menu:is([open],[data-active])>summary{color:var(--epc-accent);background:var(--epc-soft)}\n.epc-browse-controls{position:absolute;inset-block-start:calc(100% + 5px);inset-inline-start:clamp(12px,calc(100% - 360px),146px);z-index:5;\n  display:flex;align-items:center;flex-wrap:wrap;gap:6px;width:min(345px,calc(100% - 24px));padding:9px;\n  border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);box-shadow:var(--epc-shadow)}\n.epc-filtered-count{font-size:11px;border-radius:4px;padding:0 5px;color:var(--epc-accent);background:var(--epc-soft);font-variant-numeric:tabular-nums}\n.epc-toolbar .epc-stop-icon,.epc-toolbar [aria-busy=true]>.epc-load-icon{display:none}\n.epc-toolbar [aria-busy=true]>.epc-stop-icon{display:inline-block}\n.epc-toolbar-footer{border-top:1px solid var(--epc-line);padding-block:8px}\n.epc-toolbar-footer:not(:has(.epc-toolbar-utilities> :not([hidden]),.epc-toolbar-status>span:not([hidden]):not(:empty))){display:none}\n.epc-toolbar-utilities:not(:has(> :not([hidden]))),.epc-toolbar-status:not(:has(>span:not([hidden]):not(:empty))){display:none}\n.epc-toolbar-status>span:empty{display:none}\n.epc-toolbar-status{margin-inline-start:auto;color:var(--epc-muted);font-size:12px;font-variant-numeric:tabular-nums}\n.epc-toolbar-status :is(.epc-backfill-status,.epc-collage-status){color:var(--epc-accent);overflow-wrap:anywhere}\n.epc-collage-tools select{margin:0}\n.epc-collage-tools button,.epc-collage-status{overflow-wrap:anywhere}\n.epc-toolbar .epc-collage-tools button{white-space:normal;text-align:start}\n.epc-root button:disabled{cursor:default;opacity:.6}\na.epc-backfilled-page{text-decoration:line-through!important;opacity:.65}\na.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;pointer-events:none}\n.epc-navigation{display:flex;align-items:center;gap:2px;flex-wrap:wrap}\n.epc-root :is(.epc-navigation button,.epc-quiet){background:transparent;border-color:transparent;color:var(--epc-muted)}\n.epc-root .epc-navigation button[aria-expanded=true],.epc-root .epc-browse-controls button[aria-pressed=true]{color:var(--epc-accent);background:var(--epc-soft)}\n.epc-workspace>.epc-panel{display:block;position:static;width:auto;max-height:none;border:0;border-top:1px solid var(--epc-line);border-radius:0 0 var(--epc-radius) var(--epc-radius);box-shadow:none;overflow:visible;padding:16px}\n.epc-panel-heading{margin-bottom:8px}\n.epc-panel-heading strong{font-size:17px;letter-spacing:-.025em}\n.epc-root .epc-caption{font-size:12px;color:var(--epc-muted);line-height:1.5;margin:4px 0 12px}\n.epc-root .epc-shortcut-list{padding-inline-start:20px;list-style:disc}\n.epc-root .epc-notice{margin:0 12px 8px;padding:8px 10px;border-radius:5px;background:color-mix(in srgb,var(--epc-accent) 10%,transparent)}\n.epc-root .epc-notice:empty{display:none}\n.epc-rule-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}\n.epc-root .epc-group{display:block!important;margin:12px 0;padding:0;border:0}\n.epc-root .epc-option-group[hidden]{display:none!important}\n.epc-root .epc-option-group{border-top:1px solid var(--epc-line);padding:5px 0;margin:8px 0}\n.epc-option-group>summary{display:flex;align-items:center;gap:10px;list-style:none}\n.epc-option-group>summary::-webkit-details-marker{display:none}\n.epc-option-group>summary:before{content:\"›\";font-size:18px;line-height:1;transition:transform .1s}\n.epc-option-group[open]>summary:before{transform:rotate(90deg)}\n.epc-option-count{font-size:11px;font-weight:400;opacity:.65;margin-left:auto}\n.epc-basic-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;max-width:700px;margin:12px 0 18px}\n.epc-basic-settings .epc-field,.epc-basic-settings .epc-setting{margin:0}\n.epc-basic-settings .epc-setting{font-size:12px;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:5px}\n.epc-basic-settings .epc-setting input,.epc-basic-settings .epc-setting select{width:100%;margin:0}\n.epc-settings-section{margin:10px 0 18px;max-width:700px}\n.epc-settings-section>h3{font-size:13px;margin:0 0 10px;font-weight:650}\n.epc-settings-section .epc-basic-settings{margin:0;gap:12px 20px}\n.epc-basic-settings .epc-setting-toggle{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px}\n.epc-basic-settings .epc-setting-toggle input{width:16px;height:16px;margin:0}\n.epc-settings-help{font-size:12px;margin-top:10px}\n.epc-cache-usage .epc-option-group{margin-bottom:0}\n.epc-settings-section[hidden]{display:none!important}\n.epc-settings-search{display:block;width:min(100%,480px);margin:8px 0 12px!important}\n.epc-search-more{margin:0!important;border:0!important}\n.epc-search-more>summary{font-size:12px;font-weight:400;padding:4px 8px}\n.epc-search-more[open]{flex-basis:100%}\n.epc-is-editing>.epc-search-more>button{display:none}\n.epc-search-editor{padding:12px;margin:6px 0;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle)}\n.epc-search-editor>strong{display:block;margin-bottom:8px}\n.epc-search-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}\n.epc-search-editor .epc-field input:not([type=checkbox]),.epc-search-editor .epc-field select{width:100%}\n.epc-search-editor-extra{margin:8px 0}\n.epc-search-editor-status:empty{display:none}\n.epc-root h3{font:650 13px/1.5 system-ui,sans-serif;color:var(--epc-fg);margin:0 0 8px}\n.epc-root .epc-field{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:500;margin:10px 0}\n.epc-root textarea{width:100%;resize:vertical;min-height:65px;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle);color:var(--epc-fg);font:12px/1.5 ui-monospace,monospace;padding:8px;box-sizing:border-box}\n.epc-root textarea{font-family:var(--epc-list-font,ui-monospace,monospace)}\n.epc-root .epc-field input,.epc-root .epc-field select{margin:0}\n.epc-check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 20px}\n.epc-root .epc-check{display:flex;flex-direction:row;align-items:center;margin:3px 0;gap:8px;font-weight:400}\n.epc-check input{accent-color:var(--epc-accent)}\n.epc-root .epc-check input[type=checkbox]{flex:0 0 16px;width:16px;height:16px}\n.epc-root .epc-savebar{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--epc-line);margin-top:14px;padding-top:12px}\n.epc-root .epc-savebar .epc-caption{margin:0}\n.epc-root .epc-primary{background:var(--epc-accent);border-color:var(--epc-accent);color:var(--epc-bg);font-weight:650}\n.epc-root .epc-primary:hover{background:var(--epc-accent);filter:brightness(1.1)}\n.epc-root button:disabled{cursor:default;opacity:.5}\n.epc-saved{border:0;padding:0;margin:0}\n.epc-statistics{display:grid;grid-template-columns:1fr auto;gap:5px 16px;font-size:12px;max-width:500px}\n.epc-statistics dd{margin:0;font-variant-numeric:tabular-nums}\n.epc-setting{max-width:650px}\n.epc-setting:nth-child(n+12){font-size:12px}\n.epc-revealed{opacity:.75}\n.epc-seen-dim{opacity:.6}\n.epc-freeleech-view{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--epc-muted)}\n.epc-root .epc-freeleech-view select{max-width:100%;margin:0;color:var(--epc-fg)}\n.epc-conditional-list{list-style:none;padding:0;margin:0}\n.epc-conditional-list li{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 12px;padding:6px 0;border-bottom:1px solid var(--epc-line)}\n.epc-conditional-list li>span{min-width:0;overflow-wrap:anywhere}\n.epc-conditional-list:not(:empty)+button{margin-top:8px}\n.epc-conditional-advanced{margin-top:12px}\n.epc-conditional-advanced code{overflow-wrap:anywhere}\n.epc-conditional-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;align-items:end;gap:8px;margin-bottom:8px}\n.epc-root .epc-conditional-row .epc-field{min-width:0;margin:0}\n.epc-conditional-row input,.epc-conditional-row select{width:100%;min-width:0}\n.epc-conditional-builder>label{max-width:320px}\n@media(max-width:480px){.epc-conditional-row{grid-template-columns:minmax(0,1fr)}.epc-conditional-row>button{justify-self:start}}\n[data-ep-freeleech=sitewide]{outline:2px solid #db9e27;outline-offset:1px}\n[data-ep-freeleech=unlimited]{outline:1px dashed currentColor;outline-offset:1px}\n.epc-history-list{list-style:none;padding:0;margin:0}\n.epc-history-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0}\n.epc-history-list a{min-width:0;overflow-wrap:anywhere}\n.epc-history-list button{flex-shrink:0}\n.nseToggleIcon{display:inline-flex!important;width:22px;height:22px;align-items:center;justify-content:center;cursor:pointer;border:1px solid #8a98ad!important;border-radius:5px!important;background:transparent!important;font:14px/1 system-ui,sans-serif!important;color:inherit}\n.nseToggleIcon>img{display:none!important}\n.nseToggleIcon:before{content:\"−\";font:14px/1 system-ui,sans-serif!important}\n.nseToggleIcon.nseIndividuallyBlacklisted:before{content:\"+\"}\n.nseToggleIcon.nseIndividuallyWhitelisted:before{content:\"↺\"}\n.nseToggleIcon:focus-visible{outline:2px solid var(--epc-accent,#4289dd);outline-offset:2px}\n#nseRCMBox.epc-root{position:fixed!important;z-index:2147483001!important;width:min(340px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;padding:14px;border-radius:var(--epc-radius);background:var(--epc-bg)!important;color:var(--epc-fg)!important;border:1px solid var(--epc-line)!important;box-shadow:var(--epc-shadow)}\n#nseRCMBox .nseRCMButton{display:inline-block;background:var(--epc-bg)!important;color:var(--epc-fg)!important;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);font:12px/1.5 system-ui,sans-serif;padding:5px 8px;margin:3px 0;cursor:pointer}\n#nseRCMBox .nseRCMButton:hover{background:var(--epc-soft)!important}\n#nseRCMBox #nseRCMClose{font:12px/1.5 system-ui,sans-serif;cursor:pointer}\n.epc-rule-import{display:inline-block;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-bg);padding:5px 8px;cursor:pointer}\n.epc-rule-import:focus-visible{outline:2px solid var(--epc-accent);outline-offset:2px}\n.epc-saved-shortcuts{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}\n.epc-saved-shortcuts>strong{font-size:12px;font-weight:500;color:var(--epc-muted)}\n.epc-root a.epc-saved-shortcut{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:3px 7px;border-radius:var(--epc-control-radius);color:var(--epc-accent)!important;background:var(--epc-soft);text-decoration:none;overflow-wrap:anywhere}\n.epc-root a.epc-saved-shortcut:hover{background:var(--epc-subtle)}\n.epc-saved-shortcut .epc-icon{width:12px;height:12px}\n.epc-toolbar .epc-quick-search{min-height:27px;padding:3px 5px}\n.epc-search-name{overflow-wrap:anywhere}\n.epc-search-feedback{display:flex;align-items:center;flex-wrap:wrap;gap:8px;grid-column:1/-1;margin:8px 0;padding:9px 12px;border:1px solid var(--epc-line);border-radius:5px;background:var(--epc-bg)}\n.epc-savebar [role=status]{font-size:12px;opacity:.72}\n.epc-root [aria-invalid=true]{border-color:#bf493e!important;outline:1px solid #bf493e}\n#content .nseHiddenTag,#content .nseHiddenTitle,#content .nseHiddenUploader,#content .nseBlacklistIdentifier{color:var(--epc-blocked,#f00)!important}\n#content .nseWhitelistedTag,#content .nseWhitelistedTitle,#content .nseWhitelistedUploader{color:var(--epc-allowed,#0f0)!important}\n#content .nseHardPassTag,#content .nseHardPassTitle{color:var(--epc-hard-pass,#a00)!important}\n/* Result tools share the existing list and rule menu. No extra toolbar. */\n#content tr.epc-version-hidden{display:none!important}\n#content tr.epc-version-member>td:nth-child(2){border-inline-start:2px solid #7a8ba780}\n#content .epc-version-control{display:inline-block;margin:3px 0 3px 8px;padding:2px 7px;border:1px solid #7a8ba780;border-radius:4px;background:transparent;color:inherit;font:11px/1.6 system-ui,sans-serif;cursor:pointer;vertical-align:middle}\n#content .epc-version-control:before{content:\"▸\";margin-inline-end:4px}\n#content .epc-version-control[aria-expanded=true]:before{content:\"▾\"}\n#content .epc-version-control:hover{background:#7a8ba720}\n#content .epc-version-control:focus-visible{outline:2px solid #4289dd;outline-offset:2px}\n#content a[data-ep-tag-tone=favorite]:not(.nseHiddenTag):not(.nseHardPassTag){background:#ccefe0;color:#154f39!important;box-shadow:inset 0 -2px #298661;border-radius:3px}\n#content a[data-ep-tag-tone=caution]:not(.nseHiddenTag):not(.nseHardPassTag){background:#ffe2a8;color:#68420b!important;box-shadow:inset 0 -2px #b67816;border-radius:3px}\n#content table.epc-stable-columns{table-layout:fixed;width:100%;min-width:var(--epc-table-min-width,0px)}\n#content table.epc-stable-columns td[width],#content table.epc-stable-columns th[width]{width:auto}\n#content table.epc-stable-columns td.user,#content table.epc-stable-columns .tags{overflow-wrap:anywhere}\n#content a.epc-tag-match{text-decoration:underline!important;text-decoration-thickness:2px!important;text-underline-offset:3px;font-weight:700}\n#nseRCMBox .epc-highlight-actions{margin-top:10px;padding-top:8px;border-top:1px solid var(--epc-line)}\n#nseRCMBox .epc-highlight-actions p{margin:0 0 5px}\n#nseRCMBox .epc-highlight-actions button{padding:4px 7px;margin:0 5px 4px 0}\n#nseRCMBox .epc-highlight-actions button[aria-pressed=true]{box-shadow:inset 0 0 0 2px var(--epc-accent)}\n#nseRCMBox .epc-menu-caption{display:block;margin-top:8px}\n#nseRCMBox[data-ep-rule-kind=tag] #nseRCMBoxChoices{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}\n#nseRCMBox[data-ep-rule-kind=tag] #nseRCMBoxChoices br{display:none}\n@media(max-width:700px){.epc-rule-grid,.epc-basic-settings,.epc-search-editor-fields,.epc-check-grid{grid-template-columns:1fr}.epc-savebar{flex-wrap:wrap}}\n@media(max-width:530px){\n  .epc-toolbar :is(.epc-toolbar-main,.epc-toolbar-context,.epc-toolbar-footer){padding-inline:10px}\n  .epc-navigation{width:100%;justify-content:space-between}.epc-navigation button{flex:1}\n  .epc-toolbar-status{margin-inline-start:0}\n}\n@media(pointer:coarse){\n  .epc-root .epc-toolbar :is(button,select,summary),.epc-root a.epc-saved-shortcut{min-height:44px}\n  .epc-root .epc-layout-switch button{min-height:40px}\n}\n\n/* First-use setup reuses the workspace's visual language and settings. */\n.epc-onboarding{width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 32px);overflow:auto;margin:auto;padding:22px;border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);color:var(--epc-fg);text-align:left;box-shadow:var(--epc-shadow)}\n.epc-onboarding::backdrop{background:#1017239c}\n.epc-onboarding h2{margin:0 0 10px;font-size:21px;line-height:1.25;color:inherit}\n.epc-welcome-heading{display:flex;align-items:center;gap:10px;margin-block-end:10px}\n.epc-welcome-heading .epc-brand-mark{flex:none}\n.epc-onboarding .epc-welcome-heading h2{margin:0}\n.epc-onboarding fieldset{margin:16px 0 12px;padding:12px;border:1px solid var(--epc-line);border-radius:8px;min-width:0}\n.epc-onboarding legend{padding:0 5px;font-weight:650}\n.epc-welcome-choice{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer}\n.epc-welcome-field{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}\n.epc-welcome-field input[type=number]{width:70px}\n.epc-onboarding textarea{width:100%;font:inherit;color:inherit;background:var(--epc-subtle);border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);padding:7px;resize:vertical}\n.epc-onboarding details{border-top:1px solid var(--epc-line);margin-top:16px;padding-top:4px}\n.epc-onboarding details .epc-welcome-field{display:block}\n.epc-welcome-sample{width:var(--epc-sample-width);max-width:100%;height:64px;border-radius:var(--epc-control-radius);margin:8px 0 12px;display:grid;place-items:center;color:var(--epc-accent);background:var(--epc-soft);font-size:11px}\n.epc-onboarding .epc-actions{justify-content:flex-end;margin-top:16px}\n@media(max-width:420px){.epc-onboarding{padding:16px}.epc-welcome-field{flex-wrap:wrap}.epc-onboarding h2{font-size:19px}}\n.epc-onboarding{padding:18px}\n.epc-onboarding p{margin:6px 0}\n.epc-onboarding fieldset{margin:12px 0 10px;padding:10px}\n.epc-welcome-choice{padding:2px 0}\n.epc-welcome-sample{height:40px}\n.epc-onboarding .epc-actions{position:sticky;bottom:-18px;padding:10px 0 4px;background:var(--epc-bg);box-shadow:0 -8px 8px var(--epc-bg)}\n@media(max-width:420px){.epc-onboarding .epc-actions{bottom:-16px}}\n/* A single quiet summary in Settings; cache controls stay in Advanced. */\n.epc-cache-usage{margin:12px 0;padding:12px;border:1px solid var(--epc-line);border-radius:7px;max-width:560px}\n.epc-cache-usage>strong{font-size:13px}\n.epc-cache-usage dl{margin:6px 0}\n.epc-cache-usage dl>div{display:flex;justify-content:space-between;gap:16px;padding:2px 0}\n.epc-cache-usage dt,.epc-cache-usage dd{margin:0}\n.epc-cache-usage dd{font-variant-numeric:tabular-nums;text-align:right}\n.epc-cache-usage p{margin:4px 0 0}\n.epc-cache-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}\n.epc-cache-heading strong{font-size:13px}\n.epc-cache-heading button{font-size:11px;min-height:25px;padding:3px 7px}\n.epc-cache-activity{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;table-layout:auto}\n.epc-cache-activity th,.epc-cache-activity td{padding:4px 3px;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}\n.epc-cache-activity th{font-size:11px;font-weight:600}\n.epc-cache-activity th:first-child{text-align:left;width:18%}\n.epc-cache-activity thead th{border-bottom:1px solid var(--epc-line)}\n.epc-cache-activity tbody th{font-weight:400}\n.epc-cache-activity tbody tr:last-child>*{border-top:1px solid var(--epc-line)}\n@media(max-width:420px){.epc-cache-usage{padding:10px 8px}.epc-cache-activity{font-size:11px}.epc-cache-activity th{font-size:10px}.epc-cache-activity th,.epc-cache-activity td{padding:4px 2px}}\n\n/* Grid presentation of the native result rows. */\n#content table.epc-result-grid{display:block!important;width:100%!important;min-width:0!important;table-layout:auto!important;border:0;border-spacing:0}\n#content .epc-result-grid>colgroup{display:none!important}\n#content .epc-result-grid>tbody{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--epc-grid-width,320px)),1fr));gap:16px;align-items:start;width:100%}\n#content .epc-result-grid>thead,#content .epc-result-grid>tfoot{display:block;width:100%;margin-bottom:12px}\n#content .epc-result-grid tr:not(.torrent){display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}\n#content .epc-result-grid tr[data-ep-grid-header=static]{display:none!important}\n#content .epc-result-grid tr[data-ep-grid-header=sortable]:before{content:\"Sort by\";align-self:center;font:11px system-ui,sans-serif;opacity:.65}\n#content .epc-result-grid tr:not(.torrent)>th,#content .epc-result-grid tr:not(.torrent)>td{display:block;width:auto!important;padding:5px;border:0}\n#content .epc-result-grid tr[data-ep-grid-header=sortable]>:is(th,td):not(:has(a,button,input,select)){display:none!important}\n#content .epc-result-grid tr:not(.torrent)>th:empty{display:none}\n#content .epc-result-grid tr.torrent{display:flex;flex-wrap:wrap;align-content:start;gap:0;min-width:0;max-width:100%;height:auto!important;min-height:0!important;margin:0;padding:12px;border:1px solid #7a8ba760;border-radius:10px;box-sizing:border-box;overflow:hidden;box-shadow:0 2px 7px #0000000a}\n#content .epc-result-grid tr.torrent[hidden],#content .epc-result-grid tr.torrent.hidden:not(.epc-revealed),#content .epc-result-grid tr.epc-version-hidden,#content tr.torrent.epc-filter-hidden{display:none!important}\n#content .epc-result-grid tr.torrent>td{display:block!important;box-sizing:border-box;min-width:0!important;width:auto!important;max-width:100%;height:auto!important;min-height:0!important;border:0!important;padding:6px 10px 6px 0;text-align:left;vertical-align:top;overflow-wrap:anywhere}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category-hidden],#content .epc-result-grid tr.torrent>td[hidden],#content .epc-result-grid tr.torrent>td.hidden{display:none!important}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=title]{order:0;flex:0 0 100%;padding:0 0 10px;font-size:14px;line-height:1.5}\n#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=title]{padding-bottom:0}\n#content .epc-result-grid [data-ep-grid-cell=title]>br{display:none}\n#content .epc-result-grid [data-ep-grid-cell=title]>a{font-weight:650}\n#content .epc-result-grid [data-ep-grid-title]{display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;max-height:3em;line-height:1.5;overflow-wrap:anywhere}\n#content .epc-result-grid [data-ep-grid-cell=title] .tags{margin-top:8px;font-size:12px;line-height:1.7}\n#content .epc-result-grid:not([data-ep-grid-tags=true]) tr.torrent .tags{display:none!important}\n#content .epc-result-grid [data-ep-grid-cell=title] .tags>a{display:inline-block;margin-inline-end:5px;max-width:100%;overflow-wrap:anywhere}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category]{order:2;flex:0 0 100%;font-size:11px;opacity:.8}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=meta]{order:1;flex:1 0 30%;font-size:12px;border-top:1px solid #7a8ba730!important}\n#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=meta],#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=category]{display:none!important}\n#content .epc-result-grid [data-ep-grid-cell=meta]:before{content:attr(data-ep-grid-label);display:block;font:10px/1.5 system-ui,sans-serif;opacity:.65}\n#content .epc-result-grid .epc-thumbnail{display:block;float:none;width:100%;margin:0 0 12px}\n#content .epc-result-grid .epc-thumb-button{width:100%;height:auto;aspect-ratio:4/3;min-height:120px;max-height:none;border:0;border-radius:6px}\n#content .epc-result-grid .epc-thumb-button>img{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain}\n#content .epc-result-grid .epc-version-control{display:none!important}\n#content .epc-result-grid .cats_col>div[title],#content .epc-result-grid .cats_cols>div[title]{position:static}\n@media(max-width:520px){#content .epc-result-grid>tbody{gap:12px}#content .epc-result-grid tr.torrent{padding:10px}}\n");
 const epBridge = {};
 function epRunNSE(app) {
   const run = () => app.batchDOM(() => {
@@ -4999,7 +5967,7 @@ const epApp = createApp(window, epStorage, {
   waitForFilters: true, startNSE: epRunNSE,
   requestImage: typeof GM_xmlhttpRequest === 'function' ? details => GM_xmlhttpRequest(details) : null,
   localImageCache: !!epFixture,
-  newRows: root => epBridge.newRows?.(root),
+  newRows: (root, rows) => epBridge.newRows?.(root, rows),
   flushNSE: () => epBridge.flush?.(),
   refreshFilters: syncInputs => epBridge.refresh?.(syncInputs),
   validateDraftFilters: () => epBridge.validateDraft?.(),
@@ -6116,8 +7084,9 @@ if(currentPage == "Requests") {
 }
 
 let epIconSequence = 0;
-function epFilterRows(torrents) {
-app.captureFilterBaseline();
+function epFilterRows(torrents, appended) {
+app.captureFilterBaseline(appended);
+const matchConditional = app.resultFilters.conditionalMatcher();
 if(torrents) {
     if(!nseUnfilteredPages.includes(currentPage)) { // Skip filtering where it doesn't apply
         for(let i = 0; i < torrents.length; i++) {
@@ -6149,6 +7118,7 @@ if(torrents) {
                 titleElement = torrents[i].querySelector("td > a");
             }
     
+            const conditional = matchConditional?.(tagElement, titleElement, uploaderElement);
             let countMe = 1;
             let currentHidden = false;
             let currentWhitelisted = false;
@@ -6158,7 +7128,8 @@ if(torrents) {
     
             // Check if we are adding the hide button
             if(nseIndividualUploadHidingEnabled) {
-                let torrentIconContainer = torrents[i].querySelector("td > span.torrent_icon_container");
+                const resultID = titleElement && new URL(titleElement.href, location.href).searchParams.get("id");
+                let torrentIconContainer = /^\d{1,15}$/.test(resultID || "") ? torrents[i].querySelector("td > span.torrent_icon_container") : null;
     
                 if(torrentIconContainer) {
                     let nseToggleHideElement = document.createElement("span");
@@ -6177,7 +7148,7 @@ if(torrents) {
                     nseToggleHideElement.classList.add("nseToggleHideButton");
         
                     let actualIcon = nseToggleHideElement.querySelector("div > div > i");
-                    let torrentID = titleElement.href.match(/([0-9]+)/)[0];
+                    let torrentID = resultID;
                     actualIcon.torrentID = torrentID;
                     actualIcon.onclick = function() {
                         let torrentParent = this.parentNode.parentNode.parentNode.parentNode.parentNode.parentNode;
@@ -6207,9 +7178,7 @@ if(torrents) {
                                     let count = 0;
                                     let torrentLinks = document.querySelectorAll("tr.torrent > td > a");
                                     for(let i = 0; i < torrentLinks.length; i++) {
-                                        let regex = "id=" + this.torrentID;
-
-                                        if(torrentLinks[i].href.match(regex)) {
+                                        if(new URL(torrentLinks[i].href).searchParams.get("id") === this.torrentID) {
                                             let currParent = torrentLinks[i].parentNode.parentNode;
                                             currParent.classList.toggle("hidden");
                                             currParent.setAttribute("isNSEHidden", "0");
@@ -6254,9 +7223,7 @@ if(torrents) {
                                     let count = 0;
                                     let torrentLinks = document.querySelectorAll("tr.torrent > td > a");
                                     for(let i = 0; i < torrentLinks.length; i++) {
-                                        let regex = "id=" + this.torrentID;
-
-                                        if(torrentLinks[i].href.match(regex)) {
+                                        if(new URL(torrentLinks[i].href).searchParams.get("id") === this.torrentID) {
                                             let currParent = torrentLinks[i].parentNode.parentNode;
                                             currParent.classList.toggle("hidden");
                                             currParent.setAttribute("isNSEHidden", "1");
@@ -6327,9 +7294,7 @@ if(torrents) {
                                     let count = 0;
                                     let torrentLinks = document.querySelectorAll("tr.torrent > td > a");
                                     for(let i = 0; i < torrentLinks.length; i++) {
-                                        let regex = "id=" + this.torrentID;
-
-                                        if(torrentLinks[i].href.match(regex)) {
+                                        if(new URL(torrentLinks[i].href).searchParams.get("id") === this.torrentID) {
                                             let currParent = torrentLinks[i].parentNode.parentNode;
                                             currParent.setAttribute("isNSEHidden", "0");
                                             currParent.style.backgroundColor = null;
@@ -6624,6 +7589,16 @@ if(torrents) {
                 }
             }
     
+            if (conditional?.has("HIDE")) currentHidden = true;
+            if (conditional?.has("SHOW") && !currentBypassWhitelist) currentWhitelisted = true;
+            if (conditional?.has("PASS")) {
+                currentForceHide = true;
+                if (!currentForceShow && nseHardPassEnabled && nseRemoveHardPassResults) {
+                    torrents[i].classList.add("nseHardPassRemove");
+                    countMe = 0;
+                }
+            }
+
             // If forcing through individual filtering, ignore results
             if(currentForceShow) {
                 currentHidden = false;
@@ -8189,16 +9164,16 @@ h3.nseH3 {
 
 // Integration bridge; original upstream filtering semantics stay in epFilterRows.
 const epSeenRows = new WeakSet(torrents);
-bridge.newRows = function(root) {
+bridge.newRows = function(root, rows) {
     if(nseUnfilteredPages.includes(currentPage)) return;
     const selector = currentPage === "Requests" ? "#request_table tr" : "tr.torrent";
-    const candidates = new Set(root.matches(selector) ? [root] : root.querySelectorAll(selector));
-    const parent = root.closest(selector); if(parent) candidates.add(parent);
+    const candidates = new Set(rows || (root.matches(selector) ? [root] : root.querySelectorAll(selector)));
+    if(!rows) { const parent = root.closest(selector); if(parent) candidates.add(parent); }
     const fresh = Array.from(candidates).filter(row => !epSeenRows.has(row) &&
         row.querySelector("td > div.tags") && row.querySelector("td > a,td > strong > a"));
     if(!fresh.length) return;
     for(const row of fresh) epSeenRows.add(row);
-    epFilterRows(fresh);
+    epFilterRows(fresh, rows);
     torrents = [...torrents, ...fresh];
     for(const row of fresh) {
         if(nseRightClickManagementEnabled) {
@@ -8350,7 +9325,7 @@ bridge.openVisible = function() {
     if(nseUnfilteredPages.includes(currentPage)) return;
     const visited = new Set();
     for(const row of document.querySelectorAll(currentPage === "Requests" ? "#request_table tr" : "tr.torrent")) {
-        if(row.getAttribute("isNSEHidden") === "1" || row.classList.contains("epc-version-hidden")) continue;
+        if(row.getAttribute("isNSEHidden") === "1" || row.matches(".epc-version-hidden,.epc-filter-hidden")) continue;
         const title = row.querySelector(currentPage === "Collage" ? "td > strong > a" : "td > a");
         if(!title?.href) continue;
         const url = new URL(title.href, location.href);
@@ -8362,7 +9337,7 @@ bridge.openVisible = function() {
 };
 bridge.hideVisible = function() {
     if(!confirm("Hide the results currently shown? You can restore them with Undo changes.")) return;
-    const visible = [...document.querySelectorAll("tr.torrent")].filter(row => !row.classList.contains("epc-version-hidden"));
+    const visible = document.querySelectorAll("tr.torrent:not(.epc-version-hidden,.epc-filter-hidden)");
     for(const row of visible) {
         if(row.getAttribute("isNSEHidden") !== "1") row.querySelector(".nseToggleIcon")?.click();
     }

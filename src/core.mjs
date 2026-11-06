@@ -4,7 +4,7 @@ export const DEFAULTS = Object.freeze({
   enabled: true, previews: true, inlineThumbnails: true,
   thumbnailPlacement: 'title', categoryDisplay: 'keep', thumbnailMode: 'auto',
   thumbnailSize: 100, previewWidth: 440, hoverDelay: 140, hideDelay: 240,
-  resultsView: 'list', gridCardWidth: 320, gridLargeImages: true, gridShowDetails: false, gridShowTags: false,
+  resultsView: 'list', gridCardWidth: 320, gridShowDetails: false, gridShowTags: false,
   concurrency: 8, maxRetries: 2, stallMs: 8000, timeoutMs: 24000, thumbnailTimeoutMs: 4500,
   cacheEntries: 24, cacheMegapixels: 48, preloadScreens: 0.8,
   persistentImages: true, persistentCacheMB: 512,
@@ -12,7 +12,8 @@ export const DEFAULTS = Object.freeze({
   prepareGalleries: true, reserveImageSpace: true, compactBodyImages: false,
   progressBar: true, keyboardShortcuts: true, globalArrowNavigation: false, navigationScope: 'off', diagnostics: false,
   backfillEnabled: true, backfillPages: 5, backfillMode: 'off', groupVersions: true,
-  favoriteTags: '', cautionTags: ''
+  favoriteTags: '', cautionTags: '', conditionalRules: '', seenMode: 'show',
+  freeleechView: 'all', bookmarkFreeleechView: 'all'
 });
 
 export function clamp(value, min, max) {
@@ -46,8 +47,11 @@ export function validateSettings(input = {}) {
   for (const [key, options] of Object.entries({
     thumbnailPlacement: ['title', 'category'], categoryDisplay: ['keep', 'overlay', 'hide'],
     thumbnailMode: ['auto', 'small', 'supplied', 'original'], navigationScope: ['off', 'results', 'site'],
-    backfillMode: ['off', 'pages', 'all'], resultsView: ['list', 'grid']
+    backfillMode: ['off', 'pages', 'all'], resultsView: ['list', 'grid'],
+    seenMode: ['show', 'dim', 'hide'], freeleechView: ['all', 'freeleech', 'sitewide'],
+    bookmarkFreeleechView: ['all', 'freeleech', 'sitewide']
   })) if (options.includes(input[key])) result[key] = input[key];
+  if (typeof input.conditionalRules === 'string') result.conditionalRules = input.conditionalRules;
   if (result.thumbnailMode === 'small') result.thumbnailMode = 'auto';
   for (const key of ['favoriteTags', 'cautionTags']) {
     if (typeof input[key] === 'string') {
@@ -242,6 +246,7 @@ export class RetryBudget {
 export class MediaPool {
   constructor(env, settings = DEFAULTS) {
     this.env = env; this.settings = settings; this.entries = new Map(); this.queue = [];
+    this.batchDepth = 0; this.queueDirty = false;
     this.active = 0; this.sequence = 0; this.hosts = new Map(); this.activeLanes = { thumbnail: 0, large: 0 };
     this.budget = new RetryBudget(() => env.now(), settings.maxRetries);
     this.listeners = new Set(); this.disposed = false;
@@ -253,10 +258,20 @@ export class MediaPool {
     for (const listener of this.listeners) listener(entry);
     if (entry.keepAlive && !entry.listeners.size && entry.dimensions) this.trim();
   }
+  batch(operation) {
+    this.batchDepth++;
+    try { return operation(); }
+    finally {
+      if (!--this.batchDepth) {
+        if (this.pumpPending) this.pump();
+        if (this.trimPending) this.trim();
+      }
+    }
+  }
   request(url, options = {}) {
     const canonical = canonicalImageURL(url), tier = options.tier || 'normal', key = canonical + '|' + tier;
     let entry = this.entries.get(key);
-    if ((!entry || entry.status === 'failed') && !options.force) {
+    if ((!entry || entry.status === 'failed') && !options.force && !options.strictCandidates) {
       const shared = Array.from(this.entries.values()).find(e => !e.cancelled &&
         ['loading', 'streaming', 'stalled', 'ready', 'partial'].includes(e.status) &&
         canonicalImageURL(e.actualURL) === canonical);
@@ -281,7 +296,7 @@ export class MediaPool {
       }
       entry.priority = Math.max(entry.priority, options.priority || 0);
       if (entry.image && entry.priority >= 50) entry.image.fetchPriority = 'high';
-      if (entry.status === 'queued') this.pump();
+      if (entry.status === 'queued') { this.queueDirty = true; this.pump(); }
       return entry;
     }
     if (options.rescue ? !this.budget.rescue(canonical) : options.force && !this.budget.manual(canonical)) return entry || null;
@@ -304,15 +319,20 @@ export class MediaPool {
     entry.fullTimeoutMs = options.fullTimeoutMs || entry.timeoutMs;
     entry.smallFirst = !!options.smallFirst;
     entry.smallCandidates = new Set(options.smallCandidates || []);
+    entry.strictCandidates = !!options.strictCandidates;
     entry.singleAttempt = !!options.singleAttempt; entry.rescue = !!options.rescue;
     entry.rescueBase = this.budget.get(canonical).rescueFrom || 0;
-    if (options.failedAlready && this.settings.legacyFallback) {
+    if (options.failedAlready && this.settings.legacyFallback && !entry.strictCandidates) {
       const original = legacyOriginal(canonical);
       if (original) { entry.candidates = [original, ...candidates.filter(c => c !== original)]; entry.actualURL = original; }
     }
     entry.bustFirst = !!options.fresh;
-    this.entries.set(key, entry); this.queue.push(entry); this.emit(entry); this.pump(); this.trim();
+    this.entries.set(key, entry); this.enqueue(entry); this.trim();
     return entry;
+  }
+  enqueue(entry) {
+    this.queue.push(entry); this.queueDirty = true;
+    this.emit(entry); this.pump();
   }
   subscribe(entry, listener) {
     if (!entry) return () => {};
@@ -326,6 +346,7 @@ export class MediaPool {
           // The popup is gone; keep the original warming without retaining its
           // DOM/hover eligibility closures or reserved interactive priority.
           live.priority = 10; live.priorityFor = null; live.eligible = null;
+          this.queueDirty ||= live.status === 'queued';
           live.touched = this.env.now();
           if (live.image) live.image.fetchPriority = 'low';
           reschedule = ['queued', 'loading', 'streaming', 'stalled', 'retrying'].includes(live.status);
@@ -355,21 +376,27 @@ export class MediaPool {
   }
   pump() {
     if (this.disposed) return;
+    if (this.batchDepth) { this.pumpPending = true; return; }
+    this.pumpPending = false;
     const hidden = this.env.hidden();
     if (hidden && !this.wasHidden) for (const e of this.entries.values()) if (!e.released) e.hostTimingIgnored = true;
     this.wasHidden = hidden;
     this.env.clearTimeout(this.wakeTimer); this.wakeTimer = null;
-    for (const entry of this.queue) if (entry.priorityFor) entry.priority = entry.priorityFor();
-    this.queue.sort((a, b) => b.priority - a.priority || a.sequence - b.sequence);
+    const revision = this.env.priorityRevision?.();
+    if (this.queueDirty || revision === undefined || revision !== this.rankedRevision) {
+      for (const entry of this.queue) if (entry.priorityFor) entry.priority = entry.priorityFor();
+      this.queue.sort((a, b) => b.priority - a.priority || a.sequence - b.sequence);
+      this.queueDirty = false; this.rankedRevision = revision;
+    }
     while (this.active < this.settings.concurrency + 3 && this.queue.length) {
-      const index = this.queue.findIndex(e => !e.cancelled &&
-        (!e.eligible || e.eligible()) && this.hasSlot(e) &&
-        (e.priority >= 90 || !this.env.hidden()));
+      const index = this.queue.findIndex(e => !e.cancelled && (e.priority >= 90 || !hidden) &&
+        this.hasSlot(e) && (!e.eligible || e.eligible()));
       if (index < 0) {
         // One deadline timer for eligible host cooldowns; no idle polling.
         const now = this.env.now(); let deadline = Infinity;
-        for (const e of this.queue) if (!e.cancelled && (!e.eligible || e.eligible()) && (e.priority >= 90 || !this.env.hidden())) {
-          const host = this.hostFor(e); if (host.until > now) deadline = Math.min(deadline, host.until);
+        for (const e of this.queue) if (!e.cancelled && (e.priority >= 90 || !hidden)) {
+          const host = this.hostFor(e);
+          if (host.until > now && host.until < deadline && (!e.eligible || e.eligible())) deadline = host.until;
         }
         if (Number.isFinite(deadline)) this.wakeTimer = this.env.setTimeout(() => this.pump(), deadline - now + 1);
         break;
@@ -506,21 +533,23 @@ export class MediaPool {
       if (entry.cancelled || entry.status === 'ready' || entry.status === 'failed') return;
       entry.abortTransfer?.(); entry.abortTransfer = null;
       if (entry.cacheHit) { void this.env.imageCache?.remove(entry.actualURL); entry.cacheFault = true; }
-      this.hostFeedback(entry, outcome); this.clearTimers(entry); this.release(entry); image.onload = image.onerror = null;
+      if (outcome !== 'missing') this.hostFeedback(entry, outcome);
+      this.clearTimers(entry); this.release(entry); image.onload = image.onerror = null;
       image.removeAttribute?.('src');
       const before = entry.candidateIndex;
       if (entry.candidateIndex + 1 < entry.candidates.length) entry.candidateIndex++;
-      else if (this.settings.legacyFallback) {
+      else if (this.settings.legacyFallback && !entry.strictCandidates) {
         const original = legacyOriginal(entry.url);
         if (original && !entry.candidates.includes(original)) { entry.candidates.push(original); entry.candidateIndex = entry.candidates.length - 1; }
       }
-      if (!entry.singleAttempt && this.budget.get(entry.url).attempts < this.settings.maxRetries + 1) {
+      if (!entry.singleAttempt && (outcome !== 'missing' || entry.candidateIndex !== before) &&
+          this.budget.get(entry.url).attempts < this.settings.maxRetries + 1) {
         entry.status = 'retrying'; entry.reason = reason;
         this.emit(entry);
         if (entry.cancelled || this.disposed) { this.pump(); return; }
         const timer = this.env.setTimeout(() => {
           if (entry.cancelled || this.disposed) return;
-          entry.status = 'queued'; this.queue.push(entry); this.emit(entry); this.pump();
+          entry.status = 'queued'; this.enqueue(entry);
         }, entry.candidateIndex !== before ? 0 : Math.min(4000, 700 * 2 ** (entry.attempts - 1)));
         entry.timers.push(timer);
       } else {
@@ -590,7 +619,11 @@ export class MediaPool {
       }, result => {
         if (entry.cancelled || this.disposed || entry.loadVersion !== loadVersion || entry.image !== image) return;
         if (!result) { assign(url); return; }
-        if (result.failure) { failed('The image host returned HTTP ' + result.status + '.'); return; }
+        if (result.failure) {
+          // A confirmed missing grid variant says nothing about host capacity.
+          const missing = entry.strictCandidates && (result.status === 404 || result.status === 410);
+          failed('The image host returned HTTP ' + result.status + '.', missing ? 'missing' : 'error'); return;
+        }
         entry.cacheHit = result.hit; entry.cacheResult = result;
         if (result.hit) {
           entry.hostTimingIgnored = true;
@@ -627,6 +660,8 @@ export class MediaPool {
     this.queue = this.queue.filter(e => e !== entry);
   }
   trim() {
+    if (this.batchDepth) { this.trimPending = true; return; }
+    this.trimPending = false;
     const idle = Array.from(this.entries.values()).filter(e => !e.listeners.size &&
       (['ready', 'failed', 'partial'].includes(e.status) || e.keepAlive &&
         ['queued', 'loading', 'streaming', 'stalled', 'retrying'].includes(e.status))).sort((a, b) =>
