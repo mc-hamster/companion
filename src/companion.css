@@ -283,14 +283,13 @@ a.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;poi
 .epc-welcome-sample{height:40px}
 .epc-onboarding .epc-actions{position:sticky;bottom:-18px;padding:10px 0 4px;background:var(--epc-bg);box-shadow:0 -8px 8px var(--epc-bg)}
 @media(max-width:420px){.epc-onboarding .epc-actions{bottom:-16px}}
-/* A single quiet summary in Settings; cache controls stay in Advanced. */
-.epc-cache-usage{margin:12px 0;padding:12px;border:1px solid var(--epc-line);border-radius:7px;max-width:560px}
-.epc-cache-usage>strong{font-size:13px}
-.epc-cache-usage dl{margin:6px 0}
-.epc-cache-usage dl>div{display:flex;justify-content:space-between;gap:16px;padding:2px 0}
-.epc-cache-usage dt,.epc-cache-usage dd{margin:0}
-.epc-cache-usage dd{font-variant-numeric:tabular-nums;text-align:right}
-.epc-cache-usage p{margin:4px 0 0}
+.epc-cache-usage,.epc-cache-pinned{margin:12px 0;padding:12px;border:1px solid var(--epc-line);border-radius:7px;max-width:560px}
+.epc-cache-pinned{margin-inline:14px}
+#epc-cache-statistics dl{margin:6px 0}
+#epc-cache-statistics dl>div{display:flex;justify-content:space-between;gap:16px;padding:2px 0}
+#epc-cache-statistics dt,#epc-cache-statistics dd{margin:0}
+#epc-cache-statistics dd{font-variant-numeric:tabular-nums;text-align:right}
+:is(.epc-cache-usage,.epc-cache-pinned) p{margin:4px 0 0}
 .epc-cache-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .epc-cache-heading strong{font-size:13px}
 .epc-cache-heading button{font-size:11px;min-height:25px;padding:3px 7px}
@@ -298,10 +297,10 @@ a.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;poi
 .epc-cache-activity th,.epc-cache-activity td{padding:4px 3px;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .epc-cache-activity th{font-size:11px;font-weight:600}
 .epc-cache-activity th:first-child{text-align:left;width:18%}
-.epc-cache-activity thead th{border-bottom:1px solid var(--epc-line)}
+.epc-cache-activity thead th{border-bottom:1px solid var(--epc-line);cursor:help;text-decoration:underline dotted;text-underline-offset:2px}
 .epc-cache-activity tbody th{font-weight:400}
 .epc-cache-activity tbody tr:last-child>*{border-top:1px solid var(--epc-line)}
-@media(max-width:420px){.epc-cache-usage{padding:10px 8px}.epc-cache-activity{font-size:11px}.epc-cache-activity th{font-size:10px}.epc-cache-activity th,.epc-cache-activity td{padding:4px 2px}}
+@media(max-width:420px){.epc-cache-usage,.epc-cache-pinned{padding:10px 8px}.epc-cache-activity{font-size:11px}.epc-cache-activity th{font-size:10px}.epc-cache-activity th,.epc-cache-activity td{padding:4px 2px}}
 
 /* Grid presentation of the native result rows. */
 #content table.epc-result-grid{display:block!important;width:100%!important;min-width:0!important;table-layout:auto!important;border:0;border-spacing:0}

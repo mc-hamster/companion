@@ -423,10 +423,14 @@ export class MediaPool {
     const lane = this.transferLane(entry), host = this.hostFor(entry);
     if (this.env.now() < host.until) return false;
     if (this.activeLanes[lane] >= (lane === 'thumbnail' ? this.settings.concurrency : entry.priority >= 90 ? 3 : 2)) return false;
-    if (host.constrained && host.thumbnail + host.large >= Math.min(host.limit, this.settings.concurrency)) return false;
+    const hostLimit = Math.min(host.limit, this.settings.concurrency);
+    // When the host is down to one slot, an in-flight original can take tens
+    // of seconds. Keep one thumbnail moving alongside it after cooldown.
+    const thumbnailReserve = lane === 'thumbnail' && hostLimit === 1 && host.large === 1 && !host.thumbnail;
+    if (host.constrained && host.thumbnail + host.large >= hostLimit && !thumbnailReserve) return false;
     // Ordinary large images have their own bounded lane. A hover can use one
     // extra host slot without displacing active thumbnail pixels.
-    return lane === 'thumbnail' ? host.thumbnail < Math.min(host.limit, this.settings.concurrency) :
+    return lane === 'thumbnail' ? host.thumbnail < hostLimit :
       host.large < (entry.priority >= 90 ? 3 : Math.min(2, host.limit));
   }
   hostFor(entry) {

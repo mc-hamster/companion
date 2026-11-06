@@ -17,6 +17,7 @@ import { coalesceScanRoots, presentationMutation, mutationChangesResults } from 
 
 const SETTINGS_KEY = 'ep.settings';
 const SEARCH_KEY = 'ep.searches';
+const CACHE_STATS_PIN_KEY = 'ep.cacheStatsPinned';
 const DIAGNOSTIC_LIMIT = 3000;
 const OWN = '.epc-root,.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-media-retry,.epc-engine,.epc-version-control,.epc-version-columns,#nseOuter,#nseFloatyBoi';
 const searchSignature = fields => JSON.stringify(fields.map(field => [field.name, field.type, field.value, !!field.checked]));
@@ -227,7 +228,12 @@ export class CompanionApp {
       this.resultFilters.recordVisit(); this.mount(); this.schedule(this.doc.body);
     }, { once: true });
     this.on(this.win, 'pageshow', event => {
-      if (event.persisted && this.doc.body) { this.resultFilters.recordVisit(); this.schedule(this.doc.body); }
+      if (event.persisted && this.doc.body) {
+        this.resultFilters.recordVisit(); this.schedule(this.doc.body);
+        const pinned = this.storage.get(CACHE_STATS_PIN_KEY, false) === true;
+        if (pinned !== this.cacheStatsPinned) this.setCacheStatsPinned(pinned);
+        else if (pinned) void this.refreshCacheUsage();
+      }
     });
     return this;
   }
@@ -371,7 +377,12 @@ export class CompanionApp {
       finally{resetUsage.disabled=false;}
     },'Reset cache usage statistics');
     resetUsage.title='Reset activity and savings in every time window. Saved images stay in the cache.';
-    cacheHeading.append(this.node('strong','Image cache'));this.cacheUsage.append(cacheHeading);
+    this.cacheStatsPinned = false;
+    this.cachePinButton = this.button('Pin statistics', () => this.toggleCacheStatsPin());
+    this.cachePinButton.title = 'Show image cache statistics below the Companion toolbar on every page.';
+    this.cachePinButton.dataset.optionItem = '';
+    this.cachePinButton.setAttribute('aria-controls', 'epc-cache-statistics');
+    cacheHeading.append(this.node('strong','Image cache'), this.cachePinButton);this.cacheUsage.append(cacheHeading);
     this.cacheDetails=optionGroup(this,this.cacheUsage,'Statistics & storage',{key:'cache-details'});
     const cacheActions=this.node('div',null,'epc-actions');cacheActions.append(resetUsage);resetUsage.dataset.optionItem='';
     const usageList=this.node('dl');this.cacheUsageFields={};
@@ -381,9 +392,19 @@ export class CompanionApp {
     this.cacheUsageFields.total=this.node('p','Reading saved images…','epc-caption');
     this.cacheUsageFields.activity=this.node('p','','epc-caption');
     this.cacheActivityTable=this.node('table',null,'epc-cache-activity');this.cacheActivityTable.setAttribute('aria-label','Cache activity');
-    this.cacheActivityTable.title='Hits: usable memory/saved-image reuse. Misses: managed lookups with no usable saved image, including failed downloads; forced bypass and unsupported/disabled caching are excluded. Downloads: successful managed transfers. Recent windows have 5-second precision. All history is since tracking began or Reset stats. Clearing saved images keeps history.';
-    const activityHead=this.node('thead'),headRow=this.node('tr');
-    for(const label of['Period','Hits','Misses','Hit rate','Downloads','Saved']){const cell=this.node('th',label);cell.scope='col';if(label==='Hit rate')cell.title='Hits ÷ (hits + misses). Downloads are excluded.';if(label==='Saved')cell.title='Estimated image data reused from cache, not measured network traffic. ≥ means some hits have unknown sizes; — means no sizes are known yet.';headRow.append(cell);}activityHead.append(headRow);
+    const activityHead = this.node('thead'), headRow = this.node('tr');
+    for (const [label, tooltip] of [
+      ['Period', 'Rolling time window. All history starts when tracking began or when you last reset stats.'],
+      ['Hits', 'Image loads served from Companion’s memory or saved files. Each reuse counts.'],
+      ['Misses', 'Cache checks that found no usable image. The image can still load after a miss.'],
+      ['Hit rate', 'Hits ÷ (hits + misses).'],
+      ['Downloads', 'Images fetched by the userscript manager and decoded successfully. Direct browser loads are excluded.'],
+      ['Saved', 'Estimated image data reused across hits. ≥ means some hits have unknown sizes. — means no hit sizes are known.']
+    ]) {
+      const cell = this.node('th', label);
+      cell.scope = 'col'; cell.title = tooltip; headRow.append(cell);
+    }
+    activityHead.append(headRow);
     const activityBody=this.node('tbody');this.cacheActivityRows={};
     for(const[key,label]of[['five','5 min'],['fifteen','15 min'],['hour','1 hour'],['all','All history']]){
       const row=this.node('tr'),heading=this.node('th',label);heading.scope='row';row.append(heading);this.cacheActivityRows[key]={};
@@ -391,10 +412,23 @@ export class CompanionApp {
     }
     this.cacheActivityTable.append(activityHead,activityBody);
     this.cacheUsage.insertBefore(this.cacheUsageFields.total,this.cacheDetails);
-    this.cacheDetails.append(usageList,this.cacheActivityTable,this.cacheUsageFields.activity,cacheActions);
-    this.cacheDetails.addEventListener('toggle',()=>{if(this.cacheDetails.open)void this.refreshCacheUsage();else{this.win.clearTimeout(this.cacheUsageClock);this.cacheUsageClock=null;}});
-    this.cacheUsage.dataset.settingsGroup='Image cache';this.cacheActivityTable.dataset.optionItem='';
+    this.cacheStatistics = this.node('div');
+    this.cacheStatistics.id = 'epc-cache-statistics'; this.cacheStatistics.dataset.optionItem = '';
+    this.cacheStatistics.append(usageList, this.cacheActivityTable, this.cacheUsageFields.activity);
+    this.cacheDetails.append(this.cacheStatistics, cacheActions);
+    this.cacheDetails.addEventListener('toggle', () => {
+      if (this.cacheStatsPinned) return;
+      if (this.cacheDetails.open) void this.refreshCacheUsage();
+      else { this.win.clearTimeout(this.cacheUsageClock); this.cacheUsageClock = null; }
+    });
+    this.cacheUsage.dataset.settingsGroup='Image cache';
     this.panes.settings.append(this.cacheUsage);
+    this.cachePinned = this.node('section', null, 'epc-cache-pinned'); this.cachePinned.hidden = true;
+    this.cachePinned.setAttribute('aria-label', 'Image cache statistics');
+    const pinnedHeading = this.node('header', null, 'epc-cache-heading');
+    pinnedHeading.append(this.node('strong', 'Image cache statistics'),
+      this.button('Unpin statistics', () => this.toggleCacheStatsPin()));
+    this.cachePinned.append(pinnedHeading);
     this.advancedSettings = optionGroup(this, this.panes.settings, 'Advanced settings', { key: 'advanced' });
     setupSettingsSearch(this);
     this.optionGroups = {};
@@ -533,7 +567,7 @@ export class CompanionApp {
     this.savedShortcuts = this.node('nav', null, 'epc-saved-shortcuts');
     this.savedShortcuts.setAttribute('aria-label', 'Saved searches'); this.savedShortcuts.hidden = true;
     this.toolbarUtilities.append(this.savedShortcuts);
-    this.root.append(this.toolbar, this.notice, this.panel); this.doc.body.append(this.root);
+    this.root.append(this.toolbar, this.notice, this.cachePinned, this.panel); this.doc.body.append(this.root);
     this.root.addEventListener('input', event => this.markDirty(event.target, event));
     this.root.addEventListener('change', event => {
       if(event.target.dataset.setting==='backfillMode')this.controls.get('backfillEnabled').checked=true;
@@ -553,6 +587,7 @@ export class CompanionApp {
     this.root.addEventListener('compositionstart', () => { this.composing = true; });
     this.root.addEventListener('compositionend', event => { this.composing = false; this.markDirty(event.target, event); });
     this.attachWorkspace();
+    this.setCacheStatsPinned(this.storage.get(CACHE_STATS_PIN_KEY, false) === true);
     this.progress = this.node('div', null, 'epc-root epc-progress'); this.progress.hidden = true;
     this.progress.setAttribute('role', 'progressbar'); this.progress.setAttribute('aria-label', 'Thumbnails ready');
     this.progressBar = this.node('div'); this.progress.append(this.progressBar); this.doc.body.append(this.progress);
@@ -587,8 +622,40 @@ export class CompanionApp {
     if (key === 'filters' && this.resultFilters.history?.open) this.resultFilters.refreshSeen();
     this.storage.set('ep.searchDrawerOpen', key === 'searches');
     if(key==='settings')void this.refreshCacheUsage();
-    else this.cancelCacheUsage();
+    else if (!this.cacheStatsPinned) this.cancelCacheUsage();
     this.media.demandListener?.();
+  }
+  toggleCacheStatsPin() {
+    const pinned = !this.cacheStatsPinned;
+    try { this.storage.set(CACHE_STATS_PIN_KEY, pinned); }
+    catch { this.toast('Could not save the statistics pin.'); return; }
+    this.setCacheStatsPinned(pinned);
+  }
+  setCacheStatsPinned(pinned) {
+    if (pinned === this.cacheStatsPinned) return;
+    const returnFocus = this.cachePinned.contains(this.doc.activeElement);
+    this.cacheStatsPinned = pinned;
+    this.cachePinned.hidden = !pinned;
+    this.cachePinButton.textContent = pinned ? 'Unpin statistics' : 'Pin statistics';
+    this.cachePinButton.title = pinned ? 'Return the statistics to Settings.' : 'Show image cache statistics below the Companion toolbar on every page.';
+    if (pinned) {
+      this.cacheStatistics.hidden = false;
+      this.cachePinned.append(this.cacheStatistics);
+    } else {
+      this.cacheDetails.firstElementChild.after(this.cacheStatistics);
+      if (this.settingsSearch.value.trim()) this.settingsSearch.dispatchEvent(new this.win.Event('input'));
+      if (this.cacheUsageVisible() && !this.cacheUsage.hidden) this.cacheDetails.open = true;
+      if (returnFocus) {
+        const button = this.cachePinButton.closest('[hidden]') ? this.paneButtons.get('settings') : this.cachePinButton;
+        button.focus();
+      }
+    }
+    if (this.cacheUsageVisible()) void this.refreshCacheUsage();
+    else this.cancelCacheUsage();
+  }
+  cacheUsageVisible() {
+    return !this.disposed && !this.doc.hidden && !!this.cacheUsage &&
+      (this.cacheStatsPinned || this.activePane === 'settings' && !this.panel.hidden);
   }
   cancelCacheUsage(){this.win.clearTimeout(this.cacheUsageTimer);this.win.clearTimeout(this.cacheUsageClock);this.cacheUsageTimer=this.cacheUsageClock=null;this.cacheUsageSnapshot=null;this.cacheUsageVersion=(this.cacheUsageVersion||0)+1;}
   syncSettingsUI(){
@@ -597,21 +664,21 @@ export class CompanionApp {
     const searching=!!this.settingsSearch?.value.trim();if(!searching)row.hidden=mode==='all';
     if(mode==='all'&&!pages.checkValidity())pages.value=this.settings.backfillPages;
     this.controls.get('navigationScope').disabled = !this.controls.get('keyboardShortcuts').checked;
-    if(this.cacheUsage?.hidden){this.win.clearTimeout(this.cacheUsageClock);this.cacheUsageClock=null;}
+    if(!this.cacheStatsPinned&&this.cacheUsage?.hidden){this.win.clearTimeout(this.cacheUsageClock);this.cacheUsageClock=null;}
   }
   scheduleCacheUsage(){
-    if(this.disposed||this.doc.hidden||this.activePane!=='settings'||this.panel?.hidden||this.cacheUsageTimer)return;
+    if(!this.cacheUsageVisible()||this.cacheUsageTimer)return;
     this.cacheUsageTimer=this.win.setTimeout(()=>{this.cacheUsageTimer=null;void this.refreshCacheUsage();},250);
   }
   async refreshCacheUsage(){
-    if(this.disposed||this.doc.hidden||this.activePane!=='settings'||this.panel?.hidden||!this.cacheUsage)return;
+    if(!this.cacheUsageVisible())return;
     this.win.clearTimeout(this.cacheUsageTimer);this.cacheUsageTimer=null;
     const version=this.cacheUsageVersion=(this.cacheUsageVersion||0)+1;this.cacheUsage.setAttribute('aria-busy','true');
     let s;try{s=await this.imageCache.summary?.();}catch{}
-    if(this.disposed||this.doc.hidden||version!==this.cacheUsageVersion||this.activePane!=='settings'||this.panel.hidden)return;
+    if(version!==this.cacheUsageVersion||!this.cacheUsageVisible())return;
     const fields=this.cacheUsageFields;
     this.cacheUsage.setAttribute('aria-busy','false');
-    if(!s?.available){fields.thumbnails.textContent=fields.previews.textContent='—';fields.total.textContent='Saved image storage unavailable.';fields.activity.textContent='';this.cacheActivityTable.hidden=true;this.win.clearTimeout(this.cacheUsageClock);this.cacheUsageClock=null;this.cacheUsageSnapshot=null;return;}
+    if(!s?.available){fields.thumbnails.textContent=fields.previews.textContent='—';fields.total.textContent='Saved image storage unavailable.';fields.activity.textContent=this.cacheStatsPinned?fields.total.textContent:'';this.cacheActivityTable.hidden=true;this.win.clearTimeout(this.cacheUsageClock);this.cacheUsageClock=null;this.cacheUsageSnapshot=null;return;}
     fields.thumbnails.textContent=s.thumbnailCount.toLocaleString()+' · '+cacheBytes(s.thumbnailFileBytes);
     fields.previews.textContent=s.previewCount.toLocaleString()+' · '+cacheBytes(s.previewBytes);
     fields.total.textContent=cacheBytes(s.bytes)+' of '+cacheBytes(s.limitBytes)+' used'+(s.saving?'':' · Saving off');
@@ -619,7 +686,7 @@ export class CompanionApp {
   }
   renderCacheActivity(){
     this.win.clearTimeout(this.cacheUsageClock);this.cacheUsageClock=null;
-    const s=this.cacheUsageSnapshot;if(!s||this.disposed||this.doc.hidden||this.activePane!=='settings'||this.panel.hidden||this.cacheUsage.hidden)return;
+    const s=this.cacheUsageSnapshot;if(!s||!this.cacheUsageVisible()||!this.cacheStatsPinned&&this.cacheUsage.hidden)return;
     this.cacheActivityTable.hidden=s.activityAvailable===false;
     this.cacheUsageFields.activity.textContent=s.activityAvailable===false?'Usage history unavailable.':(s.historyPartial?'Older totals predate miss tracking; all-history rate unavailable. ':'')+'Saved estimates image data reused.';
     if(s.activityAvailable===false)return;
@@ -638,13 +705,13 @@ export class CompanionApp {
       saved.title=unknown?'Only hits with known file sizes are included; older or unmeasured savings cannot be reconstructed.':'Estimated image payload reused, including memory hits. Browser HTTP caching and transfer overhead are not measurable.';
     }
     // Age the in-memory snapshot only; no database polling or hidden-panel timer.
-    if(this.cacheDetails.open&&s.recent?.some(row=>row[0]+5000>now-3600000))this.cacheUsageClock=this.win.setTimeout(()=>this.renderCacheActivity(),5000);
+    if((this.cacheStatsPinned||this.cacheDetails.open)&&s.recent?.some(row=>row[0]+5000>now-3600000))this.cacheUsageClock=this.win.setTimeout(()=>this.renderCacheActivity(),5000);
   }
   closePane() {
     this.preferences.flush();
     const trigger = this.paneButtons.get(this.activePane);
     this.panel.hidden = true; this.activePane = null;
-    this.cancelCacheUsage();
+    if (!this.cacheStatsPinned) this.cancelCacheUsage();
     for (const button of this.paneButtons.values()) button.setAttribute('aria-expanded', 'false');
     this.storage.set('ep.searchDrawerOpen', false); trigger?.focus();
     this.media.demandListener?.();

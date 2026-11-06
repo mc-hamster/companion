@@ -1,12 +1,12 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {createApp} from '../src/app.mjs';import {cacheBytes} from '../src/image-cache.mjs';
 import {domFixture,fixtureHTML,memoryStorage,until,settle} from './helpers.mjs';
-async function setup(){
-  const f=domFixture(fixtureHTML('')),listeners=new Set();let calls=0,pending;
+async function setup({store=memoryStorage({'ep.settings':{inlineThumbnails:false}}),html=fixtureHTML(''),url}={}){
+  const f=domFixture(html,url),listeners=new Set();let calls=0,pending;
   let state={available:true,saving:true,thumbnailCount:4,thumbnailFileBytes:2048,previewCount:1,previewBytes:1024,bytes:3072,limitBytes:512*1024*1024,hits:8,misses:3,downloads:2,recent:[[Math.floor(Date.now()/5000)*5000,5,3,2]]};
   const cache={subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn);},summary:()=>{calls++;return pending?new Promise(resolve=>{pending.resolve=resolve;}):Promise.resolve({...state});},enabled:()=>false,
     resetActivity:async()=>{state={...state,hits:0,misses:0,downloads:0,savedBytes:0,sizedHits:0,recent:[]};for(const fn of listeners)fn();},clear:async()=>{state={...state,thumbnailCount:0,thumbnailFileBytes:0,previewCount:0,previewBytes:0,bytes:0};for(const fn of listeners)fn();},flushTouches:async()=>{},close(){listeners.clear();}};
-  const app=createApp(f.win,memoryStorage({'ep.settings':{inlineThumbnails:false}}),{imageCache:cache}).start();await until(()=>app.root?.dataset.epReady==='true');app.cacheDetails.open=true;await settle();
+  const app=createApp(f.win,store,{imageCache:cache}).start();await until(()=>app.root?.dataset.epReady==='true');app.cacheDetails.open=true;await settle();
   return{...f,app,cache,listeners,calls:()=>calls,set:s=>{state={...state,...s};},emit:()=>{for(const fn of listeners)fn();},defer:()=>{pending={};return pending;},immediate:()=>{pending=null;},close(){app.dispose();f.close();}};
 }
 test('[CACHE-05] Settings shows one concise usage card with file sizes, budget and explicitly cumulative counters',async()=>{
@@ -40,15 +40,64 @@ test('[CACHE-06] Reset stats clears only usage counters and keeps the existing s
   }finally{f.close();}
 });
 
-test('[CACHE-07] one four-window activity table shows hits, misses and downloads without extra controls',async()=>{
+test('[CACHE-07] one four-window activity table shows hits, misses and downloads with individual header tooltips',async()=>{
   const f=await setup();try{f.app.openPane('settings');await until(()=>f.app.cacheUsage.getAttribute('aria-busy')==='false');
     const table=f.doc.querySelector('table[aria-label="Cache activity"]');assert.ok(table);assert.equal(table.querySelectorAll('tbody tr').length,4);
-    assert.deepEqual([...table.querySelectorAll('thead th')].map(x=>x.textContent),['Period','Hits','Misses','Hit rate','Downloads','Saved']);
+    const headers=[...table.querySelectorAll('thead th')];
+    assert.deepEqual(headers.map(x=>x.textContent),['Period','Hits','Misses','Hit rate','Downloads','Saved']);
+    for (const [index, description] of [/Rolling time window/, /memory or saved files/, /no usable image/, /Hits ÷/, /decoded successfully/, /image data reused/].entries()) {
+      assert.match(headers[index].title, description);
+    }
     for(const key of['five','fifteen','hour']){assert.equal(f.app.cacheActivityRows[key].hits.textContent,'5');assert.equal(f.app.cacheActivityRows[key].misses.textContent,'3');assert.equal(f.app.cacheActivityRows[key].downloads.textContent,'2');}
     assert.equal(f.app.cacheActivityRows.five.hitRate.textContent,'62.5%');assert.equal(f.app.cacheActivityRows.all.hitRate.textContent,'72.7%');
     f.set({hits:0,misses:5});await f.app.refreshCacheUsage();assert.equal(f.app.cacheActivityRows.all.hitRate.textContent,'0%');
     f.set({hits:5,misses:0});await f.app.refreshCacheUsage();assert.equal(f.app.cacheActivityRows.all.hitRate.textContent,'100%');assert.ok(f.app.cacheUsageClock);f.app.closePane();assert.equal(f.app.cacheUsageClock,null);
   }finally{f.close();}
+});
+
+test('pinned cache statistics stay visible outside Settings and persist across page loads', async () => {
+  const store = memoryStorage({'ep.settings':{inlineThumbnails:false}});
+  const first = await setup({store});
+  try {
+    const { app } = first;
+    assert.equal(app.cachePinned.hidden, true);
+    app.openPane('settings');
+    app.cachePinButton.click();
+    assert.equal(app.cachePinButton.textContent, 'Unpin statistics');
+    assert.ok(app.cachePinned.contains(app.cacheActivityTable));
+    assert.equal(first.doc.querySelectorAll('.epc-cache-activity').length, 1);
+    app.openPane('searches');
+    app.closePane();
+    assert.equal(app.panel.hidden, true);
+    assert.equal(app.cachePinned.hidden, false);
+    first.set({hits: 12}); first.emit();
+    await until(() => app.cacheActivityRows.all.hits.textContent === '12');
+    assert.ok(app.cacheUsageClock);
+  } finally { first.close(); }
+
+  const second = await setup({store, html:'<!doctype html><main id="content">Profile</main>', url:'https://www.empornium.sx/user.php?id=10'});
+  try {
+    const { app } = second;
+    assert.equal(app.panel.hidden, true);
+    assert.equal(app.cachePinned.hidden, false);
+    assert.ok(app.cachePinned.contains(app.cacheActivityTable));
+    assert.equal(app.cacheActivityRows.all.hits.textContent, '8');
+    const unpin = app.cachePinned.querySelector('button');
+    unpin.focus(); unpin.click();
+    assert.equal(app.cachePinned.hidden, true);
+    assert.ok(app.cacheDetails.contains(app.cacheActivityTable));
+    assert.equal(second.doc.activeElement, app.paneButtons.get('settings'));
+    assert.equal(app.cacheUsageClock, null);
+    second.emit();
+    assert.equal(app.cacheUsageTimer, null);
+  } finally { second.close(); }
+
+  const third = await setup({store});
+  try {
+    assert.equal(third.app.cachePinned.hidden, true);
+    assert.equal(third.app.cachePinButton.textContent, 'Pin statistics');
+    assert.equal(third.calls(), 0);
+  } finally { third.close(); }
 });
 test('[CACHE-07] rolling totals age from a local snapshot without database polling and stop when closed',async()=>{
   const f=await setup(),originalNow=Date.now;let tick,serial=90000,cleared=0;const timeout=f.win.setTimeout.bind(f.win),clear=f.win.clearTimeout.bind(f.win);

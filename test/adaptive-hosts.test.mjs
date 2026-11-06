@@ -115,6 +115,36 @@ test('[HOST-03] a constrained host shares its reduced budget across small, fallb
   }finally{pool.dispose();}
 });
 
+test('a full-size fallback cannot hold the only thumbnail slot on a constrained host', () => {
+  const {clock, pool} = setup();
+  try {
+    const original = 'https://a.test/slow.gif';
+    const fallback = pool.request(original, {smallFirst: true,
+      candidates: ['https://a.test/slow.th.gif', original], timeoutMs: 4500, fullTimeoutMs: 24000});
+    clock.tick(4500);
+    assert.equal(state(pool).limit, 1);
+    assert.equal(fallback.status, 'queued', 'The failed thumbnail starts a host cooldown');
+    clock.tick(251);
+    assert.equal(fallback.activeLane, 'large');
+    const first = pool.request('https://a.test/first.th.png');
+    const second = pool.request('https://a.test/second.th.png', {singleAttempt: true});
+    const anotherOriginal = pool.request('https://a.test/another.gif', {lane: 'large', priority: 100});
+    assert.equal(first.status, 'loading');
+    assert.equal(second.status, 'queued');
+    assert.equal(anotherOriginal.status, 'queued');
+    first.image.succeed();
+    assert.equal(second.status, 'loading');
+    second.image.fail();
+    const third = pool.request('https://a.test/third.th.png');
+    assert.equal(third.status, 'queued', 'The thumbnail reserve still respects host cooldowns');
+    clock.tick(state(pool).until - clock.env.now() + 1);
+    assert.equal(third.status, 'loading');
+    third.image.succeed();
+    assert.equal(fallback.status, 'loading');
+    assert.equal(anotherOriginal.status, 'queued');
+  } finally { pool.dispose(); }
+});
+
 test('[HOST-02] a stable serial RTT change can establish a new baseline and resume cautious growth',()=>{
   const{clock,pool}=setup();try{
     batch(pool,clock,4);batch(pool,clock,1,'a.test',500);assert.equal(state(pool).limit,2);

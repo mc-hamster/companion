@@ -1,5 +1,7 @@
 # Feature mapping
 
+Version 2.13.3 keeps one thumbnail moving alongside an active original when the image host has reduced capacity to one slot and its cooldown has expired. In **Settings → Image cache**, **Pin statistics** moves the cache activity table below the toolbar across pages. Each column has its own tooltip.
+
 Version 2.13.2 speeds up backfill batches of up to five collage pages. Thumbnail cache hits can display during image-host cooldowns, and covers can reuse saved resizes from matching rows. The local diagnostic export records cache outcomes, fallback reasons, and managed image HTTP statuses.
 
 Version 2.13.1 fills an empty thumbnail slot with the matching larger image when Companion has already loaded it. It also isolates Companion's logo and toolbar icons from site styles that affect SVGs.

@@ -1,3 +1,13 @@
+# Empornium Companion 2.13.3 validation
+
+Updated November 6, 2026.
+
+The build, syntax checks, and all **348 automated tests** pass. The scheduler regression verifies that one thumbnail can start beside an active original after the host cooldown. The cache statistics test covers pinning, live counter refresh outside Settings, persistence across pages, and unpinning. The stable and versioned userscripts are identical. Tested bundle SHA-256 is `40e607f425299c16d8bda6ea21b80c0e5874116ca27a95571d60a344c03a608f`.
+
+In a local Chrome fixture, two uncached covers appeared in 48 ms and 75 ms after Load more while an original was still loading. Version 2.13.2 took about six seconds under the same simulated one-slot host limit. At a 360 px viewport, Chrome verified that the pinned cache table fit its panel, each of the six columns had a tooltip, the pin persisted across page navigation, and unpinning restored focus to Settings and persisted on reload.
+
+---
+
 # Empornium Companion 2.13.2 validation
 
 Updated November 6, 2026.
