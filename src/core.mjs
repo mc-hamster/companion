@@ -247,7 +247,7 @@ export class MediaPool {
   constructor(env, settings = DEFAULTS) {
     this.env = env; this.settings = settings; this.entries = new Map(); this.readyImages = new Map(); this.queue = [];
     this.batchDepth = 0; this.queueDirty = false;
-    this.active = 0; this.sequence = 0; this.hosts = new Map(); this.activeLanes = { thumbnail: 0, large: 0 };
+    this.active = 0; this.sequence = 0; this.hosts = new Map(); this.activeLanes = { cache: 0, thumbnail: 0, large: 0 };
     this.budget = new RetryBudget(() => env.now(), settings.maxRetries);
     this.listeners = new Set(); this.disposed = false;
     this.restoreHosts(env.hostHistory);
@@ -268,15 +268,19 @@ export class MediaPool {
       }
     }
   }
+  recordMemoryHit(entry) {
+    this.env.imageCache?.recordActivity?.('hit', entry.cacheBytes);
+    if (this.settings.diagnostics) this.env.diagnostic?.(entry, 'cache', {cacheOutcome: 'hit', cacheReason: 'memory-reuse', elapsedMs: 0});
+  }
   request(url, options = {}) {
     const canonical = canonicalImageURL(url), tier = options.tier || 'normal', key = canonical + '|' + tier;
     let entry = this.entries.get(key);
     if ((!entry || entry.status === 'failed') && !options.force && !options.strictCandidates) {
       const shared = Array.from(this.entries.values()).find(e => !e.cancelled &&
         ['loading', 'streaming', 'stalled', 'ready', 'partial'].includes(e.status) &&
-        canonicalImageURL(e.actualURL) === canonical);
+        e.actualKey === canonical);
       if (shared) {
-        if(shared.status==='ready'&&(shared.cacheMode||options.cacheMode))this.env.imageCache?.recordActivity?.('hit',shared.cacheBytes);
+        if (shared.status === 'ready' && (shared.cacheMode || options.cacheMode)) this.recordMemoryHit(shared);
         shared.keepAlive ||= !!options.keepAlive; shared.touched = this.env.now();
         shared.priority = Math.max(shared.priority, options.priority || 0);
         if (shared.image && shared.priority >= 50) shared.image.fetchPriority = 'high';
@@ -284,7 +288,7 @@ export class MediaPool {
       }
     }
     if (entry && !options.force) {
-      if(entry.status==='ready'&&(entry.cacheMode||options.cacheMode))this.env.imageCache?.recordActivity?.('hit',entry.cacheBytes);
+      if (entry.status === 'ready' && (entry.cacheMode || options.cacheMode)) this.recordMemoryHit(entry);
       entry.keepAlive ||= !!options.keepAlive; entry.touched = this.env.now();
       if (options.eligible) {
         const previous = entry.eligible;
@@ -353,10 +357,7 @@ export class MediaPool {
         } else if (live.priority >= 90 && ['queued', 'loading', 'streaming', 'stalled', 'retrying'].includes(live.status)) {
           // Moving away is not a host failure. Refund only the cancelled in-flight
           // attempt, retaining failures already charged to this URL.
-          if (!live.released) {
-            const budget = this.budget.get(live.url);
-            budget.attempts = Math.max(live.rescue ? live.rescueBase : 0, budget.attempts - 1);
-          }
+          this.refundTransfer(live);
           this.cancel(live); this.entries.delete(live.key);
           reschedule = true;
         }
@@ -368,10 +369,7 @@ export class MediaPool {
   abandon(entry) {
     if (!entry || this.entries.get(entry.key) !== entry || entry.listeners.size ||
         !['queued', 'loading', 'streaming', 'stalled', 'retrying'].includes(entry.status)) return;
-    if (!entry.released) {
-      const budget = this.budget.get(entry.url);
-      budget.attempts = Math.max(entry.rescue ? entry.rescueBase : 0, budget.attempts - 1);
-    }
+    this.refundTransfer(entry);
     this.cancel(entry); this.entries.delete(entry.key); this.pump();
   }
   pump() {
@@ -388,13 +386,13 @@ export class MediaPool {
       this.queue.sort((a, b) => b.priority - a.priority || a.sequence - b.sequence);
       this.queueDirty = false; this.rankedRevision = revision;
     }
-    while (this.active < this.settings.concurrency + 3 && this.queue.length) {
+    while (this.queue.length) {
       const index = this.queue.findIndex(e => !e.cancelled && (e.priority >= 90 || !hidden) &&
         this.hasSlot(e) && (!e.eligible || e.eligible()));
       if (index < 0) {
         // One deadline timer for eligible host cooldowns; no idle polling.
         const now = this.env.now(); let deadline = Infinity;
-        for (const e of this.queue) if (!e.cancelled && (e.priority >= 90 || !hidden)) {
+        for (const e of this.queue) if (!e.cancelled && (e.priority >= 90 || !hidden) && !this.canLookup(e)) {
           const host = this.hostFor(e);
           if (host.until > now && host.until < deadline && (!e.eligible || e.eligible())) deadline = host.until;
         }
@@ -402,11 +400,26 @@ export class MediaPool {
         break;
       }
       const entry = this.queue.splice(index, 1)[0];
-      if (!this.budget.consume(entry.url)) { entry.status = 'failed'; entry.reason = 'Retry limit reached. Try again after a short pause.'; this.emit(entry); continue; }
-      this.load(entry);
+      const cacheOnly = this.canLookup(entry);
+      if (!cacheOnly && !this.budget.consume(entry.url)) { entry.status = 'failed'; entry.reason = 'Retry limit reached. Try again after a short pause.'; this.emit(entry); continue; }
+      this.load(entry, cacheOnly);
     }
   }
+  canLookup(entry) {
+    if (entry.cacheMode !== 'thumbnail' || entry.cacheDisabled || entry.cacheFresh || entry.cacheFault || entry.bustFirst) return false;
+    const candidate = entry.candidates[entry.candidateIndex] || entry.url, cache = this.env.imageCache;
+    if (candidate === entry.cacheChecked || candidate === entry.lastCandidate || !cache?.enabled()) return false;
+    if (entry.lookupCandidate !== candidate) {
+      entry.lookupCandidate = candidate;
+      entry.lookupAllowed = !!cache.allowed?.(candidate);
+    }
+    return entry.lookupAllowed;
+  }
   hasSlot(entry) {
+    // Local thumbnail reads and decoding have their own limit. Host cooldowns
+    // and slow transfers only apply if a thumbnail needs the network.
+    if (this.canLookup(entry)) return this.activeLanes.cache < this.settings.concurrency;
+    if (this.active - this.activeLanes.cache >= this.settings.concurrency + 3) return false;
     const lane = this.transferLane(entry), host = this.hostFor(entry);
     if (this.env.now() < host.until) return false;
     if (this.activeLanes[lane] >= (lane === 'thumbnail' ? this.settings.concurrency : entry.priority >= 90 ? 3 : 2)) return false;
@@ -459,7 +472,7 @@ export class MediaPool {
     try { this.env.saveHosts?.(history); } catch {}
   }
   hostFeedback(entry, outcome) {
-    if (entry.hostSampled || outcome !== 'error' && (this.env.hidden() || entry.hostTimingIgnored)) return;
+    if (!entry.hostState || entry.hostSampled || outcome !== 'error' && (this.env.hidden() || entry.hostTimingIgnored)) return;
     if (outcome === 'timeout') outcome = 'error';
     if (outcome !== 'slow') entry.hostSampled = true;
     const host = entry.hostState, now = this.env.now(), elapsed = now - entry.started;
@@ -511,26 +524,51 @@ export class MediaPool {
     const small = entry.smallCandidates.has(canonicalImageURL(candidate)) || /\.(?:th|md)\.[^/.?]+(?:\?|$)/i.test(candidate);
     return entry.lane === 'thumbnail' && (!entry.smallFirst || small) ? 'thumbnail' : 'large';
   }
-  load(entry) {
-    this.active++; entry.released = false; entry.attempts++; entry.status = 'loading';
+  load(entry, cacheOnly) {
+    this.active++; entry.released = false; entry.status = 'loading';
     entry.started = this.env.now(); entry.cancelled = false;
-    entry.activeLane = this.transferLane(entry); entry.hostState = this.hostFor(entry);
-    entry.hostGeneration = entry.hostState.generation; entry.hostSampled = false;
-    entry.hostTimingIgnored = this.env.hidden();
-    this.activeLanes[entry.activeLane]++; entry.hostState[entry.activeLane]++;
+    const lane = this.transferLane(entry);
+    entry.activeLane = cacheOnly ? 'cache' : lane; entry.hostState = cacheOnly ? null : this.hostFor(entry);
+    entry.hostSampled = false; entry.hostTimingIgnored = cacheOnly || this.env.hidden();
+    this.activeLanes[entry.activeLane]++;
+    if (entry.hostState) {
+      entry.attempts++; entry.hostGeneration = entry.hostState.generation; entry.hostState[lane]++;
+    }
     const image = entry.target || new this.env.Image(); entry.image = image;
     const loadVersion = entry.loadVersion = (entry.loadVersion || 0) + 1;
+    const current = () => !entry.cancelled && !this.disposed && entry.loadVersion === loadVersion;
+    const cache = this.env.imageCache;
+    const diagnostic = this.settings.diagnostics && this.env.diagnostic ? (kind, details) => {
+      if (current()) this.env.diagnostic(entry, kind, details);
+    } : undefined;
     entry.displayURL = null; entry.cacheResult = null; entry.cacheHit = false;entry.cacheBytes=0;
-    const timeoutMs = this.transferLane(entry) === 'large' ? entry.fullTimeoutMs : entry.timeoutMs;
+    const timeoutMs = lane === 'large' ? entry.fullTimeoutMs : entry.timeoutMs;
     image.decoding = 'async'; image.fetchPriority = entry.priority >= 50 ? 'high' : 'low';
-    let url = entry.candidates[entry.candidateIndex] || entry.url;
+    const candidate = entry.candidates[entry.candidateIndex] || entry.url;
+    const requestedKey = entry.actualKey = canonicalImageURL(candidate);
+    let url = candidate;
     const repeated = entry.lastCandidate === url;
-    entry.lastCandidate = url;
-    const cacheFresh = !!entry.bustFirst || !!entry.cacheFresh || !!entry.cacheFault || repeated;
+    const cacheFresh = !!entry.bustFirst || !!entry.cacheFresh || !!entry.cacheFault || repeated || entry.cacheChecked === url;
+    if (!cacheOnly) entry.lastCandidate = url;
     if (repeated || entry.bustFirst) url = retryURL(url, this.env.now() + '-' + entry.sequence);
     entry.bustFirst = false; entry.actualURL = url;
+    const assign = (displayURL, native = false) => {
+      if (!current()) return;
+      if (native) diagnostic?.('transport', {transport: 'native', httpStatus: null});
+      entry.displayURL = displayURL;
+      if (image.dataset) image.dataset.epImageSource = url;
+      image.src = displayURL;
+    };
+    const queueTransfer = () => {
+      entry.cacheChecked = entry.candidates[entry.candidateIndex] || entry.url;
+      entry.loadVersion++;
+      entry.abortTransfer?.(); entry.abortTransfer = null; entry.cacheResult = null;
+      this.clearTimers(entry); this.release(entry); image.onload = image.onerror = null;
+      if (entry.displayURL) image.removeAttribute?.('src');
+      entry.displayURL = null; entry.status = 'queued'; this.enqueue(entry);
+    };
     const failed = (reason, outcome = 'error') => {
-      if (entry.cancelled || entry.status === 'ready' || entry.status === 'failed') return;
+      if (!current() || entry.status === 'ready' || entry.status === 'failed') return;
       entry.abortTransfer?.(); entry.abortTransfer = null;
       if (entry.cacheHit) { void this.env.imageCache?.remove(entry.actualURL); entry.cacheFault = true; }
       if (outcome !== 'missing') this.hostFeedback(entry, outcome);
@@ -559,8 +597,9 @@ export class MediaPool {
       this.pump();
     };
     image.onload = () => {
-      if (entry.cancelled) return;
+      if (!current()) return;
       if (!image.naturalWidth) { failed('The image could not be displayed.'); return; }
+      if (cacheOnly) entry.attempts++;
       this.hostFeedback(entry, 'success'); this.clearTimers(entry); this.release(entry);
       entry.dimensions = { width: image.naturalWidth, height: image.naturalHeight };
       // Completed loads begin a new failure streak. Retain manual/rescue guards,
@@ -570,24 +609,30 @@ export class MediaPool {
       if (entry.cacheResult && !entry.cacheResult.hit) void this.env.imageCache.commit(entry.actualURL, entry.cacheResult.blob, entry.cacheResult.epoch, entry.cacheResult.kind);
       entry.cacheResult = null; entry.abortTransfer = null;
       entry.status = 'ready'; entry.reason = '';
-      this.readyImages.set(canonicalImageURL(entry.actualURL), entry);
+      if (entry.cacheHit) diagnostic?.('cache', {cacheOutcome: 'hit',
+        cacheReason: entry.actualKey === requestedKey ? 'preferred-candidate' : 'alternate-candidate'});
+      this.readyImages.set(entry.actualKey, entry);
       this.emit(entry); this.pump(); this.trim();
     };
     image.onerror = () => {
-      if (entry.cancelled || entry.loadVersion !== loadVersion) return;
+      if (!current()) return;
       if (entry.displayURL?.startsWith('data:')) {
         // Corrupt saved bytes or a page CSP must never break ordinary images.
-        if (entry.cacheHit && !this.env.imageCache.displayBlocked) {
-          this.env.imageCache.recordActivity?.('miss');void this.env.imageCache.remove(entry.actualURL);
+        if (entry.cacheHit) {
+          diagnostic?.('cache', {cacheOutcome: 'unusable', cacheReason: cache.displayBlocked ? 'data-url-blocked' : 'decode-error'});
+          if (!cache.displayBlocked) {
+            cache.recordActivity?.('miss'); void cache.remove(entry.actualURL);
+          }
         }
         entry.cacheFault = true; entry.cacheDisabled = true; entry.cacheHit = false; entry.cacheResult = null;
+        if (cacheOnly) { queueTransfer(); return; }
         entry.abortTransfer?.(); entry.abortTransfer = null;
-        entry.displayURL = url; image.src = url; return;
+        assign(url, true); return;
       }
       failed('The image request failed.');
     };
-    entry.timers.push(this.env.setTimeout(() => {
-      if (entry.cancelled || entry.status !== 'loading') return;
+    if (!cacheOnly) entry.timers.push(this.env.setTimeout(() => {
+      if (!current() || entry.status !== 'loading') return;
       if (image.naturalWidth) {
         entry.dimensions = { width: image.naturalWidth, height: image.naturalHeight };
         entry.status = 'streaming'; entry.reason = 'The full image is still loading.';
@@ -595,66 +640,85 @@ export class MediaPool {
       this.emit(entry); this.pump();
     }, this.settings.stallMs));
     entry.timers.push(this.env.setTimeout(() => {
-      if (entry.cancelled || entry.status === 'ready') return;
+      if (!current() || entry.status === 'ready') return;
       if (image.naturalWidth) {
         // Preserve a usable progressive image/animation. Do not wait for decode(),
         // which waits for every frame of an animation before resolving.
         entry.dimensions = { width: image.naturalWidth, height: image.naturalHeight };
         entry.hostSampled = true; entry.status = 'partial'; this.release(entry); this.emit(entry); this.pump();
-      } else failed('The image did not respond in time.', 'timeout');
+      } else if (cacheOnly) {
+        diagnostic?.('cache', {cacheOutcome: 'unavailable', cacheReason: entry.cacheHit ? 'decode-timeout' : 'lookup-timeout'});
+        queueTransfer();
+      }
+      else failed('The image did not respond in time.', 'timeout');
     }, timeoutMs));
     this.emit(entry);
-    if (entry.cancelled || this.disposed) return;
-    const assign = displayURL => {
-      if (entry.cancelled || this.disposed || entry.loadVersion !== loadVersion || entry.image !== image) return;
-      entry.displayURL = displayURL;
-      if (image.dataset) image.dataset.epImageSource = url;
-      image.src = displayURL;
-    };
-    if (entry.cacheMode && !entry.cacheDisabled && this.env.imageCache?.enabled()) {
-      entry.abortTransfer = this.env.imageCache.load(url, {
-        kind: entry.cacheMode === 'thumbnail' ? 'thumbnail' : 'preview',
-        network: entry.cacheMode === 'network' || entry.cacheMode === 'thumbnail' &&
-          (this.transferLane(entry) === 'thumbnail' || !/\.gif(?:\?|$)/i.test(url)),
-        candidates: entry.cacheMode === 'thumbnail' && entry.smallFirst ? entry.candidates.slice(entry.candidateIndex + 1) : [],
-        fresh: cacheFresh
-      }, result => {
-        if (entry.cancelled || this.disposed || entry.loadVersion !== loadVersion || entry.image !== image) return;
-        if (!result) { assign(url); return; }
-        if (result.failure) {
-          // A confirmed missing grid variant says nothing about host capacity.
-          const missing = entry.strictCandidates && (result.status === 404 || result.status === 410);
-          failed('The image host returned HTTP ' + result.status + '.', missing ? 'missing' : 'error'); return;
-        }
-        entry.cacheHit = result.hit; entry.cacheResult = result;
-        if (result.hit) {
-          entry.hostTimingIgnored = true;
-          if (result.key) {
-            url = result.key; entry.actualURL = url; entry.lastCandidate = url;
-            entry.candidateIndex = Math.max(0, entry.candidates.findIndex(candidate => canonicalImageURL(candidate) === url));
-          }
-        }
-        assign(result.dataURL);
-      });
-    } else assign(url);
+    if (!current()) return;
     // A bounded check on active requests only, not a scan of the page. Image
     // elements have no byte-progress event, and metadata can arrive before load.
     const firstFrame = () => {
-      if (entry.cancelled || ['ready', 'failed', 'partial'].includes(entry.status)) return;
+      if (!current() || ['ready', 'failed', 'partial'].includes(entry.status)) return;
       if (image.naturalWidth) {
         entry.dimensions = { width: image.naturalWidth, height: image.naturalHeight };
         entry.status = 'streaming'; entry.reason = 'The full image is still loading.'; this.emit(entry);
       } else entry.timers.push(this.env.setTimeout(firstFrame, 160));
     };
     entry.timers.push(this.env.setTimeout(firstFrame, 80));
+    if (entry.cacheMode && !entry.cacheDisabled && cache?.enabled()) {
+      if (diagnostic && cacheFresh && entry.cacheChecked !== candidate) {
+        diagnostic('cache', {cacheOutcome: 'skipped', cacheReason: entry.cacheFresh ? 'forced' : 'retry'});
+      }
+      const abort = cache.load(url, {
+        kind: entry.cacheMode === 'thumbnail' ? 'thumbnail' : 'preview',
+        network: !cacheOnly && (entry.cacheMode === 'network' || entry.cacheMode === 'thumbnail' &&
+          (lane === 'thumbnail' || !/\.gif(?:\?|$)/i.test(url))),
+        candidates: entry.cacheMode === 'thumbnail' && entry.smallFirst ? entry.candidates.slice(entry.candidateIndex + 1) : [],
+        fresh: cacheFresh, diagnostic
+      }, result => {
+        if (!current()) return;
+        if (cacheOnly && !result?.hit) { queueTransfer(); return; }
+        if (!result) { assign(url, true); return; }
+        if (result.failure) {
+          // A confirmed missing thumbnail variant says nothing about host capacity.
+          const thumbnail = entry.strictCandidates || entry.cacheMode === 'thumbnail' && lane === 'thumbnail';
+          const missing = thumbnail && (result.status === 404 || result.status === 410);
+          failed('The image host returned HTTP ' + result.status + '.', missing ? 'missing' : 'error'); return;
+        }
+        entry.cacheHit = result.hit; entry.cacheResult = result;
+        if (result.hit) {
+          entry.hostTimingIgnored = true;
+          if (result.key) {
+            url = result.key; entry.actualURL = url; entry.actualKey = canonicalImageURL(url);
+            if (!cacheOnly) entry.lastCandidate = url;
+            entry.candidateIndex = Math.max(0, entry.candidates.findIndex(candidate => canonicalImageURL(candidate) === url));
+          }
+        }
+        assign(result.dataURL);
+      });
+      if (current()) entry.abortTransfer = abort; else abort?.();
+    } else {
+      if (diagnostic && entry.cacheMode && entry.cacheChecked !== candidate) {
+        diagnostic('cache', {cacheOutcome: 'skipped', cacheReason: entry.cacheDisabled ? 'previous-decode-error' :
+          cache?.unavailableReason?.() || 'storage-unavailable'});
+      }
+      if (cacheOnly) queueTransfer(); else assign(url, true);
+    }
   }
-  release(entry) { if (!entry.released) { entry.released = true; this.active = Math.max(0, this.active - 1);
-    this.activeLanes[entry.activeLane]--; entry.hostState[entry.activeLane]--; } }
+  refundTransfer(entry) {
+    if (entry.released || !entry.hostState) return;
+    const budget = this.budget.get(entry.url);
+    budget.attempts = Math.max(entry.rescue ? entry.rescueBase : 0, budget.attempts - 1);
+  }
+  release(entry) {
+    if (entry.released) return;
+    entry.released = true; this.active = Math.max(0, this.active - 1);
+    this.activeLanes[entry.activeLane]--;
+    if (entry.hostState) entry.hostState[entry.activeLane]--;
+  }
   clearTimers(entry) { for (const timer of entry.timers) this.env.clearTimeout(timer); entry.timers = []; }
   cancel(entry) {
     if (entry.status === 'ready') {
-      const url = canonicalImageURL(entry.actualURL);
-      if (this.readyImages.get(url) === entry) this.readyImages.delete(url);
+      if (this.readyImages.get(entry.actualKey) === entry) this.readyImages.delete(entry.actualKey);
     }
     entry.loadVersion = (entry.loadVersion || 0) + 1; entry.abortTransfer?.(); entry.abortTransfer = null; entry.cacheResult = null;
     entry.cancelled = true; this.clearTimers(entry); this.release(entry);
@@ -682,8 +746,7 @@ export class MediaPool {
       const entry = idle.shift();
       if (!entry.released) {
         freedSlot = true;
-        const budget = this.budget.get(entry.url);
-        budget.attempts = Math.max(entry.rescue ? entry.rescueBase : 0, budget.attempts - 1);
+        this.refundTransfer(entry);
       }
       this.cancel(entry); this.entries.delete(entry.key);
     }

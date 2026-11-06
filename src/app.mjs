@@ -17,8 +17,13 @@ import { coalesceScanRoots, presentationMutation, mutationChangesResults } from 
 
 const SETTINGS_KEY = 'ep.settings';
 const SEARCH_KEY = 'ep.searches';
+const DIAGNOSTIC_LIMIT = 3000;
 const OWN = '.epc-root,.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-media-retry,.epc-engine,.epc-version-control,.epc-version-columns,#nseOuter,#nseFloatyBoi';
 const searchSignature = fields => JSON.stringify(fields.map(field => [field.name, field.type, field.value, !!field.checked]));
+const smallLegacyResize = source => {
+  const resize = source.match(/\/images\/resize\/(\d+)\//);
+  return resize && Number(resize[1]) <= 350 && !!legacyOriginal(source);
+};
 
 export function captureSearch(form) {
   const fields = [];
@@ -114,19 +119,23 @@ export class CompanionApp {
   }
   report(message) {
     const text = String(message?.message || message);
-    this.log.push({ time: new Date().toISOString(), type: 'application', message: text.slice(0, 240) });
-    this.log = this.log.slice(-200);
+    this.appendDiagnostic({ type: 'application', message: text.slice(0, 240) });
     if (this.notice) this.notice.textContent = text;
   }
-  record(entry, kind) {
+  appendDiagnostic(event) {
+    if (this.log.length >= DIAGNOSTIC_LIMIT) this.log.splice(0, 200);
+    this.log.push({ time: new Date().toISOString(), ...event });
+  }
+  record(entry, kind, details) {
     if (!this.settings.diagnostics) return;
     if (!this.assetIds.has(entry.url)) this.assetIds.set(entry.url, ++this.nextAssetId);
-    const url = new URL(entry.url);
-    this.log.push({ time: new Date().toISOString(), asset: this.assetIds.get(entry.url), host: url.host,
-      kind, state: entry.status, attempts: entry.attempts,
+    const url = new URL(entry.url), candidate = new URL(entry.actualURL || entry.url);
+    this.appendDiagnostic({ asset: this.assetIds.get(entry.url), host: url.host, candidateHost: candidate.host,
+      resizePixels: Number(candidate.pathname.match(/^\/images\/resize\/(\d+)\//)?.[1]) || undefined,
+      kind, state: entry.status, attempts: entry.attempts, lane: entry.activeLane,
       elapsedMs: entry.started ? Date.now() - entry.started : 0,
-      legacyResize: !!legacyOriginal(entry.url), dimensions: entry.dimensions });
-    this.log = this.log.slice(-200);
+      legacyResize: !!legacyOriginal(entry.url), dimensions: entry.dimensions,
+      reason: ['retrying', 'failed', 'stalled'].includes(entry.status) ? entry.reason : undefined, ...details });
   }
   toast(text) {
     this.win.clearTimeout(this.toastTimer);
@@ -1295,13 +1304,15 @@ export class PageMedia {
     this.definitions = new Map(); this.scriptText = new WeakMap(); this.knownVariants = new Map();
     this.records = new Map(); this.thumbnails = new Map(); this.thumbnailsByOriginal = new Map(); this.near = new Map();
     this.layoutVersion = 0;
+    this.viewportTop = this.win.scrollY; this.viewportHeight = this.win.innerHeight;
     this.nativeTimers = new Set(); this.disposed = false;
     this.syncCoverGate();
     this.pool = new MediaPool({
       Image: app.options.Image || this.win.Image, now: () => Date.now(),
       imageCache: app.imageCache,
+      diagnostic: (entry, kind, details) => app.record(entry, kind, details),
       hostHistory: app.storage.get('ep.hostHistory', []), saveHosts: history => app.storage.set('ep.hostHistory', history),
-      priorityRevision: () => `${this.layoutVersion}/${this.win.scrollY}/${this.win.innerHeight}/${app.settings.preloadScreens}`,
+      priorityRevision: () => `${this.layoutVersion}/${this.viewportTop}/${this.viewportHeight}/${app.settings.preloadScreens}`,
       setTimeout: this.win.setTimeout.bind(this.win), clearTimeout: this.win.clearTimeout.bind(this.win),
       hidden: () => this.doc.hidden, report: error => app.report(error)
     }, app.settings);
@@ -1471,29 +1482,40 @@ export class PageMedia {
     return record.position;
   }
   thumbnailDistance(record) {
-    const { top, bottom } = this.thumbnailPosition(record), scroll = this.win.scrollY;
-    const height = Math.max(1, this.win.innerHeight);
+    const { top, bottom } = this.thumbnailPosition(record), scroll = this.viewportTop;
+    const height = Math.max(1, this.viewportHeight);
     return Math.max(top - scroll - height, scroll - bottom, 0) / height;
   }
   thumbnailPriority(record) {
+    // Queue ranking is a read pass. Cache visibility here so each dispatch
+    // does not measure layout again after the previous image changed the DOM.
+    if (!this.displayed(record.element, record)) return 0;
     const distance = this.thumbnailDistance(record);
     if (!distance) return 80;
     return distance <= this.app.settings.preloadScreens ? 40 - distance : 10 / (1 + distance);
   }
   prepareThumbnails(rows, cards) {
     if (this.disposed || !this.app.filtersReady || this.doc.hidden) return;
+    // Scroll and resize already request this pass. Reading the viewport from
+    // the scheduler would force layout again after each image updates its DOM.
+    this.viewportTop = this.win.scrollY; this.viewportHeight = this.win.innerHeight;
     // Warm the current result list as slots finish, even when the user stays at
     // the top. Nearby rows lead; filtering and closed galleries still apply.
-    const records = rows ? rows.map(row => this.thumbnails.get(row)).filter(Boolean) : this.thumbnails.values();
+    const records = rows ? rows.map(row => this.thumbnails.get(row)).filter(Boolean) : [...this.thumbnails.values()];
+    if (this.app.settings.recoverBackgrounds) {
+      if (!rows) {
+        for (const record of this.records.values()) if (record.coverArt) records.push(record);
+      } else if (cards) for (const card of cards) for (const cover of card.querySelectorAll('.torrent__cover')) {
+        const record = this.records.get(cover);
+        if (record?.coverArt) records.push(record);
+      }
+    }
+    // Measure the batch before queue updates write image status into the DOM.
+    for (const record of records) if (record.state === 'deferred') this.displayed(record.element, record);
     this.pool.batch(() => {
-      for (const record of records) this.loadThumbnail(record);
-      if (this.app.settings.recoverBackgrounds) {
-        if (!rows) {
-          for (const record of this.records.values()) if (record.coverArt) this.loadBackground(record);
-        } else if (cards) for (const card of cards) for (const cover of card.querySelectorAll('.torrent__cover')) {
-          const record = this.records.get(cover);
-          if (record?.coverArt) this.loadBackground(record);
-        }
+      for (const record of records) {
+        if (record.coverArt) this.loadBackground(record);
+        else this.loadThumbnail(record);
       }
       this.pool.pump();
     });
@@ -1532,11 +1554,8 @@ export class PageMedia {
   }
   registerDefinition(def) {
     this.definitions.set(def.name, def);
-    if (def.thumbnail) {
-      const key = fullSizeURL(def.src);
-      if (!this.knownVariants.has(key)) this.knownVariants.set(key, new Set());
-      this.knownVariants.get(key).add(def.thumbnail);
-    }
+    if (def.thumbnail) this.registerVariant(fullSizeURL(def.src), def.thumbnail);
+    this.rememberVariant(def.src);
   }
   scan(root, prepare = true) {
     if (this.disposed || !this.app.settings.enabled || root.closest?.(OWN)) return;
@@ -1560,10 +1579,11 @@ export class PageMedia {
     this.app.scheduleHealth();
   }
   rememberVariant(src) {
-    if (!/\.(th|md)\.[^/.?]+(?:\?|$)/i.test(src)) return;
-    const key = fullSizeURL(src);
-    if (!this.knownVariants.has(key)) this.knownVariants.set(key, new Set());
-    this.knownVariants.get(key).add(src);
+    if (/\.(th|md)\.[^/.?]+(?:\?|$)/i.test(src) || smallLegacyResize(src)) this.registerVariant(fullSizeURL(src), src);
+  }
+  registerVariant(original, variant) {
+    if (!this.knownVariants.has(original)) this.knownVariants.set(original, new Set());
+    this.knownVariants.get(original).add(variant);
   }
   requestedSource(image) {
     const raw = image.getAttribute('src');
@@ -1742,10 +1762,10 @@ export class PageMedia {
     record.unsubscribe?.(); this.intersection?.unobserve(record.element); this.near.delete(record.element);
     record.element.remove(); this.pool.abandon(record.lastEntry);
   }
-  thumbnailOptions(source, rescueEntry, mode = this.app.settings.thumbnailMode) {
+  thumbnailOptions(source, rescueEntry, mode = this.app.settings.thumbnailMode, preferred) {
     const grid = mode === 'grid', original = fullSizeURL(canonicalImageURL(source));
     const smallCandidates = (rescueEntry ? [...rescueEntry.smallCandidates] :
-      [this.thumbnailHistory.get(canonicalImageURL(source))?.src,
+      [this.thumbnailHistory.get(canonicalImageURL(source))?.src, preferred,
         ...Array.from(this.knownVariants.get(fullSizeURL(source)) || [])].filter(Boolean))
       .filter(candidate => mode !== 'auto' && !grid || canonicalImageURL(candidate) !== original);
     let candidates = rescueEntry ? [canonicalImageURL(rescueEntry.actualURL)] :
@@ -1889,9 +1909,10 @@ export class PageMedia {
     this.records.set(element, record);
     if (coverArt) {
       const thumb = safeImageURL(element.getAttribute('data-thumbnail'), this.win.location.href);
-      const resized = legacyOriginal(supplied) && Number(new URL(supplied).pathname.match(/\/resize\/(\d+)\//)?.[1]) <= 350;
-      if (!this.knownVariants.has(source)) this.knownVariants.set(source, new Set());
-      for (const value of [thumb, resized ? supplied : null].filter(Boolean)) this.knownVariants.get(source).add(value);
+      const resized = smallLegacyResize(supplied) ? supplied : null;
+      record.preferredThumbnail = thumb || resized;
+      if (thumb) this.registerVariant(source, thumb);
+      if (resized) this.registerVariant(source, resized);
       const image = record.image = this.app.node('img'); image.className = 'epc-cover-image'; image.alt = ''; image.draggable = false; image.decoding = 'async';
       const status = record.status = this.app.node('span', 'Waiting', 'epc-cover-status'); status.setAttribute('aria-hidden','true');
       const position = this.win.getComputedStyle(element).position;
@@ -1904,7 +1925,7 @@ export class PageMedia {
     if (!this.app.filtersReady || this.disposed || !this.app.settings.recoverBackgrounds ||
         !(record.coverArt ? this.displayed(record.element, record) : this.visible(record.element, true)) || this.doc.hidden) return;
     const entry = this.pool.request(record.source, {
-      ...(record.coverArt ? this.thumbnailOptions(record.originalSource, rescue ? record.lastEntry : null) : { lane: 'large' }),
+      ...(record.coverArt ? this.thumbnailOptions(record.originalSource, rescue ? record.lastEntry : null, undefined, record.preferredThumbnail) : { lane: 'large' }),
       priority: record.coverArt ? this.thumbnailPriority(record) : this.visible(record.element) ? 30 : 5,
       ...(record.coverArt ? { priorityFor: () => this.thumbnailPriority(record), target: this.app.options.Image ? null : record.image } : {}), force,
       eligible: () => !this.disposed && this.app.settings.recoverBackgrounds && !this.doc.hidden &&
@@ -2277,7 +2298,7 @@ export class PreviewController {
       this.image.dataset.epImageSource=thumbnail.image.dataset.epImageSource||thumbnail.image.src;
     }
     const readyThumbnail = thumbnail?.lastEntry && ['ready', 'partial'].includes(thumbnail.lastEntry.status);
-    if(titleHover&&readyThumbnail&&!options.force)this.app.imageCache.recordActivity?.('hit',thumbnail.lastEntry.cacheBytes);
+    if (titleHover && readyThumbnail && !options.force) this.app.media.pool.recordMemoryHit(thumbnail.lastEntry);
     const gridTitle = titleHover && row?.closest('table')?.classList.contains('epc-result-grid');
     const requestOptions = titleHover ? this.app.media.thumbnailOptions(source, null, gridTitle ? 'grid' : undefined) : {
       lane: 'large', keepAlive: true,

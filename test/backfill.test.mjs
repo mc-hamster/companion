@@ -436,6 +436,25 @@ test('[BFL-09] Stop cannot bypass a server cooldown, and disposal clears its UI 
 
 const collageURL=origin+'/collage/2591?sort=added';
 const collageHTML=(ids,page,next)=>{const u=new URL(collageURL);u.searchParams.set('page',page);return collagePageHTML(u,ids,next);};
+test('a five-page collage batch skips idle gaps and repeated batches share the pacing allowance', async () => {
+  const starts = [];
+  const f = await setup({url: collageURL, html: collageHTML([1], 1, 2), fetch: async url => {
+    starts.push(f.app.backfill.now());
+    const page = Number(new URL(url).searchParams.get('page'));
+    return response(url, collageHTML([page], page, page < 8 ? page + 1 : null));
+  }});
+  try {
+    const waits = virtualPacing(f);
+    await f.app.backfill.run();
+    assert.equal(f.app.backfill.pages, 5);
+    assert.deepEqual(waits, [0, 0, 0, 0], 'Each fast request still yields between pages');
+    await f.app.backfill.run();
+    assert.deepEqual(waits, [0, 0, 0, 0, 1000, 1000]);
+    assert.deepEqual(starts.map(time => time - starts[0]), [0, 0, 0, 0, 0, 1000, 2000]);
+    assert.equal(f.app.backfill.pages, 7);
+  } finally { f.close(); }
+});
+
 test('[BFL-11] collage URLs keep the collage and ordering identity and reject mutations or page zero',()=>{
   assert.equal(backfillURL('?page=2&sort=added#discog_table',collageURL),origin+'/collage/2591?page=2&sort=added');
   for(const candidate of['/collage','/collage/99?page=2&sort=added','?page=0&sort=added','?page=2&sort=other','?page=2&sort=added&action=delete','/collage/2591/manage?page=2&sort=added','/torrents.php?page=2&sort=added'])assert.equal(backfillURL(candidate,collageURL),null,candidate);

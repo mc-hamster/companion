@@ -96,7 +96,7 @@ A userscript cannot fix a missing image, host outage, browser block or network f
 
 Backfill follows same-origin torrent-list pagination for the current search, sequentially, with a 20-second timeout per page. It uses numbered pager links if Next is missing, marks included pages, and disables Next at the end. A failed page can be retried without fetching completed pages again; an empty results page stops the batch. A duplicate-only page can be passed within the configured limit. Login, redirected, non-HTML or malformed responses leave the cursor retryable. Imported row scripts are never executed: safe overlay metadata is retained with unique names, while one engine supplies filtering and row controls. Native image requests wait until filtering. Standard links and magnet links remain available; fetched inline event handlers are not replayed. Source-page controls that depend on those handlers may require opening the detail page.
 
-Optional diagnostics stay local, with 200 events maximum. Image records include anonymous per-page asset numbers, hostnames, timing, dimensions and status, omitting full image URLs and account tokens. Backups contain your filters and searches.
+Optional diagnostics stay local and retain up to 3,000 events. Image records include anonymous per-page asset numbers, candidate hostnames, resize widths, timing, dimensions and load state. Cache events distinguish hits, misses, skipped lookups and unavailable or unusable storage. Managed image responses include their HTTP status. Native image fallbacks have a `null` HTTP status. Image records omit full image URLs and account tokens. Backups contain your filters and searches.
 
 ## Development
 

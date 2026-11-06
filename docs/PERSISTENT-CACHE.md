@@ -14,6 +14,8 @@ Clear saved images removes this cache's database contents. Images already displa
 
 A needed image is looked up by canonical source URL; only the script's own retry token/hash is removed. Other query parameters remain significant. Hits read one Blob and display an asynchronous data URL, with no image-host request. Misses at supported public hosts use one manager request, then display those same bytes. Only successfully decoded images are committed. The shared scheduler still bounds admission/retry/host pressure. Cached decoding does not train image-host performance. No full database of image bytes is loaded at startup.
 
+In automatic thumbnail mode, a collage cover can reuse a saved resize supplied by its matching row, including Empornium's 300 px cover and 350 px row variants. Cached image reads can start while usage statistics are still initializing.
+
 Images, metadata and totals are updated transactionally. Last-use metadata is batched after cache hits, and writes are serialized per page. LRU uses a database index; quota errors prune older cache data and retry a write once before falling back. There is no timed-expiry sweep or background polling. Large storage work and data-URL conversion use asynchronous browser APIs. Failed/corrupt cached images fall back to the original URL; CSP-denied data display falls back without weakening page policy. Navigation explicitly aborts manager transfers for outgoing documents while preserving BFCache documents. Successful variant URL hints flush before navigation.
 
 ## Access and security boundaries

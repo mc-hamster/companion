@@ -111,6 +111,24 @@ test('queued and completed thumbnails leave scroll observation while new results
   } finally { f.close(); }
 });
 
+test('finishing queued thumbnails does not remeasure the viewport for every image', async () => {
+  const ids = Array.from({ length: 12 }, (_, i) => i + 1);
+  const f = await setup(ids.map(id => rowHTML(id)).join(''),
+    ids.map(id => overlayHTML(id, 'https://hamsterimg.net/' + id + '.jpg')).join(''), { inlineThumbnails: true });
+  try {
+    assert.ok(f.app.media.pool.queue.length);
+    let reads = 0;
+    for (const key of ['scrollY', 'innerHeight']) {
+      const value = f.win[key];
+      Object.defineProperty(f.win, key, { configurable: true, get() { reads++; return value; } });
+    }
+    for (let i = 0; i < f.clock.images.length; i++) f.clock.images[i].succeed();
+    assert.equal(f.clock.images.length, ids.length);
+    assert.equal(f.app.media.pool.queue.length, 0);
+    assert.equal(reads, 0);
+  } finally { f.close(); }
+});
+
 test('replacement search forms are adopted even when no torrent rows change', async () => {
   const f = await setup();
   try {

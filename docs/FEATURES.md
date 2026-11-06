@@ -1,5 +1,7 @@
 # Feature mapping
 
+Version 2.13.2 speeds up backfill batches of up to five collage pages. Thumbnail cache hits can display during image-host cooldowns, and covers can reuse saved resizes from matching rows. The local diagnostic export records cache outcomes, fallback reasons, and managed image HTTP statuses.
+
 Version 2.13.1 fills an empty thumbnail slot with the matching larger image when Companion has already loaded it. It also isolates Companion's logo and toolbar icons from site styles that affect SVGs.
 
 Version 2.13.0 reorganizes the toolbar. **List**, **Grid**, and **Load more** are available directly. **Browse options** contains Freeleech and Show filtered. Saved searches and loading feedback have their own row. It also adds Freeleech, conditional rules, and a history for seen and ignored torrents. Pin collages to add torrents from their details pages. Grid cards load thumbnails across the loaded results and request larger images when you open a preview. Backfill processes newly added rows and affected groups, with at least one second between request starts. [Filters and history](REFERENCE.md#freeleech-conditional-rules-and-seen-history) · [Grid view](GRID-VIEW.md)

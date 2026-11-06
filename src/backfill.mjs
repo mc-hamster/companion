@@ -7,6 +7,8 @@ import { companionIcon } from './workspace.mjs';
 const TABLE = '#torrent_table, #content table.torrent_table';
 const PAGE_LINKS = 'a.pager_page,a.pager_last';
 const NEXT_LINKS = 'a.pager_next,a[rel="next"]';
+const COLLAGE_PATH = /^\/collage\/[1-9]\d*\/?$/;
+const COLLAGE_BURST_PAGES = 5;
 const searchIdentity = url => JSON.stringify([...url.searchParams].filter(([key]) => key !== 'page')
   .sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1])));
 const pageNumber = url => Number(new URL(url).searchParams.get('page') || 1);
@@ -24,7 +26,7 @@ export function backfillRetryAfter(value, now = Date.now()) {
 export function backfillURL(value, base, search = base) {
   try {
     const url = new URL(value, base), original = new URL(search);
-    const collage=/^\/collage\/[1-9]\d*\/?$/.test(original.pathname);
+    const collage=COLLAGE_PATH.test(original.pathname);
     if (!['https:', 'http:'].includes(url.protocol) || url.origin !== original.origin || (!collage&&url.pathname !== '/torrents.php') || original.pathname !== url.pathname ||
         url.username || url.password || url.searchParams.has('id') || original.searchParams.has('id') ||
         url.searchParams.getAll('action').some(action => !(collage?['','view']:['', 'advanced', 'basic', 'search']).includes(action)) ||
@@ -66,7 +68,7 @@ export class BackfillController {
     this.search = this.win.location.href; this.loaded = new Set(); this.seenIDs = new Set();
     this.generation = 0; this.overlaySequence = 1000000000; this.pages = 0; this.added = 0;
     this.busy = false; this.initialized = false; this.disposed = false; this.message = '';
-    this.lastRequestStartedAt = null;
+    this.lastRequestStartedAt = null; this.burstRequestAt = 0;
   }
   table() { return this.doc.querySelector(TABLE); }
   supported() { return !!backfillURL(this.search, this.search) && !!this.table(); }
@@ -152,13 +154,16 @@ export class BackfillController {
       timer = this.win.setTimeout(wake, Math.min(2147483647, Math.max(0, ms)));
     });
   }
-  async readWithRetry(url, generation) {
+  async readWithRetry(url, generation, burst) {
+    const interval = this.app.options.backfillIntervalMs ?? 1000;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (!await this.foreground(generation) || !this.active(generation)) return null;
       if (!attempt && this.lastRequestStartedAt !== null) {
-        const interval = this.app.options.backfillIntervalMs ?? 1000;
+        // A short collage batch can use up to five starts up front. The
+        // allowance refills one request per interval across successive runs.
+        const earliest = burst ? this.burstRequestAt - (COLLAGE_BURST_PAGES - 1) * interval : this.lastRequestStartedAt + interval;
         // Fetch and append time count toward spacing. A zero wait still yields to input and rendering.
-        if (!await this.wait(Math.max(0, interval - (this.now() - this.lastRequestStartedAt)), generation)) return null;
+        if (!await this.wait(Math.max(0, earliest - this.now()), generation)) return null;
       }
       if (this.now() < (this.notBefore || 0) && !await this.wait(this.notBefore - this.now(), generation)) return null;
       if (!await this.foreground(generation) || !this.active(generation)) return null;
@@ -167,6 +172,7 @@ export class BackfillController {
       const timeout = this.win.setTimeout(() => { timedOut = true; controller.abort(); }, this.app.options.backfillTimeoutMs || 20000);
       this.message = 'Loading page ' + pageNumber(url) + (attempt ? ' · attempt ' + (attempt + 1) + '/3' : ''); this.sync();
       this.lastRequestStartedAt = this.now();
+      this.burstRequestAt = Math.max(this.burstRequestAt, this.lastRequestStartedAt) + interval;
       try { result = await this.readPage(url, controller.signal); }
       catch (error) { failure = timedOut ? pageError('The page request timed out.', true) : error; }
       finally { this.win.clearTimeout(timeout); if (this.controller === controller) this.controller = null; }
@@ -309,6 +315,7 @@ export class BackfillController {
     this.autoStarted = true; // Stop/manual retries must never restart automatic loading on this page.
     this.failedURL = null;
     const generation = ++this.generation, limit = this.app.settings.backfillMode === 'all' ? Infinity : this.app.settings.backfillPages;
+    const burst = limit <= COLLAGE_BURST_PAGES && COLLAGE_PATH.test(this.win.location.pathname);
     let pages = 0, added = 0;
     this.busy = true;
     this.app.versions?.releaseLayout(this.table());
@@ -316,7 +323,7 @@ export class BackfillController {
       for (; pages < limit && this.nextURL; ) {
         if (!this.active(generation)) return;
         const url = this.nextURL;
-        const result = await this.readWithRetry(url, generation);
+        const result = await this.readWithRetry(url, generation, burst);
         if (!result || !this.active(generation)) return;
         const prepared = [], acceptedIDs = new Set();
         for (const source of result.rows) {

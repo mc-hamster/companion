@@ -5,6 +5,7 @@ import {PersistentImageCache,IMAGE_CACHE_HOSTS,cacheActivityWindows} from '../sr
 import {MediaPool,DEFAULTS} from '../src/core.mjs';
 import {fakeClock,until,settle,domFixture,fixtureHTML,rowHTML,overlayHTML,memoryStorage} from './helpers.mjs';
 import {createApp} from '../src/app.mjs';
+import {collagePageHTML} from './collage-backfill-fixture.mjs';
 const url='https://hamsterimg.net/images/persist.th.jpg';
 const blob=(size=12)=>new Blob([new Uint8Array(size)],{type:'image/png'});
 function setup({indexedDB=new IDBFactory(),request,limit=512}={}){
@@ -29,6 +30,166 @@ test('[CACHE-01] collage covers reuse a saved variant without thumbnail history 
     assert.equal(record.lastEntry.actualURL,small);assert.equal(record.lastEntry.cacheHit,true);
     assert.equal(calls,0);const stats=await f.cache.summary();assert.equal(stats.misses,0);assert.equal(stats.hits,1);
   }finally{app.dispose();page.close();f.cache.close();}
+});
+
+test('a 300px collage cover uses the cached 350px resize of its matching row', async () => {
+  const original = 'https://fapping.empornium.sx/images/neutral.jpg';
+  const cover = original.replace('/images/', '/images/resize/300/');
+  const row = original.replace('/images/', '/images/resize/350/');
+  const requests = [];
+  const f = setup({request: details => { requests.push(details.url); return {abort() {}}; }});
+  const collage = new URL('/collage/2591', f.env.origin), clock = fakeClock();
+  const page = domFixture(collagePageHTML(collage, [], 2), collage.href);
+  const markup = fixtureHTML(rowHTML(1), overlayHTML(1, row) +
+    '<div class="torrent_grid"><article class="torrent_grid__torrent"><a href="/torrents.php?id=1">' +
+    '<div class="torrent__cover" style="background-image:url(' + cover + ')"></div></a></article></div>');
+  const app = createApp(page.win, memoryStorage({'ep.settings': {inlineThumbnails: false, diagnostics: true}}), {
+    Image: clock.env.Image, imageCache: f.cache, fetch: async url => ({ok: true, url, text: async () => markup})
+  });
+  try {
+    await f.cache.commit(row, blob(), undefined, 'thumbnail');
+    app.start();
+    await until(() => app.root?.dataset.epReady === 'true');
+    await app.backfill.run();
+    await until(() => requests.length || clock.images.length);
+    assert.deepEqual(requests, []);
+    clock.images[0].succeed(350, 197);
+    const record = app.media.records.get(page.doc.querySelector('.torrent__cover'));
+    assert.equal(record.lastEntry.candidates[0], cover, 'The native cover stays first for a cold load');
+    assert.equal(record.image.dataset.epImageSource, row);
+    assert.ok(app.log.some(event => event.kind === 'cache' && event.cacheOutcome === 'hit' && event.cacheReason === 'alternate-candidate'));
+  } finally { app.dispose(); page.close(); f.cache.close(); }
+});
+
+test('[CACHE-01] five backfilled collage pages display saved covers while the image host is busy', async () => {
+  const requests = [], f = setup({request: details => { requests.push(details.url); return {abort() {}}; }});
+  const collage = new URL('/collage/2591', f.env.origin), perPage = 6, clock = fakeClock();
+  const page = domFixture(collagePageHTML(collage, [1], 2), collage.href);
+  const app = createApp(page.win, memoryStorage({
+    'ep.settings': {inlineThumbnails: false, backfillPages: 5, concurrency: 2},
+    'ep.mediaRevision': 2,
+    'ep.hostHistory': [{host: collage.host, limit: 1, baseline: 200, constrained: true, time: Date.now()}]
+  }), {
+    Image: clock.env.Image, imageCache: f.cache, backfillIntervalMs: 0,
+    fetch: async url => {
+      const next = new URL(url), number = Number(next.searchParams.get('page'));
+      const ids = Array.from({length: perPage}, (_, index) => (number - 2) * perPage + index + 2);
+      return {ok: true, url, text: async () => collagePageHTML(next, ids, number < 6 ? number + 1 : null)};
+    }
+  });
+  try {
+    const sources = Array.from({length: 5 * perPage}, (_, i) => f.env.origin + '/qa-image/collage/small-' + (i + 2) + '.svg');
+    await Promise.all(sources.map(source => f.cache.commit(source, blob(), undefined, 'thumbnail')));
+    app.start();
+    await until(() => requests.length === 1, 'Cold cover to occupy the host');
+    const host = app.media.pool.hosts.get(collage.host);
+    host.until = Date.now() + 15000;
+    await app.backfill.run();
+    const covers = [...app.media.records.values()].filter(record => record.coverArt && record.element.closest('[data-ep-backfill-page]'));
+    assert.equal(covers.length, sources.length);
+    await until(() => {
+      const decoding = clock.images.filter(image => image.onload && !image.naturalWidth);
+      assert.ok(decoding.length <= 2, 'Local decoding stays bounded');
+      for (const image of decoding) image.succeed(160, 90);
+      return covers.every(record => record.state === 'ready');
+    }, 'Cached covers to finish without waiting for the host');
+    assert.equal(host.thumbnail, 1, 'The cold request still occupies the only host slot');
+    assert.ok(host.until > Date.now(), 'The host cooldown is still in effect');
+    assert.deepEqual(requests, [f.env.origin + '/qa-image/collage/small-1.svg']);
+    assert.ok(covers.every(record => record.lastEntry.cacheHit));
+    const stats = await f.cache.summary();
+    assert.equal(stats.hits, sources.length);
+    assert.equal(stats.misses, 1);
+  } finally { app.dispose(); page.close(); f.cache.close(); }
+});
+
+test('[CACHE-03] an unresponsive thumbnail lookup releases its slot and tries the network once', async () => {
+  let finishLookup, transfer;
+  const events = [];
+  const f = setup({request: details => { transfer = details; return {abort() {}}; }}), clock = fakeClock();
+  f.cache.get = () => new Promise(resolve => { finishLookup = resolve; });
+  const pool = new MediaPool({...clock.env, imageCache: f.cache,
+    diagnostic: (_entry, kind, details) => events.push({kind, ...details})}, {...DEFAULTS, maxRetries: 0, diagnostics: true});
+  try {
+    const entry = pool.request(url, {cacheMode: 'thumbnail', timeoutMs: 1500});
+    await until(() => finishLookup);
+    clock.tick(1500);
+    await until(() => transfer);
+    assert.equal(entry.attempts, 1);
+    assert.equal(pool.activeLanes.cache, 0);
+    finishLookup(blob());
+    transfer.onload({status: 200, response: blob(24)});
+    await until(() => entry.image.src?.startsWith('data:'));
+    entry.image.succeed(160, 90);
+    assert.equal(entry.cacheBytes, 24);
+    assert.equal(entry.status, 'ready');
+    assert.deepEqual(events, [
+      {kind: 'cache', cacheOutcome: 'unavailable', cacheReason: 'lookup-timeout'},
+      {kind: 'http', transport: 'manager', httpStatus: 200, transportReason: undefined}
+    ]);
+  } finally { pool.dispose(); f.cache.close(); }
+});
+
+test('diagnostic export distinguishes cache outcomes, thumbnail HTTP failures, and native fallback', async () => {
+  const small = url, full = url.replace('.th.', '.'), denied = url + '?denied=1', clock = fakeClock();
+  const f = setup({request: details => {
+    const status = details.url === small ? 404 : details.url === denied ? 403 : 200;
+    queueMicrotask(() => details.onload({status, response: blob()}));
+    return {abort() {}};
+  }});
+  const page = domFixture(fixtureHTML(''));
+  const app = createApp(page.win, memoryStorage({'ep.settings': {diagnostics: true}}), {
+    Image: clock.env.Image, imageCache: f.cache
+  }).start();
+  try {
+    const pool = app.media.pool, options = {cacheMode: 'thumbnail', smallFirst: true, candidates: [small, full]};
+    const entry = pool.request(full, options);
+    await until(() => entry.image?.src?.startsWith('data:'));
+    entry.image.succeed();
+    assert.equal(pool.hosts.get('hamsterimg.net').constrained, false);
+    assert.equal(pool.request(full, options), entry);
+    const native = pool.request(denied, {cacheMode: 'thumbnail'});
+    await until(() => native.image?.src === denied);
+    native.image.succeed();
+    let exported;
+    app.download = (_name, json) => { exported = json; };
+    [...app.optionGroups.diagnostics.querySelectorAll('button')].find(button => button.textContent === 'Export diagnostic history').click();
+    const events = JSON.parse(exported);
+    assert.deepEqual(events.filter(event => event.kind === 'http').map(event => event.httpStatus), [404, 200, 403]);
+    assert.ok(events.some(event => event.cacheOutcome === 'miss' && event.cacheReason === 'no-saved-candidate'));
+    assert.ok(events.some(event => event.cacheOutcome === 'hit' && event.cacheReason === 'memory-reuse'));
+    assert.ok(events.some(event => event.httpStatus === 403 && event.transportReason === 'access-denied'));
+    assert.ok(events.some(event => event.transport === 'native' && event.httpStatus === null));
+    assert.doesNotMatch(exported, /https:\/\/|persist\.th\.jpg|data:image/);
+  } finally { app.dispose(); page.close(); f.cache.close(); }
+});
+
+test('a blocked IndexedDB upgrade is reported as unavailable storage rather than a cache miss', async () => {
+  const events = [];
+  const f = setup({indexedDB: {open() {
+    const request = {};
+    queueMicrotask(() => request.onblocked());
+    return request;
+  }}});
+  try {
+    assert.equal(await load(f.cache, {diagnostic: (kind, details) => events.push({kind, ...details})}), null);
+    assert.deepEqual(events, [{kind: 'cache', cacheOutcome: 'unavailable', cacheReason: 'open-blocked'}]);
+  } finally { f.cache.close(); }
+});
+
+test('cached thumbnails can load while another tab holds the statistics store', async () => {
+  const writer = setup(), reader = setup({indexedDB: writer.env.indexedDB});
+  let release = false;
+  try {
+    await writer.cache.commit(url, blob(), undefined, 'thumbnail');
+    const tx = writer.cache.db.transaction('stats', 'readwrite');
+    const store = tx.objectStore('stats');
+    const hold = () => { if (!release) store.get('activityEpoch').onsuccess = hold; };
+    await new Promise(resolve => { store.get('activityEpoch').onsuccess = () => { hold(); resolve(); }; });
+    const result = await load(reader.cache, {kind: 'thumbnail'});
+    assert.equal(result?.hit, true);
+    assert.ok(reader.cache.activityReady, 'Usage history initialization is still waiting');
+  } finally { release = true; reader.cache.close(); writer.cache.close(); }
 });
 
 test('[CACHE-03] corrupt alternate bytes fall back to their own URL and invalidate the correct saved file',async()=>{

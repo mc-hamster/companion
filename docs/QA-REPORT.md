@@ -1,3 +1,13 @@
+# Empornium Companion 2.13.2 validation
+
+Updated November 6, 2026.
+
+The build, syntax checks, and all **346 automated tests** pass. The tests cover cached covers during a host cooldown, five-page collage pacing, and cache and HTTP diagnostic export. The stable and versioned userscripts are identical. Tested bundle SHA-256 is `b54b854017aa6be74ba38f015ca594bf1d13d455eb241b31f0818e110364eeef`.
+
+Chrome used local collage fixtures with real IndexedDB and a test adapter for userscript-manager requests. A 300 px cover reused the saved 350 px resize with zero image requests, including when another tab held the statistics store. The run also verified the diagnostic events for HTTP 404 followed by a successful alternate, HTTP 403 followed by native loading, a blocked IndexedDB upgrade, and a browser policy that blocked displaying cached bytes.
+
+---
+
 # Empornium Companion 2.13.1 validation
 
 Updated November 5, 2026.

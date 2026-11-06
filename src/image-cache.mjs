@@ -39,7 +39,7 @@ export function cacheBytes(bytes){
 }
 export class PersistentImageCache {
   constructor(env, settings) {
-    this.env=env;this.settings=settings;this.dbPromise=null;this.disabled=false;this.writeBlocked=false;
+    this.env=env;this.settings=settings;this.dbPromise=null;this.storageFailure=null;this.writeBlocked=false;
     this.epoch=0;this.touches=new Map();this.writes=Promise.resolve();this.closed=false;this.nativeOnly=new Set();
     this.activity=emptyCacheActivity();this.listeners=new Set();
     this.pendingActivity=emptyCacheActivity(true);this.activitySequence=0;
@@ -71,6 +71,7 @@ export class PersistentImageCache {
     if(this.activityWrite)return this.activityWrite.then(()=>this.flushActivity());
     if(!CACHE_ACTIVITY_KEYS.some(key=>this.pendingActivity[key]))return Promise.resolve(true);
     if(!this.db)return this.open().then(db=>db?this.flushActivity():false);
+    if(this.activityReady)return this.activityReady.then(()=>this.flushActivity());
     const delta=this.pendingActivity;this.pendingActivity=emptyCacheActivity(true);
     const batch={id:this.activityID+'-'+(++this.activitySequence),...delta,recent:cacheActivityRows(delta),since:this.activitySince,epoch:this.activityGeneration||0};
     this.activityWrite=new Promise(resolve=>{
@@ -151,7 +152,14 @@ export class PersistentImageCache {
   }
   tier(kind,size){return kind!=='preview'&&size>0&&size<=512*1024?1:0;}
   kind(previous,incoming){return previous==='thumbnail'||incoming==='thumbnail'?'thumbnail':incoming&&incoming!=='legacy'?incoming:previous||incoming||'legacy';}
-  enabled(){return !this.closed&&!this.disabled&&!this.displayBlocked&&!!this.env.indexedDB&&this.settings().persistentImages!==false;}
+  enabled(){return !this.unavailableReason();}
+  unavailableReason(){
+    if(this.closed)return 'storage-closed';
+    if(this.displayBlocked)return 'data-url-blocked';
+    if(this.storageFailure)return this.storageFailure;
+    if(!this.env.indexedDB)return 'indexeddb-unavailable';
+    return this.settings().persistentImages===false?'disabled':null;
+  }
   key(url){return canonicalImageURL(url);}
   allowed(url){
     if(!safeImageURL(url,this.env.origin))return false;
@@ -159,15 +167,20 @@ export class PersistentImageCache {
     const host=new URL(url).hostname.toLowerCase();
     return IMAGE_CACHE_HOSTS.some(h=>host===h||host.endsWith('.'+h))||this.env.local&&['127.0.0.1','localhost'].includes(host);
   }
-  open(){
-    if(this.disabled||this.closed||!this.env.indexedDB)return Promise.resolve(null);
+  async open(){
+    const db=await this.openImages();
+    if(db&&this.activityReady)await this.activityReady;
+    return db;
+  }
+  openImages(){
+    if(this.storageFailure||this.closed||!this.env.indexedDB)return Promise.resolve(null);
     if(this.dbPromise)return this.dbPromise;
     this.dbPromise=new Promise(resolve=>{
       let settled=false,request;
-      const finish=db=>{if(settled){db?.close();return;}settled=true;this.env.clearTimeout(timer);this.db=db;resolve(db);};
-      const timer=this.env.setTimeout(()=>{this.disabled=true;finish(null);},1500);
+      const finish=(db,reason=null)=>{if(settled){db?.close();return;}settled=true;this.env.clearTimeout(timer);this.storageFailure=reason;this.db=db;resolve(db);};
+      const timer=this.env.setTimeout(()=>finish(null,'open-timeout'),1500);
       // Fence old writers that cannot preserve saved-byte accounting.
-      try{request=this.env.indexedDB.open('empornium-companion-images',6);}catch{this.disabled=true;finish(null);return;}
+      try{request=this.env.indexedDB.open('empornium-companion-images',6);}catch{finish(null,'open-error');return;}
       request.onupgradeneeded=event=>{
         this.env.clearTimeout(timer);
         const db=request.result;
@@ -184,18 +197,27 @@ export class PersistentImageCache {
           c.update({...row,kind,tier});this.adjust(total,{...row,kind,tier},1);c.continue();
         }else request.transaction.objectStore('stats').put(total,'total');};
       };
-      request.onsuccess=()=>{const db=request.result;if(!['images','meta','stats','activity'].every(s=>db.objectStoreNames.contains(s))){this.disabled=true;db.close();finish(null);return;}db.onversionchange=()=>{void this.flushActivity();db.close();this.db=null;this.disabled=true;};
-        try{const tx=db.transaction('stats','readonly');tx.objectStore('stats').get('activityEpoch').onsuccess=e=>{this.activityGeneration=Math.max(this.activityGeneration||0,e.target.result||0);};tx.oncomplete=()=>finish(db);tx.onerror=tx.onabort=()=>finish(db);}catch{finish(db);}};
-      request.onerror=request.onblocked=()=>{this.disabled=true;finish(null);};
+      request.onsuccess=()=>{const db=request.result;if(settled){db.close();return;}if(!['images','meta','stats','activity'].every(s=>db.objectStoreNames.contains(s))){db.close();finish(null,'schema-unavailable');return;}db.onversionchange=()=>{void this.flushActivity();db.close();this.db=null;this.storageFailure='version-changed';};
+        // Image reads can proceed while another tab holds the statistics store.
+        this.activityReady=new Promise(resolve=>{try{
+          const tx=db.transaction('stats','readonly');
+          tx.objectStore('stats').get('activityEpoch').onsuccess=e=>{this.activityGeneration=Math.max(this.activityGeneration||0,e.target.result||0);};
+          tx.oncomplete=tx.onerror=tx.onabort=resolve;
+        }catch{resolve();}});
+        this.activityReady.then(()=>{this.activityReady=null;});
+        finish(db);
+      };
+      request.onerror=()=>finish(null,'open-error');
+      request.onblocked=()=>finish(null,'open-blocked');
     });return this.dbPromise;
   }
-  async get(url,kind=null){
-    const db=await this.open();if(!db)return null;const key=this.key(url);
-    return new Promise(resolve=>{let value=null;try{
+  async get(url,kind=null,onReadError){
+    const db=await this.openImages();if(!db){onReadError?.();return null;}const key=this.key(url);
+    return new Promise(resolve=>{let value=null;const fail=()=>{onReadError?.();resolve(null);};try{
       const tx=db.transaction('images','readonly');tx.objectStore('images').get(key).onsuccess=e=>{value=e.target.result;};
       tx.oncomplete=()=>{if(value&&value.size>0&&typeof value.slice==='function'){this.touch(key,kind);resolve(value);}else resolve(null);};
-      tx.onerror=tx.onabort=()=>resolve(null);
-    }catch{resolve(null);}});
+      tx.onerror=tx.onabort=fail;
+    }catch{fail();}});
   }
   touch(key,kind=null){
     const previous=this.touches.get(key);this.touches.delete(key);this.touches.set(key,{used:this.env.now(),kind:kind?this.kind(previous?.kind,kind):previous?.kind||null});
@@ -296,39 +318,53 @@ export class PersistentImageCache {
       await new Promise((resolve,reject)=>{const tx=db.transaction(['images','meta','stats'],'readwrite');for(const s of['images','meta'])tx.objectStore(s).clear();tx.objectStore('stats').delete('total');tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(tx.error);});this.writeBlocked=this.previewWriteBlocked=false;this.notify();
     });
   }
-  load(url,{network=false,fresh=false,kind='legacy',candidates=[]}={},done){
+  load(url,{network=false,fresh=false,kind='legacy',candidates=[],diagnostic}={},done){
     let cancelled=false,delivered=false,finishing=false,handle=null;const epoch=this.epoch;const valid=()=>!cancelled&&!this.closed;
     const deliver=result=>{if(valid()&&!delivered){delivered=true;done(result);}};
+    const noteCache=(cacheOutcome,cacheReason)=>{if(valid()&&!delivered)diagnostic?.('cache',{cacheOutcome,cacheReason});};
+    const noteHTTP=(response,reason)=>{
+      if(!diagnostic)return;
+      const status=response?.status;
+      diagnostic('http',{transport:'manager',httpStatus:Number.isInteger(status)&&status>=100&&status<=599?status:null,transportReason:reason});
+    };
     const finish=async(blob,hit,source=url)=>{
       if(!valid()||delivered||finishing)return;finishing=true;
-      const unusable=()=>{if(valid()){if(hit)this.recordActivity('miss');deliver(null);}};
-      if(!blob?.size||blob.size>64*1024*1024){unusable();return;}
-      try{const dataURL=await this.env.encode(blob);if(valid())deliver({dataURL,blob,hit,epoch,key:this.key(source),kind});}catch{unusable();}
+      const unusable=reason=>{if(valid()){if(hit){noteCache('unusable',reason);this.recordActivity('miss');}deliver(null);}};
+      if(!blob?.size||blob.size>64*1024*1024){unusable('invalid-size');return;}
+      try{const dataURL=await this.env.encode(blob);if(valid())deliver({dataURL,blob,hit,epoch,key:this.key(source),kind});}catch{unusable('encode-error');}
     };
     void(async()=>{
-      if(!this.enabled()||!this.allowed(url)||!await this.open()){if(valid())deliver(null);return;}
+      const unavailable=this.unavailableReason();
+      if(unavailable||!this.allowed(url)){noteCache('skipped',unavailable||'ineligible-url');deliver(null);return;}
+      if(!await this.openImages()){noteCache('unavailable',this.unavailableReason()||'storage-unavailable');deliver(null);return;}
       if(!fresh){
         // A cover's supplied resize URL can be gone while another successful
         // variant is still saved. Check this request's alternatives before
         // recording a miss or attempting the preferred URL on the network.
         const sources=[...new Set([url,...candidates].filter(source=>this.allowed(source)).map(source=>this.key(source)))];
-        for(const source of sources){const cached=await this.get(source,kind);if(!valid())return;
+        let readFailed=false;
+        const onReadError=diagnostic?()=>{readFailed=true;}:undefined;
+        for(const source of sources){const cached=await this.get(source,kind,onReadError);if(!valid())return;
           if(cached){await finish(cached,true,source);return;}}
+        if(readFailed)noteCache('unavailable','read-error');else noteCache('miss','no-saved-candidate');
         this.recordActivity('miss');
       }
       if(!valid())return;
       const host=new URL(url).host;
       if(!network||!this.env.request||this.writeBlocked||kind==='preview'&&this.previewWriteBlocked||this.nativeOnly.has(host)){deliver(null);return;}
-      const fallback=()=>{this.nativeOnly.add(host);if(valid())deliver(null);};
+      const fallback=(reason,response)=>{if(valid()&&!delivered&&!finishing){noteHTTP(response,reason);this.nativeOnly.add(host);deliver(null);}};
       const transportURL=new URL(url);if(transportURL.protocol==='http:'&&!this.env.local)transportURL.protocol='https:';
       try{handle=this.env.request({method:'GET',url:transportURL.href,anonymous:true,redirect:'error',responseType:'blob',headers:{Referer:this.env.origin+'/'},
-        onload:response=>{if(!valid())return;const final=response.finalUrl||transportURL.href;
-          if(!this.allowed(final)||!this.env.local&&new URL(final).protocol!=='https:'||[401,403].includes(response.status)){fallback();return;}
-          if(response.status<200||response.status>=300){deliver({failure:true,status:response.status});return;}
-          if(/^(?:text\/html|application\/json)/i.test(response.response?.type||'')){fallback();return;}
+        onload:response=>{if(!valid()||delivered||finishing)return;const final=response.finalUrl||transportURL.href;
+          if(!this.allowed(final)||!this.env.local&&new URL(final).protocol!=='https:'){fallback('redirect',response);return;}
+          if([401,403].includes(response.status)){fallback('access-denied',response);return;}
+          if(response.status<200||response.status>=300){noteHTTP(response);deliver({failure:true,status:response.status});return;}
+          if(/^(?:text\/html|application\/json)/i.test(response.response?.type||'')){fallback('non-image-response',response);return;}
+          noteHTTP(response);
           void finish(response.response,false);
-        },onerror:fallback,ontimeout:fallback,onabort:()=>{if(valid())fallback();}});
-      }catch{if(valid())deliver(null);}
+        },onerror:response=>fallback('transport-error',response),ontimeout:response=>fallback('transport-timeout',response),
+        onabort:response=>fallback('transport-aborted',response)});
+      }catch{if(valid()&&!delivered&&!finishing){noteHTTP(null,'transport-error');deliver(null);}}
     })();
     return()=>{cancelled=true;try{handle?.abort?.();}catch{};};
   }

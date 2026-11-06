@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Empornium Companion
 // @namespace    empornium-companion.local
-// @version      2.13.1
+// @version      2.13.2
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion
@@ -289,7 +289,7 @@ class MediaPool {
   constructor(env, settings = DEFAULTS) {
     this.env = env; this.settings = settings; this.entries = new Map(); this.readyImages = new Map(); this.queue = [];
     this.batchDepth = 0; this.queueDirty = false;
-    this.active = 0; this.sequence = 0; this.hosts = new Map(); this.activeLanes = { thumbnail: 0, large: 0 };
+    this.active = 0; this.sequence = 0; this.hosts = new Map(); this.activeLanes = { cache: 0, thumbnail: 0, large: 0 };
     this.budget = new RetryBudget(() => env.now(), settings.maxRetries);
     this.listeners = new Set(); this.disposed = false;
     this.restoreHosts(env.hostHistory);
@@ -310,15 +310,19 @@ class MediaPool {
       }
     }
   }
+  recordMemoryHit(entry) {
+    this.env.imageCache?.recordActivity?.('hit', entry.cacheBytes);
+    if (this.settings.diagnostics) this.env.diagnostic?.(entry, 'cache', {cacheOutcome: 'hit', cacheReason: 'memory-reuse', elapsedMs: 0});
+  }
   request(url, options = {}) {
     const canonical = canonicalImageURL(url), tier = options.tier || 'normal', key = canonical + '|' + tier;
     let entry = this.entries.get(key);
     if ((!entry || entry.status === 'failed') && !options.force && !options.strictCandidates) {
       const shared = Array.from(this.entries.values()).find(e => !e.cancelled &&
         ['loading', 'streaming', 'stalled', 'ready', 'partial'].includes(e.status) &&
-        canonicalImageURL(e.actualURL) === canonical);
+        e.actualKey === canonical);
       if (shared) {
-        if(shared.status==='ready'&&(shared.cacheMode||options.cacheMode))this.env.imageCache?.recordActivity?.('hit',shared.cacheBytes);
+        if (shared.status === 'ready' && (shared.cacheMode || options.cacheMode)) this.recordMemoryHit(shared);
         shared.keepAlive ||= !!options.keepAlive; shared.touched = this.env.now();
         shared.priority = Math.max(shared.priority, options.priority || 0);
         if (shared.image && shared.priority >= 50) shared.image.fetchPriority = 'high';
@@ -326,7 +330,7 @@ class MediaPool {
       }
     }
     if (entry && !options.force) {
-      if(entry.status==='ready'&&(entry.cacheMode||options.cacheMode))this.env.imageCache?.recordActivity?.('hit',entry.cacheBytes);
+      if (entry.status === 'ready' && (entry.cacheMode || options.cacheMode)) this.recordMemoryHit(entry);
       entry.keepAlive ||= !!options.keepAlive; entry.touched = this.env.now();
       if (options.eligible) {
         const previous = entry.eligible;
@@ -395,10 +399,7 @@ class MediaPool {
         } else if (live.priority >= 90 && ['queued', 'loading', 'streaming', 'stalled', 'retrying'].includes(live.status)) {
           // Moving away is not a host failure. Refund only the cancelled in-flight
           // attempt, retaining failures already charged to this URL.
-          if (!live.released) {
-            const budget = this.budget.get(live.url);
-            budget.attempts = Math.max(live.rescue ? live.rescueBase : 0, budget.attempts - 1);
-          }
+          this.refundTransfer(live);
           this.cancel(live); this.entries.delete(live.key);
           reschedule = true;
         }
@@ -410,10 +411,7 @@ class MediaPool {
   abandon(entry) {
     if (!entry || this.entries.get(entry.key) !== entry || entry.listeners.size ||
         !['queued', 'loading', 'streaming', 'stalled', 'retrying'].includes(entry.status)) return;
-    if (!entry.released) {
-      const budget = this.budget.get(entry.url);
-      budget.attempts = Math.max(entry.rescue ? entry.rescueBase : 0, budget.attempts - 1);
-    }
+    this.refundTransfer(entry);
     this.cancel(entry); this.entries.delete(entry.key); this.pump();
   }
   pump() {
@@ -430,13 +428,13 @@ class MediaPool {
       this.queue.sort((a, b) => b.priority - a.priority || a.sequence - b.sequence);
       this.queueDirty = false; this.rankedRevision = revision;
     }
-    while (this.active < this.settings.concurrency + 3 && this.queue.length) {
+    while (this.queue.length) {
       const index = this.queue.findIndex(e => !e.cancelled && (e.priority >= 90 || !hidden) &&
         this.hasSlot(e) && (!e.eligible || e.eligible()));
       if (index < 0) {
         // One deadline timer for eligible host cooldowns; no idle polling.
         const now = this.env.now(); let deadline = Infinity;
-        for (const e of this.queue) if (!e.cancelled && (e.priority >= 90 || !hidden)) {
+        for (const e of this.queue) if (!e.cancelled && (e.priority >= 90 || !hidden) && !this.canLookup(e)) {
           const host = this.hostFor(e);
           if (host.until > now && host.until < deadline && (!e.eligible || e.eligible())) deadline = host.until;
         }
@@ -444,11 +442,26 @@ class MediaPool {
         break;
       }
       const entry = this.queue.splice(index, 1)[0];
-      if (!this.budget.consume(entry.url)) { entry.status = 'failed'; entry.reason = 'Retry limit reached. Try again after a short pause.'; this.emit(entry); continue; }
-      this.load(entry);
+      const cacheOnly = this.canLookup(entry);
+      if (!cacheOnly && !this.budget.consume(entry.url)) { entry.status = 'failed'; entry.reason = 'Retry limit reached. Try again after a short pause.'; this.emit(entry); continue; }
+      this.load(entry, cacheOnly);
     }
   }
+  canLookup(entry) {
+    if (entry.cacheMode !== 'thumbnail' || entry.cacheDisabled || entry.cacheFresh || entry.cacheFault || entry.bustFirst) return false;
+    const candidate = entry.candidates[entry.candidateIndex] || entry.url, cache = this.env.imageCache;
+    if (candidate === entry.cacheChecked || candidate === entry.lastCandidate || !cache?.enabled()) return false;
+    if (entry.lookupCandidate !== candidate) {
+      entry.lookupCandidate = candidate;
+      entry.lookupAllowed = !!cache.allowed?.(candidate);
+    }
+    return entry.lookupAllowed;
+  }
   hasSlot(entry) {
+    // Local thumbnail reads and decoding have their own limit. Host cooldowns
+    // and slow transfers only apply if a thumbnail needs the network.
+    if (this.canLookup(entry)) return this.activeLanes.cache < this.settings.concurrency;
+    if (this.active - this.activeLanes.cache >= this.settings.concurrency + 3) return false;
     const lane = this.transferLane(entry), host = this.hostFor(entry);
     if (this.env.now() < host.until) return false;
     if (this.activeLanes[lane] >= (lane === 'thumbnail' ? this.settings.concurrency : entry.priority >= 90 ? 3 : 2)) return false;
@@ -501,7 +514,7 @@ class MediaPool {
     try { this.env.saveHosts?.(history); } catch {}
   }
   hostFeedback(entry, outcome) {
-    if (entry.hostSampled || outcome !== 'error' && (this.env.hidden() || entry.hostTimingIgnored)) return;
+    if (!entry.hostState || entry.hostSampled || outcome !== 'error' && (this.env.hidden() || entry.hostTimingIgnored)) return;
     if (outcome === 'timeout') outcome = 'error';
     if (outcome !== 'slow') entry.hostSampled = true;
     const host = entry.hostState, now = this.env.now(), elapsed = now - entry.started;
@@ -553,26 +566,51 @@ class MediaPool {
     const small = entry.smallCandidates.has(canonicalImageURL(candidate)) || /\.(?:th|md)\.[^/.?]+(?:\?|$)/i.test(candidate);
     return entry.lane === 'thumbnail' && (!entry.smallFirst || small) ? 'thumbnail' : 'large';
   }
-  load(entry) {
-    this.active++; entry.released = false; entry.attempts++; entry.status = 'loading';
+  load(entry, cacheOnly) {
+    this.active++; entry.released = false; entry.status = 'loading';
     entry.started = this.env.now(); entry.cancelled = false;
-    entry.activeLane = this.transferLane(entry); entry.hostState = this.hostFor(entry);
-    entry.hostGeneration = entry.hostState.generation; entry.hostSampled = false;
-    entry.hostTimingIgnored = this.env.hidden();
-    this.activeLanes[entry.activeLane]++; entry.hostState[entry.activeLane]++;
+    const lane = this.transferLane(entry);
+    entry.activeLane = cacheOnly ? 'cache' : lane; entry.hostState = cacheOnly ? null : this.hostFor(entry);
+    entry.hostSampled = false; entry.hostTimingIgnored = cacheOnly || this.env.hidden();
+    this.activeLanes[entry.activeLane]++;
+    if (entry.hostState) {
+      entry.attempts++; entry.hostGeneration = entry.hostState.generation; entry.hostState[lane]++;
+    }
     const image = entry.target || new this.env.Image(); entry.image = image;
     const loadVersion = entry.loadVersion = (entry.loadVersion || 0) + 1;
+    const current = () => !entry.cancelled && !this.disposed && entry.loadVersion === loadVersion;
+    const cache = this.env.imageCache;
+    const diagnostic = this.settings.diagnostics && this.env.diagnostic ? (kind, details) => {
+      if (current()) this.env.diagnostic(entry, kind, details);
+    } : undefined;
     entry.displayURL = null; entry.cacheResult = null; entry.cacheHit = false;entry.cacheBytes=0;
-    const timeoutMs = this.transferLane(entry) === 'large' ? entry.fullTimeoutMs : entry.timeoutMs;
+    const timeoutMs = lane === 'large' ? entry.fullTimeoutMs : entry.timeoutMs;
     image.decoding = 'async'; image.fetchPriority = entry.priority >= 50 ? 'high' : 'low';
-    let url = entry.candidates[entry.candidateIndex] || entry.url;
+    const candidate = entry.candidates[entry.candidateIndex] || entry.url;
+    const requestedKey = entry.actualKey = canonicalImageURL(candidate);
+    let url = candidate;
     const repeated = entry.lastCandidate === url;
-    entry.lastCandidate = url;
-    const cacheFresh = !!entry.bustFirst || !!entry.cacheFresh || !!entry.cacheFault || repeated;
+    const cacheFresh = !!entry.bustFirst || !!entry.cacheFresh || !!entry.cacheFault || repeated || entry.cacheChecked === url;
+    if (!cacheOnly) entry.lastCandidate = url;
     if (repeated || entry.bustFirst) url = retryURL(url, this.env.now() + '-' + entry.sequence);
     entry.bustFirst = false; entry.actualURL = url;
+    const assign = (displayURL, native = false) => {
+      if (!current()) return;
+      if (native) diagnostic?.('transport', {transport: 'native', httpStatus: null});
+      entry.displayURL = displayURL;
+      if (image.dataset) image.dataset.epImageSource = url;
+      image.src = displayURL;
+    };
+    const queueTransfer = () => {
+      entry.cacheChecked = entry.candidates[entry.candidateIndex] || entry.url;
+      entry.loadVersion++;
+      entry.abortTransfer?.(); entry.abortTransfer = null; entry.cacheResult = null;
+      this.clearTimers(entry); this.release(entry); image.onload = image.onerror = null;
+      if (entry.displayURL) image.removeAttribute?.('src');
+      entry.displayURL = null; entry.status = 'queued'; this.enqueue(entry);
+    };
     const failed = (reason, outcome = 'error') => {
-      if (entry.cancelled || entry.status === 'ready' || entry.status === 'failed') return;
+      if (!current() || entry.status === 'ready' || entry.status === 'failed') return;
       entry.abortTransfer?.(); entry.abortTransfer = null;
       if (entry.cacheHit) { void this.env.imageCache?.remove(entry.actualURL); entry.cacheFault = true; }
       if (outcome !== 'missing') this.hostFeedback(entry, outcome);
@@ -601,8 +639,9 @@ class MediaPool {
       this.pump();
     };
     image.onload = () => {
-      if (entry.cancelled) return;
+      if (!current()) return;
       if (!image.naturalWidth) { failed('The image could not be displayed.'); return; }
+      if (cacheOnly) entry.attempts++;
       this.hostFeedback(entry, 'success'); this.clearTimers(entry); this.release(entry);
       entry.dimensions = { width: image.naturalWidth, height: image.naturalHeight };
       // Completed loads begin a new failure streak. Retain manual/rescue guards,
@@ -612,24 +651,30 @@ class MediaPool {
       if (entry.cacheResult && !entry.cacheResult.hit) void this.env.imageCache.commit(entry.actualURL, entry.cacheResult.blob, entry.cacheResult.epoch, entry.cacheResult.kind);
       entry.cacheResult = null; entry.abortTransfer = null;
       entry.status = 'ready'; entry.reason = '';
-      this.readyImages.set(canonicalImageURL(entry.actualURL), entry);
+      if (entry.cacheHit) diagnostic?.('cache', {cacheOutcome: 'hit',
+        cacheReason: entry.actualKey === requestedKey ? 'preferred-candidate' : 'alternate-candidate'});
+      this.readyImages.set(entry.actualKey, entry);
       this.emit(entry); this.pump(); this.trim();
     };
     image.onerror = () => {
-      if (entry.cancelled || entry.loadVersion !== loadVersion) return;
+      if (!current()) return;
       if (entry.displayURL?.startsWith('data:')) {
         // Corrupt saved bytes or a page CSP must never break ordinary images.
-        if (entry.cacheHit && !this.env.imageCache.displayBlocked) {
-          this.env.imageCache.recordActivity?.('miss');void this.env.imageCache.remove(entry.actualURL);
+        if (entry.cacheHit) {
+          diagnostic?.('cache', {cacheOutcome: 'unusable', cacheReason: cache.displayBlocked ? 'data-url-blocked' : 'decode-error'});
+          if (!cache.displayBlocked) {
+            cache.recordActivity?.('miss'); void cache.remove(entry.actualURL);
+          }
         }
         entry.cacheFault = true; entry.cacheDisabled = true; entry.cacheHit = false; entry.cacheResult = null;
+        if (cacheOnly) { queueTransfer(); return; }
         entry.abortTransfer?.(); entry.abortTransfer = null;
-        entry.displayURL = url; image.src = url; return;
+        assign(url, true); return;
       }
       failed('The image request failed.');
     };
-    entry.timers.push(this.env.setTimeout(() => {
-      if (entry.cancelled || entry.status !== 'loading') return;
+    if (!cacheOnly) entry.timers.push(this.env.setTimeout(() => {
+      if (!current() || entry.status !== 'loading') return;
       if (image.naturalWidth) {
         entry.dimensions = { width: image.naturalWidth, height: image.naturalHeight };
         entry.status = 'streaming'; entry.reason = 'The full image is still loading.';
@@ -637,66 +682,85 @@ class MediaPool {
       this.emit(entry); this.pump();
     }, this.settings.stallMs));
     entry.timers.push(this.env.setTimeout(() => {
-      if (entry.cancelled || entry.status === 'ready') return;
+      if (!current() || entry.status === 'ready') return;
       if (image.naturalWidth) {
         // Preserve a usable progressive image/animation. Do not wait for decode(),
         // which waits for every frame of an animation before resolving.
         entry.dimensions = { width: image.naturalWidth, height: image.naturalHeight };
         entry.hostSampled = true; entry.status = 'partial'; this.release(entry); this.emit(entry); this.pump();
-      } else failed('The image did not respond in time.', 'timeout');
+      } else if (cacheOnly) {
+        diagnostic?.('cache', {cacheOutcome: 'unavailable', cacheReason: entry.cacheHit ? 'decode-timeout' : 'lookup-timeout'});
+        queueTransfer();
+      }
+      else failed('The image did not respond in time.', 'timeout');
     }, timeoutMs));
     this.emit(entry);
-    if (entry.cancelled || this.disposed) return;
-    const assign = displayURL => {
-      if (entry.cancelled || this.disposed || entry.loadVersion !== loadVersion || entry.image !== image) return;
-      entry.displayURL = displayURL;
-      if (image.dataset) image.dataset.epImageSource = url;
-      image.src = displayURL;
-    };
-    if (entry.cacheMode && !entry.cacheDisabled && this.env.imageCache?.enabled()) {
-      entry.abortTransfer = this.env.imageCache.load(url, {
-        kind: entry.cacheMode === 'thumbnail' ? 'thumbnail' : 'preview',
-        network: entry.cacheMode === 'network' || entry.cacheMode === 'thumbnail' &&
-          (this.transferLane(entry) === 'thumbnail' || !/\.gif(?:\?|$)/i.test(url)),
-        candidates: entry.cacheMode === 'thumbnail' && entry.smallFirst ? entry.candidates.slice(entry.candidateIndex + 1) : [],
-        fresh: cacheFresh
-      }, result => {
-        if (entry.cancelled || this.disposed || entry.loadVersion !== loadVersion || entry.image !== image) return;
-        if (!result) { assign(url); return; }
-        if (result.failure) {
-          // A confirmed missing grid variant says nothing about host capacity.
-          const missing = entry.strictCandidates && (result.status === 404 || result.status === 410);
-          failed('The image host returned HTTP ' + result.status + '.', missing ? 'missing' : 'error'); return;
-        }
-        entry.cacheHit = result.hit; entry.cacheResult = result;
-        if (result.hit) {
-          entry.hostTimingIgnored = true;
-          if (result.key) {
-            url = result.key; entry.actualURL = url; entry.lastCandidate = url;
-            entry.candidateIndex = Math.max(0, entry.candidates.findIndex(candidate => canonicalImageURL(candidate) === url));
-          }
-        }
-        assign(result.dataURL);
-      });
-    } else assign(url);
+    if (!current()) return;
     // A bounded check on active requests only, not a scan of the page. Image
     // elements have no byte-progress event, and metadata can arrive before load.
     const firstFrame = () => {
-      if (entry.cancelled || ['ready', 'failed', 'partial'].includes(entry.status)) return;
+      if (!current() || ['ready', 'failed', 'partial'].includes(entry.status)) return;
       if (image.naturalWidth) {
         entry.dimensions = { width: image.naturalWidth, height: image.naturalHeight };
         entry.status = 'streaming'; entry.reason = 'The full image is still loading.'; this.emit(entry);
       } else entry.timers.push(this.env.setTimeout(firstFrame, 160));
     };
     entry.timers.push(this.env.setTimeout(firstFrame, 80));
+    if (entry.cacheMode && !entry.cacheDisabled && cache?.enabled()) {
+      if (diagnostic && cacheFresh && entry.cacheChecked !== candidate) {
+        diagnostic('cache', {cacheOutcome: 'skipped', cacheReason: entry.cacheFresh ? 'forced' : 'retry'});
+      }
+      const abort = cache.load(url, {
+        kind: entry.cacheMode === 'thumbnail' ? 'thumbnail' : 'preview',
+        network: !cacheOnly && (entry.cacheMode === 'network' || entry.cacheMode === 'thumbnail' &&
+          (lane === 'thumbnail' || !/\.gif(?:\?|$)/i.test(url))),
+        candidates: entry.cacheMode === 'thumbnail' && entry.smallFirst ? entry.candidates.slice(entry.candidateIndex + 1) : [],
+        fresh: cacheFresh, diagnostic
+      }, result => {
+        if (!current()) return;
+        if (cacheOnly && !result?.hit) { queueTransfer(); return; }
+        if (!result) { assign(url, true); return; }
+        if (result.failure) {
+          // A confirmed missing thumbnail variant says nothing about host capacity.
+          const thumbnail = entry.strictCandidates || entry.cacheMode === 'thumbnail' && lane === 'thumbnail';
+          const missing = thumbnail && (result.status === 404 || result.status === 410);
+          failed('The image host returned HTTP ' + result.status + '.', missing ? 'missing' : 'error'); return;
+        }
+        entry.cacheHit = result.hit; entry.cacheResult = result;
+        if (result.hit) {
+          entry.hostTimingIgnored = true;
+          if (result.key) {
+            url = result.key; entry.actualURL = url; entry.actualKey = canonicalImageURL(url);
+            if (!cacheOnly) entry.lastCandidate = url;
+            entry.candidateIndex = Math.max(0, entry.candidates.findIndex(candidate => canonicalImageURL(candidate) === url));
+          }
+        }
+        assign(result.dataURL);
+      });
+      if (current()) entry.abortTransfer = abort; else abort?.();
+    } else {
+      if (diagnostic && entry.cacheMode && entry.cacheChecked !== candidate) {
+        diagnostic('cache', {cacheOutcome: 'skipped', cacheReason: entry.cacheDisabled ? 'previous-decode-error' :
+          cache?.unavailableReason?.() || 'storage-unavailable'});
+      }
+      if (cacheOnly) queueTransfer(); else assign(url, true);
+    }
   }
-  release(entry) { if (!entry.released) { entry.released = true; this.active = Math.max(0, this.active - 1);
-    this.activeLanes[entry.activeLane]--; entry.hostState[entry.activeLane]--; } }
+  refundTransfer(entry) {
+    if (entry.released || !entry.hostState) return;
+    const budget = this.budget.get(entry.url);
+    budget.attempts = Math.max(entry.rescue ? entry.rescueBase : 0, budget.attempts - 1);
+  }
+  release(entry) {
+    if (entry.released) return;
+    entry.released = true; this.active = Math.max(0, this.active - 1);
+    this.activeLanes[entry.activeLane]--;
+    if (entry.hostState) entry.hostState[entry.activeLane]--;
+  }
   clearTimers(entry) { for (const timer of entry.timers) this.env.clearTimeout(timer); entry.timers = []; }
   cancel(entry) {
     if (entry.status === 'ready') {
-      const url = canonicalImageURL(entry.actualURL);
-      if (this.readyImages.get(url) === entry) this.readyImages.delete(url);
+      if (this.readyImages.get(entry.actualKey) === entry) this.readyImages.delete(entry.actualKey);
     }
     entry.loadVersion = (entry.loadVersion || 0) + 1; entry.abortTransfer?.(); entry.abortTransfer = null; entry.cacheResult = null;
     entry.cancelled = true; this.clearTimers(entry); this.release(entry);
@@ -724,8 +788,7 @@ class MediaPool {
       const entry = idle.shift();
       if (!entry.released) {
         freedSlot = true;
-        const budget = this.budget.get(entry.url);
-        budget.attempts = Math.max(entry.rescue ? entry.rescueBase : 0, budget.attempts - 1);
+        this.refundTransfer(entry);
       }
       this.cancel(entry); this.entries.delete(entry.key);
     }
@@ -787,7 +850,7 @@ function cacheBytes(bytes){
 }
 class PersistentImageCache {
   constructor(env, settings) {
-    this.env=env;this.settings=settings;this.dbPromise=null;this.disabled=false;this.writeBlocked=false;
+    this.env=env;this.settings=settings;this.dbPromise=null;this.storageFailure=null;this.writeBlocked=false;
     this.epoch=0;this.touches=new Map();this.writes=Promise.resolve();this.closed=false;this.nativeOnly=new Set();
     this.activity=emptyCacheActivity();this.listeners=new Set();
     this.pendingActivity=emptyCacheActivity(true);this.activitySequence=0;
@@ -819,6 +882,7 @@ class PersistentImageCache {
     if(this.activityWrite)return this.activityWrite.then(()=>this.flushActivity());
     if(!CACHE_ACTIVITY_KEYS.some(key=>this.pendingActivity[key]))return Promise.resolve(true);
     if(!this.db)return this.open().then(db=>db?this.flushActivity():false);
+    if(this.activityReady)return this.activityReady.then(()=>this.flushActivity());
     const delta=this.pendingActivity;this.pendingActivity=emptyCacheActivity(true);
     const batch={id:this.activityID+'-'+(++this.activitySequence),...delta,recent:cacheActivityRows(delta),since:this.activitySince,epoch:this.activityGeneration||0};
     this.activityWrite=new Promise(resolve=>{
@@ -899,7 +963,14 @@ class PersistentImageCache {
   }
   tier(kind,size){return kind!=='preview'&&size>0&&size<=512*1024?1:0;}
   kind(previous,incoming){return previous==='thumbnail'||incoming==='thumbnail'?'thumbnail':incoming&&incoming!=='legacy'?incoming:previous||incoming||'legacy';}
-  enabled(){return !this.closed&&!this.disabled&&!this.displayBlocked&&!!this.env.indexedDB&&this.settings().persistentImages!==false;}
+  enabled(){return !this.unavailableReason();}
+  unavailableReason(){
+    if(this.closed)return 'storage-closed';
+    if(this.displayBlocked)return 'data-url-blocked';
+    if(this.storageFailure)return this.storageFailure;
+    if(!this.env.indexedDB)return 'indexeddb-unavailable';
+    return this.settings().persistentImages===false?'disabled':null;
+  }
   key(url){return canonicalImageURL(url);}
   allowed(url){
     if(!safeImageURL(url,this.env.origin))return false;
@@ -907,15 +978,20 @@ class PersistentImageCache {
     const host=new URL(url).hostname.toLowerCase();
     return IMAGE_CACHE_HOSTS.some(h=>host===h||host.endsWith('.'+h))||this.env.local&&['127.0.0.1','localhost'].includes(host);
   }
-  open(){
-    if(this.disabled||this.closed||!this.env.indexedDB)return Promise.resolve(null);
+  async open(){
+    const db=await this.openImages();
+    if(db&&this.activityReady)await this.activityReady;
+    return db;
+  }
+  openImages(){
+    if(this.storageFailure||this.closed||!this.env.indexedDB)return Promise.resolve(null);
     if(this.dbPromise)return this.dbPromise;
     this.dbPromise=new Promise(resolve=>{
       let settled=false,request;
-      const finish=db=>{if(settled){db?.close();return;}settled=true;this.env.clearTimeout(timer);this.db=db;resolve(db);};
-      const timer=this.env.setTimeout(()=>{this.disabled=true;finish(null);},1500);
+      const finish=(db,reason=null)=>{if(settled){db?.close();return;}settled=true;this.env.clearTimeout(timer);this.storageFailure=reason;this.db=db;resolve(db);};
+      const timer=this.env.setTimeout(()=>finish(null,'open-timeout'),1500);
       // Fence old writers that cannot preserve saved-byte accounting.
-      try{request=this.env.indexedDB.open('empornium-companion-images',6);}catch{this.disabled=true;finish(null);return;}
+      try{request=this.env.indexedDB.open('empornium-companion-images',6);}catch{finish(null,'open-error');return;}
       request.onupgradeneeded=event=>{
         this.env.clearTimeout(timer);
         const db=request.result;
@@ -932,18 +1008,27 @@ class PersistentImageCache {
           c.update({...row,kind,tier});this.adjust(total,{...row,kind,tier},1);c.continue();
         }else request.transaction.objectStore('stats').put(total,'total');};
       };
-      request.onsuccess=()=>{const db=request.result;if(!['images','meta','stats','activity'].every(s=>db.objectStoreNames.contains(s))){this.disabled=true;db.close();finish(null);return;}db.onversionchange=()=>{void this.flushActivity();db.close();this.db=null;this.disabled=true;};
-        try{const tx=db.transaction('stats','readonly');tx.objectStore('stats').get('activityEpoch').onsuccess=e=>{this.activityGeneration=Math.max(this.activityGeneration||0,e.target.result||0);};tx.oncomplete=()=>finish(db);tx.onerror=tx.onabort=()=>finish(db);}catch{finish(db);}};
-      request.onerror=request.onblocked=()=>{this.disabled=true;finish(null);};
+      request.onsuccess=()=>{const db=request.result;if(settled){db.close();return;}if(!['images','meta','stats','activity'].every(s=>db.objectStoreNames.contains(s))){db.close();finish(null,'schema-unavailable');return;}db.onversionchange=()=>{void this.flushActivity();db.close();this.db=null;this.storageFailure='version-changed';};
+        // Image reads can proceed while another tab holds the statistics store.
+        this.activityReady=new Promise(resolve=>{try{
+          const tx=db.transaction('stats','readonly');
+          tx.objectStore('stats').get('activityEpoch').onsuccess=e=>{this.activityGeneration=Math.max(this.activityGeneration||0,e.target.result||0);};
+          tx.oncomplete=tx.onerror=tx.onabort=resolve;
+        }catch{resolve();}});
+        this.activityReady.then(()=>{this.activityReady=null;});
+        finish(db);
+      };
+      request.onerror=()=>finish(null,'open-error');
+      request.onblocked=()=>finish(null,'open-blocked');
     });return this.dbPromise;
   }
-  async get(url,kind=null){
-    const db=await this.open();if(!db)return null;const key=this.key(url);
-    return new Promise(resolve=>{let value=null;try{
+  async get(url,kind=null,onReadError){
+    const db=await this.openImages();if(!db){onReadError?.();return null;}const key=this.key(url);
+    return new Promise(resolve=>{let value=null;const fail=()=>{onReadError?.();resolve(null);};try{
       const tx=db.transaction('images','readonly');tx.objectStore('images').get(key).onsuccess=e=>{value=e.target.result;};
       tx.oncomplete=()=>{if(value&&value.size>0&&typeof value.slice==='function'){this.touch(key,kind);resolve(value);}else resolve(null);};
-      tx.onerror=tx.onabort=()=>resolve(null);
-    }catch{resolve(null);}});
+      tx.onerror=tx.onabort=fail;
+    }catch{fail();}});
   }
   touch(key,kind=null){
     const previous=this.touches.get(key);this.touches.delete(key);this.touches.set(key,{used:this.env.now(),kind:kind?this.kind(previous?.kind,kind):previous?.kind||null});
@@ -1044,39 +1129,53 @@ class PersistentImageCache {
       await new Promise((resolve,reject)=>{const tx=db.transaction(['images','meta','stats'],'readwrite');for(const s of['images','meta'])tx.objectStore(s).clear();tx.objectStore('stats').delete('total');tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(tx.error);});this.writeBlocked=this.previewWriteBlocked=false;this.notify();
     });
   }
-  load(url,{network=false,fresh=false,kind='legacy',candidates=[]}={},done){
+  load(url,{network=false,fresh=false,kind='legacy',candidates=[],diagnostic}={},done){
     let cancelled=false,delivered=false,finishing=false,handle=null;const epoch=this.epoch;const valid=()=>!cancelled&&!this.closed;
     const deliver=result=>{if(valid()&&!delivered){delivered=true;done(result);}};
+    const noteCache=(cacheOutcome,cacheReason)=>{if(valid()&&!delivered)diagnostic?.('cache',{cacheOutcome,cacheReason});};
+    const noteHTTP=(response,reason)=>{
+      if(!diagnostic)return;
+      const status=response?.status;
+      diagnostic('http',{transport:'manager',httpStatus:Number.isInteger(status)&&status>=100&&status<=599?status:null,transportReason:reason});
+    };
     const finish=async(blob,hit,source=url)=>{
       if(!valid()||delivered||finishing)return;finishing=true;
-      const unusable=()=>{if(valid()){if(hit)this.recordActivity('miss');deliver(null);}};
-      if(!blob?.size||blob.size>64*1024*1024){unusable();return;}
-      try{const dataURL=await this.env.encode(blob);if(valid())deliver({dataURL,blob,hit,epoch,key:this.key(source),kind});}catch{unusable();}
+      const unusable=reason=>{if(valid()){if(hit){noteCache('unusable',reason);this.recordActivity('miss');}deliver(null);}};
+      if(!blob?.size||blob.size>64*1024*1024){unusable('invalid-size');return;}
+      try{const dataURL=await this.env.encode(blob);if(valid())deliver({dataURL,blob,hit,epoch,key:this.key(source),kind});}catch{unusable('encode-error');}
     };
     void(async()=>{
-      if(!this.enabled()||!this.allowed(url)||!await this.open()){if(valid())deliver(null);return;}
+      const unavailable=this.unavailableReason();
+      if(unavailable||!this.allowed(url)){noteCache('skipped',unavailable||'ineligible-url');deliver(null);return;}
+      if(!await this.openImages()){noteCache('unavailable',this.unavailableReason()||'storage-unavailable');deliver(null);return;}
       if(!fresh){
         // A cover's supplied resize URL can be gone while another successful
         // variant is still saved. Check this request's alternatives before
         // recording a miss or attempting the preferred URL on the network.
         const sources=[...new Set([url,...candidates].filter(source=>this.allowed(source)).map(source=>this.key(source)))];
-        for(const source of sources){const cached=await this.get(source,kind);if(!valid())return;
+        let readFailed=false;
+        const onReadError=diagnostic?()=>{readFailed=true;}:undefined;
+        for(const source of sources){const cached=await this.get(source,kind,onReadError);if(!valid())return;
           if(cached){await finish(cached,true,source);return;}}
+        if(readFailed)noteCache('unavailable','read-error');else noteCache('miss','no-saved-candidate');
         this.recordActivity('miss');
       }
       if(!valid())return;
       const host=new URL(url).host;
       if(!network||!this.env.request||this.writeBlocked||kind==='preview'&&this.previewWriteBlocked||this.nativeOnly.has(host)){deliver(null);return;}
-      const fallback=()=>{this.nativeOnly.add(host);if(valid())deliver(null);};
+      const fallback=(reason,response)=>{if(valid()&&!delivered&&!finishing){noteHTTP(response,reason);this.nativeOnly.add(host);deliver(null);}};
       const transportURL=new URL(url);if(transportURL.protocol==='http:'&&!this.env.local)transportURL.protocol='https:';
       try{handle=this.env.request({method:'GET',url:transportURL.href,anonymous:true,redirect:'error',responseType:'blob',headers:{Referer:this.env.origin+'/'},
-        onload:response=>{if(!valid())return;const final=response.finalUrl||transportURL.href;
-          if(!this.allowed(final)||!this.env.local&&new URL(final).protocol!=='https:'||[401,403].includes(response.status)){fallback();return;}
-          if(response.status<200||response.status>=300){deliver({failure:true,status:response.status});return;}
-          if(/^(?:text\/html|application\/json)/i.test(response.response?.type||'')){fallback();return;}
+        onload:response=>{if(!valid()||delivered||finishing)return;const final=response.finalUrl||transportURL.href;
+          if(!this.allowed(final)||!this.env.local&&new URL(final).protocol!=='https:'){fallback('redirect',response);return;}
+          if([401,403].includes(response.status)){fallback('access-denied',response);return;}
+          if(response.status<200||response.status>=300){noteHTTP(response);deliver({failure:true,status:response.status});return;}
+          if(/^(?:text\/html|application\/json)/i.test(response.response?.type||'')){fallback('non-image-response',response);return;}
+          noteHTTP(response);
           void finish(response.response,false);
-        },onerror:fallback,ontimeout:fallback,onabort:()=>{if(valid())fallback();}});
-      }catch{if(valid())deliver(null);}
+        },onerror:response=>fallback('transport-error',response),ontimeout:response=>fallback('transport-timeout',response),
+        onabort:response=>fallback('transport-aborted',response)});
+      }catch{if(valid()&&!delivered&&!finishing){noteHTTP(null,'transport-error');deliver(null);}}
     })();
     return()=>{cancelled=true;try{handle?.abort?.();}catch{};};
   }
@@ -1255,6 +1354,8 @@ function restoreFilterBaseline(app) {
 const TABLE = '#torrent_table, #content table.torrent_table';
 const PAGE_LINKS = 'a.pager_page,a.pager_last';
 const NEXT_LINKS = 'a.pager_next,a[rel="next"]';
+const COLLAGE_PATH = /^\/collage\/[1-9]\d*\/?$/;
+const COLLAGE_BURST_PAGES = 5;
 const searchIdentity = url => JSON.stringify([...url.searchParams].filter(([key]) => key !== 'page')
   .sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1])));
 const pageNumber = url => Number(new URL(url).searchParams.get('page') || 1);
@@ -1272,7 +1373,7 @@ function backfillRetryAfter(value, now = Date.now()) {
 function backfillURL(value, base, search = base) {
   try {
     const url = new URL(value, base), original = new URL(search);
-    const collage=/^\/collage\/[1-9]\d*\/?$/.test(original.pathname);
+    const collage=COLLAGE_PATH.test(original.pathname);
     if (!['https:', 'http:'].includes(url.protocol) || url.origin !== original.origin || (!collage&&url.pathname !== '/torrents.php') || original.pathname !== url.pathname ||
         url.username || url.password || url.searchParams.has('id') || original.searchParams.has('id') ||
         url.searchParams.getAll('action').some(action => !(collage?['','view']:['', 'advanced', 'basic', 'search']).includes(action)) ||
@@ -1314,7 +1415,7 @@ class BackfillController {
     this.search = this.win.location.href; this.loaded = new Set(); this.seenIDs = new Set();
     this.generation = 0; this.overlaySequence = 1000000000; this.pages = 0; this.added = 0;
     this.busy = false; this.initialized = false; this.disposed = false; this.message = '';
-    this.lastRequestStartedAt = null;
+    this.lastRequestStartedAt = null; this.burstRequestAt = 0;
   }
   table() { return this.doc.querySelector(TABLE); }
   supported() { return !!backfillURL(this.search, this.search) && !!this.table(); }
@@ -1400,13 +1501,16 @@ class BackfillController {
       timer = this.win.setTimeout(wake, Math.min(2147483647, Math.max(0, ms)));
     });
   }
-  async readWithRetry(url, generation) {
+  async readWithRetry(url, generation, burst) {
+    const interval = this.app.options.backfillIntervalMs ?? 1000;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (!await this.foreground(generation) || !this.active(generation)) return null;
       if (!attempt && this.lastRequestStartedAt !== null) {
-        const interval = this.app.options.backfillIntervalMs ?? 1000;
+        // A short collage batch can use up to five starts up front. The
+        // allowance refills one request per interval across successive runs.
+        const earliest = burst ? this.burstRequestAt - (COLLAGE_BURST_PAGES - 1) * interval : this.lastRequestStartedAt + interval;
         // Fetch and append time count toward spacing. A zero wait still yields to input and rendering.
-        if (!await this.wait(Math.max(0, interval - (this.now() - this.lastRequestStartedAt)), generation)) return null;
+        if (!await this.wait(Math.max(0, earliest - this.now()), generation)) return null;
       }
       if (this.now() < (this.notBefore || 0) && !await this.wait(this.notBefore - this.now(), generation)) return null;
       if (!await this.foreground(generation) || !this.active(generation)) return null;
@@ -1415,6 +1519,7 @@ class BackfillController {
       const timeout = this.win.setTimeout(() => { timedOut = true; controller.abort(); }, this.app.options.backfillTimeoutMs || 20000);
       this.message = 'Loading page ' + pageNumber(url) + (attempt ? ' · attempt ' + (attempt + 1) + '/3' : ''); this.sync();
       this.lastRequestStartedAt = this.now();
+      this.burstRequestAt = Math.max(this.burstRequestAt, this.lastRequestStartedAt) + interval;
       try { result = await this.readPage(url, controller.signal); }
       catch (error) { failure = timedOut ? pageError('The page request timed out.', true) : error; }
       finally { this.win.clearTimeout(timeout); if (this.controller === controller) this.controller = null; }
@@ -1557,6 +1662,7 @@ class BackfillController {
     this.autoStarted = true; // Stop/manual retries must never restart automatic loading on this page.
     this.failedURL = null;
     const generation = ++this.generation, limit = this.app.settings.backfillMode === 'all' ? Infinity : this.app.settings.backfillPages;
+    const burst = limit <= COLLAGE_BURST_PAGES && COLLAGE_PATH.test(this.win.location.pathname);
     let pages = 0, added = 0;
     this.busy = true;
     this.app.versions?.releaseLayout(this.table());
@@ -1564,7 +1670,7 @@ class BackfillController {
       for (; pages < limit && this.nextURL; ) {
         if (!this.active(generation)) return;
         const url = this.nextURL;
-        const result = await this.readWithRetry(url, generation);
+        const result = await this.readWithRetry(url, generation, burst);
         if (!result || !this.active(generation)) return;
         const prepared = [], acceptedIDs = new Set();
         for (const source of result.rows) {
@@ -3521,8 +3627,13 @@ class ResultFilters {
 
 const SETTINGS_KEY = 'ep.settings';
 const SEARCH_KEY = 'ep.searches';
+const DIAGNOSTIC_LIMIT = 3000;
 const OWN = '.epc-root,.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-media-retry,.epc-engine,.epc-version-control,.epc-version-columns,#nseOuter,#nseFloatyBoi';
 const searchSignature = fields => JSON.stringify(fields.map(field => [field.name, field.type, field.value, !!field.checked]));
+const smallLegacyResize = source => {
+  const resize = source.match(/\/images\/resize\/(\d+)\//);
+  return resize && Number(resize[1]) <= 350 && !!legacyOriginal(source);
+};
 
 function captureSearch(form) {
   const fields = [];
@@ -3618,19 +3729,23 @@ class CompanionApp {
   }
   report(message) {
     const text = String(message?.message || message);
-    this.log.push({ time: new Date().toISOString(), type: 'application', message: text.slice(0, 240) });
-    this.log = this.log.slice(-200);
+    this.appendDiagnostic({ type: 'application', message: text.slice(0, 240) });
     if (this.notice) this.notice.textContent = text;
   }
-  record(entry, kind) {
+  appendDiagnostic(event) {
+    if (this.log.length >= DIAGNOSTIC_LIMIT) this.log.splice(0, 200);
+    this.log.push({ time: new Date().toISOString(), ...event });
+  }
+  record(entry, kind, details) {
     if (!this.settings.diagnostics) return;
     if (!this.assetIds.has(entry.url)) this.assetIds.set(entry.url, ++this.nextAssetId);
-    const url = new URL(entry.url);
-    this.log.push({ time: new Date().toISOString(), asset: this.assetIds.get(entry.url), host: url.host,
-      kind, state: entry.status, attempts: entry.attempts,
+    const url = new URL(entry.url), candidate = new URL(entry.actualURL || entry.url);
+    this.appendDiagnostic({ asset: this.assetIds.get(entry.url), host: url.host, candidateHost: candidate.host,
+      resizePixels: Number(candidate.pathname.match(/^\/images\/resize\/(\d+)\//)?.[1]) || undefined,
+      kind, state: entry.status, attempts: entry.attempts, lane: entry.activeLane,
       elapsedMs: entry.started ? Date.now() - entry.started : 0,
-      legacyResize: !!legacyOriginal(entry.url), dimensions: entry.dimensions });
-    this.log = this.log.slice(-200);
+      legacyResize: !!legacyOriginal(entry.url), dimensions: entry.dimensions,
+      reason: ['retrying', 'failed', 'stalled'].includes(entry.status) ? entry.reason : undefined, ...details });
   }
   toast(text) {
     this.win.clearTimeout(this.toastTimer);
@@ -4799,13 +4914,15 @@ class PageMedia {
     this.definitions = new Map(); this.scriptText = new WeakMap(); this.knownVariants = new Map();
     this.records = new Map(); this.thumbnails = new Map(); this.thumbnailsByOriginal = new Map(); this.near = new Map();
     this.layoutVersion = 0;
+    this.viewportTop = this.win.scrollY; this.viewportHeight = this.win.innerHeight;
     this.nativeTimers = new Set(); this.disposed = false;
     this.syncCoverGate();
     this.pool = new MediaPool({
       Image: app.options.Image || this.win.Image, now: () => Date.now(),
       imageCache: app.imageCache,
+      diagnostic: (entry, kind, details) => app.record(entry, kind, details),
       hostHistory: app.storage.get('ep.hostHistory', []), saveHosts: history => app.storage.set('ep.hostHistory', history),
-      priorityRevision: () => `${this.layoutVersion}/${this.win.scrollY}/${this.win.innerHeight}/${app.settings.preloadScreens}`,
+      priorityRevision: () => `${this.layoutVersion}/${this.viewportTop}/${this.viewportHeight}/${app.settings.preloadScreens}`,
       setTimeout: this.win.setTimeout.bind(this.win), clearTimeout: this.win.clearTimeout.bind(this.win),
       hidden: () => this.doc.hidden, report: error => app.report(error)
     }, app.settings);
@@ -4975,29 +5092,40 @@ class PageMedia {
     return record.position;
   }
   thumbnailDistance(record) {
-    const { top, bottom } = this.thumbnailPosition(record), scroll = this.win.scrollY;
-    const height = Math.max(1, this.win.innerHeight);
+    const { top, bottom } = this.thumbnailPosition(record), scroll = this.viewportTop;
+    const height = Math.max(1, this.viewportHeight);
     return Math.max(top - scroll - height, scroll - bottom, 0) / height;
   }
   thumbnailPriority(record) {
+    // Queue ranking is a read pass. Cache visibility here so each dispatch
+    // does not measure layout again after the previous image changed the DOM.
+    if (!this.displayed(record.element, record)) return 0;
     const distance = this.thumbnailDistance(record);
     if (!distance) return 80;
     return distance <= this.app.settings.preloadScreens ? 40 - distance : 10 / (1 + distance);
   }
   prepareThumbnails(rows, cards) {
     if (this.disposed || !this.app.filtersReady || this.doc.hidden) return;
+    // Scroll and resize already request this pass. Reading the viewport from
+    // the scheduler would force layout again after each image updates its DOM.
+    this.viewportTop = this.win.scrollY; this.viewportHeight = this.win.innerHeight;
     // Warm the current result list as slots finish, even when the user stays at
     // the top. Nearby rows lead; filtering and closed galleries still apply.
-    const records = rows ? rows.map(row => this.thumbnails.get(row)).filter(Boolean) : this.thumbnails.values();
+    const records = rows ? rows.map(row => this.thumbnails.get(row)).filter(Boolean) : [...this.thumbnails.values()];
+    if (this.app.settings.recoverBackgrounds) {
+      if (!rows) {
+        for (const record of this.records.values()) if (record.coverArt) records.push(record);
+      } else if (cards) for (const card of cards) for (const cover of card.querySelectorAll('.torrent__cover')) {
+        const record = this.records.get(cover);
+        if (record?.coverArt) records.push(record);
+      }
+    }
+    // Measure the batch before queue updates write image status into the DOM.
+    for (const record of records) if (record.state === 'deferred') this.displayed(record.element, record);
     this.pool.batch(() => {
-      for (const record of records) this.loadThumbnail(record);
-      if (this.app.settings.recoverBackgrounds) {
-        if (!rows) {
-          for (const record of this.records.values()) if (record.coverArt) this.loadBackground(record);
-        } else if (cards) for (const card of cards) for (const cover of card.querySelectorAll('.torrent__cover')) {
-          const record = this.records.get(cover);
-          if (record?.coverArt) this.loadBackground(record);
-        }
+      for (const record of records) {
+        if (record.coverArt) this.loadBackground(record);
+        else this.loadThumbnail(record);
       }
       this.pool.pump();
     });
@@ -5036,11 +5164,8 @@ class PageMedia {
   }
   registerDefinition(def) {
     this.definitions.set(def.name, def);
-    if (def.thumbnail) {
-      const key = fullSizeURL(def.src);
-      if (!this.knownVariants.has(key)) this.knownVariants.set(key, new Set());
-      this.knownVariants.get(key).add(def.thumbnail);
-    }
+    if (def.thumbnail) this.registerVariant(fullSizeURL(def.src), def.thumbnail);
+    this.rememberVariant(def.src);
   }
   scan(root, prepare = true) {
     if (this.disposed || !this.app.settings.enabled || root.closest?.(OWN)) return;
@@ -5064,10 +5189,11 @@ class PageMedia {
     this.app.scheduleHealth();
   }
   rememberVariant(src) {
-    if (!/\.(th|md)\.[^/.?]+(?:\?|$)/i.test(src)) return;
-    const key = fullSizeURL(src);
-    if (!this.knownVariants.has(key)) this.knownVariants.set(key, new Set());
-    this.knownVariants.get(key).add(src);
+    if (/\.(th|md)\.[^/.?]+(?:\?|$)/i.test(src) || smallLegacyResize(src)) this.registerVariant(fullSizeURL(src), src);
+  }
+  registerVariant(original, variant) {
+    if (!this.knownVariants.has(original)) this.knownVariants.set(original, new Set());
+    this.knownVariants.get(original).add(variant);
   }
   requestedSource(image) {
     const raw = image.getAttribute('src');
@@ -5246,10 +5372,10 @@ class PageMedia {
     record.unsubscribe?.(); this.intersection?.unobserve(record.element); this.near.delete(record.element);
     record.element.remove(); this.pool.abandon(record.lastEntry);
   }
-  thumbnailOptions(source, rescueEntry, mode = this.app.settings.thumbnailMode) {
+  thumbnailOptions(source, rescueEntry, mode = this.app.settings.thumbnailMode, preferred) {
     const grid = mode === 'grid', original = fullSizeURL(canonicalImageURL(source));
     const smallCandidates = (rescueEntry ? [...rescueEntry.smallCandidates] :
-      [this.thumbnailHistory.get(canonicalImageURL(source))?.src,
+      [this.thumbnailHistory.get(canonicalImageURL(source))?.src, preferred,
         ...Array.from(this.knownVariants.get(fullSizeURL(source)) || [])].filter(Boolean))
       .filter(candidate => mode !== 'auto' && !grid || canonicalImageURL(candidate) !== original);
     let candidates = rescueEntry ? [canonicalImageURL(rescueEntry.actualURL)] :
@@ -5393,9 +5519,10 @@ class PageMedia {
     this.records.set(element, record);
     if (coverArt) {
       const thumb = safeImageURL(element.getAttribute('data-thumbnail'), this.win.location.href);
-      const resized = legacyOriginal(supplied) && Number(new URL(supplied).pathname.match(/\/resize\/(\d+)\//)?.[1]) <= 350;
-      if (!this.knownVariants.has(source)) this.knownVariants.set(source, new Set());
-      for (const value of [thumb, resized ? supplied : null].filter(Boolean)) this.knownVariants.get(source).add(value);
+      const resized = smallLegacyResize(supplied) ? supplied : null;
+      record.preferredThumbnail = thumb || resized;
+      if (thumb) this.registerVariant(source, thumb);
+      if (resized) this.registerVariant(source, resized);
       const image = record.image = this.app.node('img'); image.className = 'epc-cover-image'; image.alt = ''; image.draggable = false; image.decoding = 'async';
       const status = record.status = this.app.node('span', 'Waiting', 'epc-cover-status'); status.setAttribute('aria-hidden','true');
       const position = this.win.getComputedStyle(element).position;
@@ -5408,7 +5535,7 @@ class PageMedia {
     if (!this.app.filtersReady || this.disposed || !this.app.settings.recoverBackgrounds ||
         !(record.coverArt ? this.displayed(record.element, record) : this.visible(record.element, true)) || this.doc.hidden) return;
     const entry = this.pool.request(record.source, {
-      ...(record.coverArt ? this.thumbnailOptions(record.originalSource, rescue ? record.lastEntry : null) : { lane: 'large' }),
+      ...(record.coverArt ? this.thumbnailOptions(record.originalSource, rescue ? record.lastEntry : null, undefined, record.preferredThumbnail) : { lane: 'large' }),
       priority: record.coverArt ? this.thumbnailPriority(record) : this.visible(record.element) ? 30 : 5,
       ...(record.coverArt ? { priorityFor: () => this.thumbnailPriority(record), target: this.app.options.Image ? null : record.image } : {}), force,
       eligible: () => !this.disposed && this.app.settings.recoverBackgrounds && !this.doc.hidden &&
@@ -5781,7 +5908,7 @@ class PreviewController {
       this.image.dataset.epImageSource=thumbnail.image.dataset.epImageSource||thumbnail.image.src;
     }
     const readyThumbnail = thumbnail?.lastEntry && ['ready', 'partial'].includes(thumbnail.lastEntry.status);
-    if(titleHover&&readyThumbnail&&!options.force)this.app.imageCache.recordActivity?.('hit',thumbnail.lastEntry.cacheBytes);
+    if (titleHover && readyThumbnail && !options.force) this.app.media.pool.recordMemoryHit(thumbnail.lastEntry);
     const gridTitle = titleHover && row?.closest('table')?.classList.contains('epc-result-grid');
     const requestOptions = titleHover ? this.app.media.thumbnailOptions(source, null, gridTitle ? 'grid' : undefined) : {
       lane: 'large', keepAlive: true,
