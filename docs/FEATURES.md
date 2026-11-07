@@ -1,6 +1,6 @@
 # Feature mapping
 
-Version 2.14.0-alpha.9 explains why revealed results were filtered and counts results that can be revealed in the current Freeleech view. It adds a Luminance tag import with a mapping preview and undo, Favorite and Caution cues in Grid, a List column chooser, and collapsible and responsive detail tags. Expanded groups in Settings, Filters, and Searches use shared indentation. [Filters and import](REFERENCE.md) · [List and Grid](GRID-VIEW.md)
+Version 2.14.0 puts Freeleech and Show filtered directly in the results toolbar. Show filtered counts results it can reveal in the selected Freeleech view and explains why each revealed result was hidden. Luminance tag import previews the destination for each group and supports undo. Grid cards show Favorite and Caution cues, List lets you choose which columns to show, and detail pages support collapsed tags and responsive tag columns. List and Grid have separate animated cover settings. The load gauge tracks preloading, and playback respects system reduced motion. Settings and Filters have tooltips, and expanded groups in Settings, Filters, and Searches use consistent indentation. [Filters and import](REFERENCE.md) · [List and Grid](GRID-VIEW.md)
 
 Version 2.13.3 keeps one thumbnail moving alongside an active original when the image host has reduced capacity to one slot and its cooldown has expired. In **Settings → Image cache**, **Pin statistics** moves the cache activity table below the toolbar across pages. Each column has its own tooltip.
 

@@ -1,3 +1,13 @@
+# Empornium Companion 2.14.0 validation
+
+Updated November 7, 2026.
+
+The build, syntax checks, and all **363 automated tests** pass. The stable and versioned userscripts are identical. Tested bundle SHA-256 is `d3f32267414249d43f06f53c9944109368ed1cba78bbb9cfe2a1391f1334df9b`.
+
+The stable build uses the same runtime as the alpha build exercised in local Chromium fixtures. Those checks covered Freeleech and filter reasons, List columns, Grid tag cues, responsive and collapsed detail tags, Luminance import and undo, cover playback and reduced motion, and setting help. The fixtures used sample records and loopback image requests.
+
+---
+
 # Empornium Companion 2.13.3 validation
 
 Updated November 6, 2026.
