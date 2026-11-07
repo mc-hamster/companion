@@ -91,6 +91,64 @@ test('Grid warms off-screen covers, plays only visible cards, and follows reduce
   } finally { f.close(); }
 });
 
+test('List autoplay enables inline covers independently from Grid playback', async () => {
+  const originals = ['https://hamsterimg.net/images/list-visible.gif', 'https://hamsterimg.net/images/list-offscreen.gif'];
+  const definitions = originals.map((url, index) => overlayHTML(index + 1, url, url.replace('.gif', '.th.jpg'))).join('');
+  const f = await setup({ resultsView: 'list', inlineThumbnails: false }, { definitions, positions: [10, 1500] });
+  const playback = () => f.doc.querySelector('.epc-grid-gif-playback');
+  try {
+    assert.equal(f.app.media.thumbnails.size, 0);
+    await field(f, '[data-setting=listAutoplayGifs]', true);
+    await until(() => originals.every(url => f.clock.images.some(image => image.src === url)));
+    for (const image of f.clock.images.filter(image => originals.includes(image.src))) image.succeed();
+    assert.equal(f.app.media.thumbnails.size, 2);
+    assert.equal(playback()?.src, originals[0]);
+    assert.equal(f.app.media.loadCounts().animation.ready, 2);
+    assert.equal(f.doc.querySelectorAll('.epc-grid-gif-playback').length, 1);
+    f.app.grid.layoutButtons.get('grid').click();
+    await until(() => !playback());
+    assert.equal(f.app.settings.gridAutoplayGifs, false);
+    f.app.grid.layoutButtons.get('list').click();
+    await until(() => playback()?.src === originals[0]);
+    assert.equal(f.clock.images.filter(image => originals.includes(image.src)).length, 2);
+    await field(f, '[data-setting=listAutoplayGifs]', false);
+    assert.equal(f.app.media.thumbnails.size, 0);
+  } finally { f.close(); }
+});
+
+test('reduced motion disables both autoplay choices in Settings and Getting started without clearing them', async () => {
+  let reduced = true;
+  const f = await setup({ listAutoplayGifs: true }, { motion: () => reduced });
+  const keys = ['gridAutoplayGifs', 'listAutoplayGifs'];
+  const settings = keys.map(key => f.app.controls.get(key));
+  const settingsNote = f.doc.getElementById('epc-cover-motion-settings');
+  const changeMotion = value => {
+    reduced = value;
+    f.app.media.reducedMotion.dispatchEvent(new f.win.Event('change'));
+  };
+  try {
+    assert.equal(settingsNote.hidden, false);
+    assert.ok(settings.every(control => control.disabled && control.getAttribute('aria-describedby') === settingsNote.id));
+    settings[0].click();
+    assert.deepEqual(settings.map(control => control.checked), [false, true]);
+
+    f.app.onboarding.show();
+    const welcome = keys.map(key => f.doc.querySelector('[data-welcome-setting=' + key + ']'));
+    const welcomeNote = f.doc.getElementById('epc-cover-motion-welcome');
+    assert.equal(welcomeNote.hidden, false);
+    assert.ok(welcome.every(control => control.disabled && control.getAttribute('aria-describedby') === welcomeNote.id));
+    changeMotion(false);
+    assert.ok([...settings, ...welcome].every(control => !control.disabled && !control.hasAttribute('aria-describedby')));
+    assert.ok(settingsNote.hidden && welcomeNote.hidden);
+    welcome[0].click();
+    changeMotion(true);
+    assert.ok([...settings, ...welcome].every(control => control.disabled));
+    f.app.onboarding.finish();
+    assert.deepEqual(settings.map(control => control.checked), [true, true]);
+    assert.deepEqual(keys.map(key => f.storage.get('ep.settings')[key]), [true, true]);
+  } finally { f.close(); }
+});
+
 test('header load progress separates thumbnails, visible animation, and failures', async () => {
   const original = 'https://hamsterimg.net/images/progress.gif';
   const f = await setup({ gridAutoplayGifs: true, maxRetries: 0 }, {
@@ -417,9 +475,12 @@ test('setup and Settings share the grid layout, width, spacing and GIF opt-in', 
     dialog.querySelector('[data-welcome-setting=gridSpacing]').value = 'compact';
     const autoplay = dialog.querySelector('[data-welcome-setting=gridAutoplayGifs]');
     assert.equal(autoplay.checked, false); autoplay.checked = true;
+    const listAutoplay = dialog.querySelector('[data-welcome-setting=listAutoplayGifs]');
+    assert.equal(listAutoplay.checked, false); listAutoplay.checked = true;
     clickText(dialog, 'Start browsing'); await settle();
     assert.equal(store.get('ep.settings').resultsView, 'grid'); assert.equal(store.get('ep.settings').gridCardWidth, 420);
     assert.equal(store.get('ep.settings').gridSpacing, 'compact'); assert.equal(store.get('ep.settings').gridAutoplayGifs, true);
+    assert.equal(store.get('ep.settings').listAutoplayGifs, true);
     assert.equal(f.doc.querySelector('.epc-result-grid').dataset.epGridSpacing, 'compact');
     pane(f, 'settings'); await field(f, '[data-setting=gridCardWidth]', 540);
     await field(f, '[data-setting=gridSpacing]', 'standard');
@@ -430,6 +491,7 @@ test('setup and Settings share the grid layout, width, spacing and GIF opt-in', 
     assert.equal(replay.querySelector('[data-welcome-setting=gridCardWidth]').value, '540');
     assert.equal(replay.querySelector('[data-welcome-setting=gridSpacing]').value, 'standard');
     assert.equal(replay.querySelector('[data-welcome-setting=gridAutoplayGifs]').checked, true);
+    assert.equal(replay.querySelector('[data-welcome-setting=listAutoplayGifs]').checked, true);
     assert.equal(f.errors.length, 0, f.errors.join('\n'));
   } finally { f.close(); }
 });

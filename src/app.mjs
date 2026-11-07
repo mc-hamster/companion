@@ -466,6 +466,7 @@ export class CompanionApp {
       ['gridCardWidth', 'Grid card size', [240, 320, 420, 540]],
       ['gridSpacing', 'Grid spacing', ['standard', 'compact']],
       ['gridAutoplayGifs', 'Play animated covers in Grid', 'checkbox'],
+      ['listAutoplayGifs', 'Play animated covers in List', 'checkbox'],
       ['gridShowDetails', 'Show details in grid cards', 'checkbox'],
       ['gridShowTags', 'Show tags in grid cards', 'checkbox'],
       ['previewWidth', 'Preview width', 'number', 240, 800],
@@ -521,17 +522,18 @@ export class CompanionApp {
       if (key === 'gridCardWidth') { gridCardSizeChoices(control, this.settings.gridCardWidth); control.dataset.numeric = ''; }
       control.dataset.setting = key; this.controls.set(key, control); row.append(control);
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
-      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridSpacing','gridAutoplayGifs','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
+      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridSpacing','gridAutoplayGifs','listAutoplayGifs','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
         key === 'diagnostics' ? this.optionGroups.diagnostics : ['keyboardShortcuts', 'navigationScope'].includes(key) ? this.optionGroups.interaction :
         imageKeys.has(key) ? this.optionGroups.images : this.optionGroups.loading;
       parent.append(row);
       if(type==='checkbox'&&(parent===settings||parent===browsing))row.prepend(control);
     }
+    this.coverMotionNote = this.createCoverMotionNote('epc-cover-motion-settings');
+    this.controls.get('listAutoplayGifs').closest('label').after(this.coverMotionNote);
     settings.append(this.controls.get('previews').closest('label'));
     settings.append(this.grid.settingsHelp());
-    settings.append(this.node('p', 'Preload full-size covers, including off-screen cards. Animations play in view. This can use more data. Covers stay still when your system requests reduced motion.', 'epc-caption'));
-    settings.append(this.node('p', 'Reduced motion is currently on. Animated covers will stay still.', 'epc-caption epc-cover-motion-note'));
+    settings.append(this.node('p', 'Preload full-size covers, including off-screen results. List playback shows inline covers. This can use more data.', 'epc-caption'));
     const shortcuts = keyboardShortcutList(this);
     shortcuts.dataset.optionItem = '';
     this.optionGroups.interaction.append(shortcuts);
@@ -679,7 +681,30 @@ export class CompanionApp {
     const searching=!!this.settingsSearch?.value.trim();if(!searching)row.hidden=mode==='all';
     if(mode==='all'&&!pages.checkValidity())pages.value=this.settings.backfillPages;
     this.controls.get('navigationScope').disabled = !this.controls.get('keyboardShortcuts').checked;
+    this.syncCoverMotionControls();
     if(!this.cacheStatsPinned&&this.cacheUsage?.hidden){this.win.clearTimeout(this.cacheUsageClock);this.cacheUsageClock=null;}
+  }
+  createCoverMotionNote(id) {
+    const note = this.node('p', 'Animated covers are unavailable while reduced motion is on in your system settings.', 'epc-caption epc-cover-motion-note');
+    note.id = id; note.hidden = true;
+    note.setAttribute('role', 'status');
+    return note;
+  }
+  syncCoverMotionControls() {
+    const reduced = !!this.media.reducedMotion?.matches;
+    const groups = [
+      [this.coverMotionNote, [this.controls?.get('gridAutoplayGifs'), this.controls?.get('listAutoplayGifs')]],
+      [this.onboarding?.coverMotionNote, [this.onboarding?.gridAutoplayGifs, this.onboarding?.listAutoplayGifs]]
+    ];
+    for (const [note, controls] of groups) {
+      if (!note) continue;
+      note.hidden = !reduced || controls.every(control => control.closest('label').hidden);
+      for (const control of controls) {
+        control.disabled = reduced;
+        if (reduced) control.setAttribute('aria-describedby', note.id);
+        else control.removeAttribute('aria-describedby');
+      }
+    }
   }
   scheduleCacheUsage(){
     if(!this.cacheUsageVisible()||this.cacheUsageTimer)return;
@@ -1423,6 +1448,7 @@ export class CompanionApp {
   restartMedia() {
     this.preview.dispose(); this.media.dispose();
     this.media = new PageMedia(this); this.preview = new PreviewController(this); this.preview.build();
+    this.syncCoverMotionControls();
     this.updateHealth();
     for (const [key, control] of this.controls) {
       if (control.type === 'checkbox') control.checked = this.settings[key]; else control.value = this.settings[key];
@@ -1457,7 +1483,11 @@ export class PageMedia {
     this.records = new Map(); this.thumbnails = new Map(); this.thumbnailsByOriginal = new Map(); this.near = new Map();
     this.gridGifs = new Map();
     this.reducedMotion = this.win.matchMedia?.('(prefers-reduced-motion: reduce)');
-    this.motionListener = () => this.prepareThumbnails();
+    this.motionListener = () => {
+      app.syncCoverMotionControls();
+      this.prepareThumbnails();
+      app.scheduleHealth();
+    };
     this.reducedMotion?.addEventListener('change', this.motionListener);
     this.layoutVersion = 0;
     this.viewportTop = this.win.scrollY; this.viewportHeight = this.win.innerHeight;
@@ -1555,12 +1585,15 @@ export class PageMedia {
         if (row.classList.contains(name) !== wanted) row.classList.toggle(name, wanted);
       }
       const grid = row.closest('table')?.classList.contains('epc-result-grid');
-      if (!grid || !settings.gridAutoplayGifs) this.stopGridGif(record);
+      if (!this.coverAutoplayEnabled(record)) this.stopGridGif(record);
       const entry = record.lastEntry, usable = ['ready', 'partial'].includes(record.state);
       const changedLayout = settings.resultsView !== previous.resultsView;
+      const listAutoplay = this.listCoverAutoplay(row);
+      const listPlaybackChanged = !grid && row.matches('tr.torrent') && settings.listAutoplayGifs !== previous.listAutoplayGifs;
       const layoutNeedsReload = changedLayout && (!usable || grid && (!entry ||
         !this.thumbnailOptions(record.source, null, 'grid')?.candidates.includes(canonicalImageURL(entry.actualURL))));
-      if (layoutNeedsReload || !grid && settings.thumbnailMode !== previous.thumbnailMode) {
+      if (layoutNeedsReload || listPlaybackChanged && (!usable || !listAutoplay) ||
+          !grid && !listAutoplay && settings.thumbnailMode !== previous.thumbnailMode) {
         record.unsubscribe?.(); record.unsubscribe = null; this.pool.abandon(entry);
         if (entry?.target === record.image && !entry.cancelled) {
           // The previous image can still serve a preview. Keep its source
@@ -1574,7 +1607,7 @@ export class PageMedia {
         record.lastEntry = null; record.state = 'deferred'; record.element.dataset.state = 'deferred';
         record.failedAt = null; record.autoRecoveryAttempted = false;
         record.status.textContent = 'Waiting'; record.status.hidden = false;
-      } else if (grid && changedLayout && entry) this.drawGridGifPoster(record, entry);
+      } else if ((grid || listAutoplay) && (changedLayout || listPlaybackChanged) && entry) this.drawGridGifPoster(record, entry);
     }
     if (settings.preloadScreens !== previous.preloadScreens) this.makeObserver();
     this.pool.trim(); this.pool.pump();
@@ -1657,7 +1690,7 @@ export class PageMedia {
   }
   prepareThumbnails(rows, cards) {
     if (this.disposed || !this.app.filtersReady) return;
-    const playGifs = this.app.settings.gridAutoplayGifs && !this.reducedMotion?.matches;
+    const playGifs = (this.app.settings.gridAutoplayGifs || this.listCoverAutoplay()) && !this.reducedMotion?.matches;
     if (!playGifs && this.gridGifs.size) this.pool.batch(() => {
       for (const record of this.gridGifs.keys()) this.stopGridGif(record);
     });
@@ -1691,8 +1724,12 @@ export class PageMedia {
     });
   }
   thumbnailsEnabled(row) {
-    return this.app.settings.inlineThumbnails || this.app.settings.resultsView === 'grid' &&
+    return this.app.settings.inlineThumbnails || this.listCoverAutoplay(row) || this.app.settings.resultsView === 'grid' &&
       (row ? row.closest('table')?.classList.contains('epc-result-grid') : true);
+  }
+  listCoverAutoplay(row) {
+    const { settings } = this.app;
+    return settings.resultsView === 'list' && settings.listAutoplayGifs && (!row || row.matches('tr.torrent'));
   }
   watchNear(element, callback) {
     this.near.set(element, callback);
@@ -1895,7 +1932,7 @@ export class PageMedia {
     if (['ready', 'partial', 'failed'].includes(entry.status)) { record.unsubscribe(); record.unsubscribe = null; }
   }
   addThumbnail(row) {
-    if (this.thumbnails.has(row) || row.closest('#nseOuter')) return;
+    if (this.thumbnails.has(row) || row.closest('#nseOuter') || !this.thumbnailsEnabled(row)) return;
     const link = row.querySelector('a[onmouseover*="overlay"],a[data-ep-overlay]');
     if (!link) return;
     const name = link.dataset.epOverlay || link.getAttribute('onmouseover')?.match(/\boverlay\d+/)?.[0];
@@ -1977,11 +2014,11 @@ export class PageMedia {
     if (record.image.getAttribute('src') !== displayURL) record.image.src = displayURL;
     record.image.dataset.epImageSource = entry.actualURL;
     record.status.hidden = true;
-    if (record.coverArt || record.row.closest('.epc-result-grid')) this.drawGridGifPoster(record, entry);
+    if (record.coverArt || record.row.closest('.epc-result-grid') || this.listCoverAutoplay(record.row)) this.drawGridGifPoster(record, entry);
   }
   drawGridGifPoster(record, entry) {
     const animatedThumbnail = coverMayAnimate(entry.actualURL) ||
-      this.app.settings.gridAutoplayGifs && entry.actualKey === (record.original || record.source);
+      this.coverAutoplayEnabled(record) && entry.actualKey === (record.original || record.source);
     record.element.toggleAttribute('data-ep-grid-gif', animatedThumbnail);
     if (!animatedThumbnail) {
       record.gifPoster?.remove(); record.gifPoster = null;
@@ -2002,10 +2039,13 @@ export class PageMedia {
     if (!record.gifPoster) record.image.before(poster);
     record.gifPoster = poster;
   }
+  coverAutoplayEnabled(record) {
+    const { settings } = this.app;
+    if (record.coverArt) return settings.recoverBackgrounds && settings.gridAutoplayGifs;
+    return record.row.closest('.epc-result-grid') ? settings.gridAutoplayGifs : this.listCoverAutoplay(record.row);
+  }
   gridGifEligible(record) {
-    return !this.disposed && !this.reducedMotion?.matches && this.app.settings.gridAutoplayGifs &&
-      (record.coverArt ? this.app.settings.recoverBackgrounds : !!record.row.closest('.epc-result-grid')) &&
-      this.displayed(record.element, record);
+    return !this.disposed && !this.reducedMotion?.matches && this.coverAutoplayEnabled(record) && this.displayed(record.element, record);
   }
   gridGifVisible(record) {
     if (this.doc.hidden || !this.gridGifEligible(record)) return false;
@@ -2136,21 +2176,22 @@ export class PageMedia {
   loadThumbnail(record, force = false, rescue = false) {
     if (this.useLoadedOriginal(record) || !force && record.state !== 'deferred') return;
     if (!this.app.filtersReady || this.disposed || !this.thumbnailsEnabled(record.row) || this.doc.hidden || !this.displayed(record.element, record)) return;
-    const grid = !!record.row.closest('.epc-result-grid');
-    const options = this.thumbnailOptions(record.source, rescue ? record.lastEntry : null, grid ? 'grid' : this.app.settings.thumbnailMode);
+    const smallOnly = () => !!record.row.closest('.epc-result-grid') || this.listCoverAutoplay(record.row);
+    const strict = smallOnly();
+    const options = this.thumbnailOptions(record.source, rescue ? record.lastEntry : null, strict ? 'grid' : this.app.settings.thumbnailMode);
     if (!options) {
       record.state = 'failed'; record.element.dataset.state = 'failed';
       record.status.textContent = 'Thumbnail unavailable'; record.status.hidden = false;
       this.app.scheduleHealth(); return;
     }
     // Thumbnail failures must never exhaust the retry budget for a requested original.
-    const source = grid ? (rescue ? record.lastEntry.url : options.candidates[0]) : record.source;
+    const source = strict ? (rescue ? record.lastEntry.url : options.candidates[0]) : record.source;
     const entry = this.pool.request(source, {
       ...options,
       priority: this.thumbnailPriority(record),
       priorityFor: () => this.thumbnailPriority(record),
       eligible: () => !this.disposed && this.app.filtersReady && this.thumbnailsEnabled(record.row) &&
-        grid === !!record.row.closest('.epc-result-grid') && !this.doc.hidden && this.displayed(record.element, record),
+        strict === smallOnly() && !this.doc.hidden && this.displayed(record.element, record),
       force,
       rescue, singleAttempt: rescue, fresh: rescue,
       // Use the real inline element: no detached preload followed by a second
@@ -2165,7 +2206,7 @@ export class PageMedia {
       if (item.status === 'failed' && this.useLoadedOriginal(record)) return;
       this.trackRecovery(record, item);
       record.status.textContent = ({ queued: 'Waiting', loading: 'Loading', retrying: 'Retrying',
-        stalled: 'Slow load', failed: grid ? 'Thumbnail unavailable' : record.autoRecoveryAttempted || !this.app.settings.maxRetries ? 'Unavailable' : 'Retrying soon',
+        stalled: 'Slow load', failed: strict ? 'Thumbnail unavailable' : record.autoRecoveryAttempted || !this.app.settings.maxRetries ? 'Unavailable' : 'Retrying soon',
         streaming: 'Loading', partial: '', ready: '' })[item.status] || '';
       if (item.image?.naturalWidth && ['streaming', 'partial', 'ready'].includes(item.status)) {
         this.showThumbnail(record, item);
@@ -2305,8 +2346,11 @@ export class PageMedia {
       if (playback.entry) animationEntries.add(playback.entry);
       countLoad(counts.animation, playback.state);
     }
-    if (!animationLoads && (this.app.settings.resultsView === 'grid' || counts.cover.ready || counts.cover.pending)) {
-      counts.animation.note = !this.app.settings.enabled || !this.app.settings.gridAutoplayGifs ? 'Off' :
+    const grid = this.app.settings.resultsView === 'grid';
+    const hasCoverArt = counts.cover.ready || counts.cover.pending;
+    if (!animationLoads && (grid || this.listCoverAutoplay() || hasCoverArt)) {
+      const autoplay = this.listCoverAutoplay() || (grid || hasCoverArt) && this.app.settings.gridAutoplayGifs;
+      counts.animation.note = !this.app.settings.enabled || !autoplay ? 'Off' :
         this.reducedMotion?.matches ? 'Reduced motion' : 'No covers to load';
     }
     const preview = this.app.preview;
@@ -2645,14 +2689,14 @@ export class PreviewController {
     }
     const readyThumbnail = thumbnail?.lastEntry && ['ready', 'partial'].includes(thumbnail.lastEntry.status);
     if (titleHover && readyThumbnail && !options.force) this.app.media.pool.recordMemoryHit(thumbnail.lastEntry);
-    const gridTitle = titleHover && row?.closest('table')?.classList.contains('epc-result-grid');
-    const requestOptions = titleHover ? this.app.media.thumbnailOptions(source, null, gridTitle ? 'grid' : undefined) : {
+    const smallTitle = titleHover && row && (row.closest('.epc-result-grid') || this.app.media.listCoverAutoplay(row));
+    const requestOptions = titleHover ? this.app.media.thumbnailOptions(source, null, smallTitle ? 'grid' : undefined) : {
       lane: 'large', keepAlive: true,
       cacheMode: thumbnail?.image.naturalWidth && !/\.gif(?:\?|$)/i.test(source) ? 'network' : 'lookup',
       candidates: Array.from(new Set([source, item.metadata.src]))
     };
     const entry = titleHover && readyThumbnail && !options.force ? thumbnail.lastEntry : requestOptions &&
-      this.app.media.pool.request(gridTitle ? requestOptions.candidates[0] : source, {
+      this.app.media.pool.request(smallTitle ? requestOptions.candidates[0] : source, {
       ...requestOptions, priority: 100, force: !!options.force,
       eligible: () => this.open && version === this.version,
       priorityFor: () => this.open && version === this.version ? 100 : 0,

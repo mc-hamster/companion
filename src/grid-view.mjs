@@ -47,7 +47,7 @@ export class ResultGrid {
       this.layoutButtons.get('grid').click();
       if (this.settingsSwitch.hidden) app.controls.get('resultsView').focus();
     });
-    help.append(app.node('p', 'Grid spacing and cover playback apply to Grid results and the site’s Cover Art grid.'), this.settingsSwitch);
+    help.append(app.node('p', 'Grid spacing also applies to the site’s Cover Art grid. Cover playback has separate settings for Grid and List.'), this.settingsSwitch);
     this.syncControls();
     return help;
   }
@@ -55,6 +55,7 @@ export class ResultGrid {
     const app = this.app, grid = app.settings.resultsView === 'grid';
     app.batchDOM(() => {
       app.doc.documentElement.toggleAttribute('data-ep-compact-cover-grid', app.settings.gridSpacing === 'compact');
+      app.doc.documentElement.toggleAttribute('data-ep-list-autoplay', !grid && app.settings.listAutoplayGifs);
       for (const table of this.tables.keys()) if (!table.isConnected || !grid) this.release(table);
       const candidates = new Set(this.tables.keys());
       // Retain managed tables when Hard Pass temporarily removes every row.
@@ -136,6 +137,7 @@ export class ResultGrid {
   dispose() {
     for (const table of this.tables.keys()) this.release(table);
     this.app.doc.documentElement.removeAttribute('data-ep-compact-cover-grid');
+    this.app.doc.documentElement.removeAttribute('data-ep-list-autoplay');
     this.layout?.remove();
   }
 }

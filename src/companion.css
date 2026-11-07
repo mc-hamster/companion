@@ -343,15 +343,18 @@ a.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;poi
 #content .epc-result-grid .epc-thumb-button{width:100%;height:auto;aspect-ratio:4/3;min-height:120px;max-height:none;border:0;border-radius:6px}
 #content .epc-result-grid .epc-thumb-button>:is(img,canvas){position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain}
 .epc-grid-gif-poster{display:none}
-.epc-cover-motion-note{display:none}
-#content :is(.epc-result-grid,.epc-managed-cover) .epc-grid-gif-poster{display:block}
+.epc-root .epc-cover-motion-note{grid-column:1/-1;margin:0}
+.epc-root label:has(>input:disabled[aria-describedby^="epc-cover-motion-"]){opacity:.65;cursor:not-allowed}
+.epc-thumb-button>:is(.epc-grid-gif-poster,.epc-grid-gif-playback){position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#content :is(.epc-result-grid,.epc-managed-cover) .epc-grid-gif-poster,
+html[data-ep-list-autoplay] #content tr.torrent .epc-grid-gif-poster{display:block}
 #content .epc-managed-cover>:is(.epc-grid-gif-poster,.epc-grid-gif-playback){position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;pointer-events:none}
-#content .epc-result-grid [data-ep-grid-gif] img:not(.epc-grid-gif-playback){visibility:hidden}
+#content .epc-result-grid [data-ep-grid-gif] img:not(.epc-grid-gif-playback),
+html[data-ep-list-autoplay] #content tr.torrent [data-ep-grid-gif] img:not(.epc-grid-gif-playback){visibility:hidden}
 #content .epc-managed-cover[data-ep-grid-gif]>.epc-cover-image{visibility:hidden}
 #content :is(.epc-thumbnail[data-ep-grid-playing] .epc-thumb-button,.epc-managed-cover[data-ep-grid-playing])>:not(.epc-grid-gif-playback){visibility:hidden!important}
 @media(prefers-reduced-motion:reduce){
   #content .epc-grid-gif-playback{display:none}
-  .epc-basic-settings:has([data-setting=gridAutoplayGifs]:checked) .epc-cover-motion-note{display:block}
 }
 #content .epc-result-grid .epc-version-control{display:none!important}
 #content .epc-result-grid .cats_col>div[title],#content .epc-result-grid .cats_cols>div[title]{position:static}

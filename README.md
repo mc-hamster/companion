@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install stable Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.14.0 Alpha](dist/EmporniumCompanion-2.14.0-alpha.6.user.js)**
+**[Install stable Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.14.0 Alpha](dist/EmporniumCompanion-2.14.0-alpha.8.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -43,7 +43,7 @@ Enable **Use keyboard shortcuts** during setup, or find the toggle and key mappi
 
 Click **Grid** above the results to switch to thumbnail cards. **List** switches back. Under **Settings → Appearance**, choose Compact (240px), Balanced (320px), Large (420px), or Extra large (540px) cards. Hover over a thumbnail or click its preview button to load the larger image. Your layout is remembered across visits.
 
-Set **Grid spacing → Compact** to bring cards closer together and extend covers to the card edges. Turn on **Play animated covers in Grid** to preload covers, including off-screen cards, and play animations as they come into view. Companion uses its image cache and respects your system's reduced-motion preference. Both options are also in **Getting started**.
+Set **Grid spacing → Compact** to bring cards closer together and extend covers to the card edges. Turn on **Play animated covers in Grid** or **Play animated covers in List** to preload covers, including off-screen results, and play animations as they come into view. List playback shows inline covers. Companion uses its image cache and respects your system's reduced-motion preference. These options are also in **Getting started**.
 
 Hover over, focus, or tap the small gauge beside the Companion name to see load progress for thumbnails, cover playback, previews, other images, and additional result pages. The percentage counts finished items. The breakdown separates ready, partial, and failed loads and marks tasks whose totals are unknown.
 
