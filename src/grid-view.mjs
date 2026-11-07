@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { resultTitleLink } from './result-tools.mjs';
 import { companionIcon } from './workspace.mjs';
+import { setSettingHelp } from './setting-help.mjs';
 
 const listColumnLabels = new Map([
   ['files', 'Files'], ['comments', 'Comments'], ['added', 'Added'], ['size', 'Size'],
@@ -170,10 +171,10 @@ export class ResultGrid {
   settingsHelp() {
     const { app } = this;
     const help = app.node('div', null, 'epc-caption');
-    this.settingsSwitch = app.button('Switch to Grid', () => {
+    this.settingsSwitch = setSettingHelp(app.button('Switch to Grid', () => {
       this.layoutButtons.get('grid').click();
       if (this.settingsSwitch.hidden) app.controls.get('resultsView').focus();
-    });
+    }), 'Apply the Grid layout to the current results so you can see your card settings.');
     help.append(app.node('p', 'Grid spacing also applies to the site’s Cover Art grid. Cover playback has separate settings for Grid and List.'), this.settingsSwitch);
     this.syncControls();
     return help;

@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { setSettingHelp, settingGroupHelp, settingHelp } from './setting-help.mjs';
+
 // The filtering engine supplies behavior; Companion owns every visible control.
 const toolbarIcons = {
   brand: 'm12 2 10 6-10 6L2 8l10-6Zm-10 10 10 6 10-6M2 16l10 6 10-6',
@@ -38,7 +40,8 @@ export function toolbarPageName(url) {
 
 export function optionGroup(app, parent, title, { key = '', open = false, searchable = false } = {}) {
   const section = app.node('details', null, 'epc-group epc-option-group'); section.open = open;
-  const summary = app.node('summary'); summary.append(app.node('span', title), app.node('small', '', 'epc-option-count'));
+  const summary = setSettingHelp(app.node('summary'), settingGroupHelp[key]);
+  summary.append(app.node('span', title), app.node('small', '', 'epc-option-count'));
   section.append(summary); parent.append(section);
   if (key) section.dataset.optionGroup = key;
   if (searchable) section.dataset.settingsGroup = title;
@@ -68,7 +71,8 @@ export function setupSettingsSearch(app) {
   const input = app.node('input'); input.type = 'search'; input.placeholder = 'Find a setting…';
   input.setAttribute('aria-label', 'Find a setting'); input.className = 'epc-settings-search';
   const status = app.node('p', '', 'epc-caption'); status.setAttribute('role', 'status'); status.hidden = true;
-  app.panes.settings.prepend(input, status); app.settingsSearch = input;
+  const hint = app.node('p', 'Hover over a setting name or tab to its control for help.', 'epc-caption');
+  app.panes.settings.prepend(input, status, hint); app.settingsSearch = input;
   const scope=app.panes.settings;
   let previous = null;
   input.addEventListener('input', () => {
@@ -105,7 +109,7 @@ export function mountFilterControls(app) {
     row.dataset.optionItem = '';
     control.className = ''; control.dataset.epFilterControl = ''; control.setAttribute('aria-label', label);
     if (control.tagName === 'TEXTAREA') control.rows = 3;
-    const caption = app.node('span', label);
+    const caption = setSettingHelp(app.node('span', label), settingHelp[id], control);
     if (control.type === 'checkbox') row.append(control, caption); else row.append(caption, control);
     if (help) row.append(app.node('small', help));
     parent.append(row); return control;
@@ -136,13 +140,13 @@ export function mountFilterControls(app) {
     const row = app.node('label', null, 'epc-field');
     const input = app.node('textarea'); input.rows = 2; input.maxLength = 50000; input.value = app.settings[key];
     input.dataset.setting = key; input.setAttribute('aria-label', label);
-    row.append(app.node('span', label), input); highlights.append(row); app.controls.set(key, input);
+    row.append(setSettingHelp(app.node('span', label), settingHelp[key], input), input); highlights.append(row); app.controls.set(key, input);
   }
   const lowPriority = optionGroup(app, app.panes.filters, 'Collapse tags on detail pages', { key: 'collapsed-detail-tags' });
   const lowPriorityField = app.node('label', null, 'epc-field');
   const lowPriorityInput = app.node('textarea'); lowPriorityInput.rows = 2; lowPriorityInput.maxLength = 50000;
   lowPriorityInput.value = app.settings.collapsedDetailTags; lowPriorityInput.dataset.setting = 'collapsedDetailTags';
-  lowPriorityField.append(app.node('span', 'Low-priority tags'), lowPriorityInput);
+  lowPriorityField.append(setSettingHelp(app.node('span', 'Low-priority tags'), settingHelp.collapsedDetailTags, lowPriorityInput), lowPriorityInput);
   lowPriority.append(app.node('p', 'Matching tags stay available under Show other tags on detail pages.', 'epc-caption'), lowPriorityField);
   app.controls.set('collapsedDetailTags', lowPriorityInput);
   summarize(highlights, () => {
@@ -182,7 +186,9 @@ export function mountFilterControls(app) {
   for (const [id, label] of [['nseUIFont', 'Interface font'],
     ['nseTextAreaFont', 'List font'], ['nseBlacklistColor', 'Blocked highlight'],
     ['nseHardPassColor', 'Hard Pass highlight'], ['nseWhitelistColor', 'Allowed highlight']]) field(appearance, id, label);
-  const colors = app.node('details'); colors.append(app.node('summary', 'Custom theme colors')); appearance.append(colors);
+  const colors = app.node('details');
+  colors.append(setSettingHelp(app.node('summary', 'Custom theme colors'), 'Set these colors, then select Custom under Color theme to use them.'));
+  appearance.append(colors);
   for (const [id, label] of [['nseCustomThemeBgCol', 'Background'], ['nseCustomThemeBgHighCol', 'Hover background'],
     ['nseCustomThemeForeCol', 'Text'], ['nseCustomThemeAccentCol', 'Accent'], ['nseCustomThemeHighCol', 'Highlight'],
     ['nseCustomThemeHiddenBgCol', 'Filtered row background']]) field(colors, id, label);
@@ -206,6 +212,8 @@ export function mountFilterControls(app) {
   const actions = app.node('div', null, 'epc-actions'); batch.append(actions);
   app.openVisibleAction = app.button('Open visible results', () => app.options.openVisible?.());
   app.hideVisibleAction = app.button('Hide visible results', () => app.options.hideVisible?.());
+  setSettingHelp(app.openVisibleAction, 'Open eligible visible results in separate tabs. Your browser may ask you to allow pop-ups.');
+  setSettingHelp(app.hideVisibleAction, 'Save individual hide exceptions for the visible results. You’ll be asked to confirm first.');
   actions.append(app.openVisibleAction, app.hideVisibleAction); app.syncFilterActions();
   const info = optionGroup(app, app.advancedSettings, 'Statistics & credits', { searchable: true });
   const stats = app.node('dl', null, 'epc-statistics');
@@ -225,6 +233,7 @@ export function mountFilterControls(app) {
   credit.dataset.epAttribution = '';
   info.append(stats, credit);
   const reset = app.button('Reset filter preferences', () => doc.getElementById('nseEraseDataButton')?.click());
+  setSettingHelp(reset, 'Clear filter lists, visibility exceptions, and filter preferences after confirmation. Your saved searches and image preferences stay available.');
   reset.dataset.optionItem = ''; info.append(reset);
   app.refreshOptionSummaries();
 }

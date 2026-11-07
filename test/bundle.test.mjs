@@ -85,6 +85,28 @@ test('full NSE engine mounts, defaults to empty lists, and keeps companion data 
   assert.ok(f.storage.get('ep.settings')); assert.deepEqual(f.storage.get('ep.searches'), []);
   assert.equal(f.storage.get('nseTaglist', null), null); f.close();
 });
+test('Settings and Filters controls have help on their labels and describe the control', async () => {
+  const f = await setup();
+  try {
+    const panes = f.doc.querySelectorAll('.epc-pane[data-pane=settings],.epc-pane[data-pane=filters]');
+    f.doc.querySelector('.epc-navigation [data-pane=settings]').click();
+    const controls = [...panes].flatMap(pane => [...pane.querySelectorAll('[data-setting],[data-ep-filter-control]')]);
+    assert.ok(controls.length > 80);
+    for (const control of controls) {
+      const help = control.getAttribute('aria-description');
+      assert.ok(help, control.id || control.dataset.setting);
+      assert.equal(control.closest('label')?.querySelector('[data-setting-help]')?.dataset.settingHelp, help);
+    }
+    const label = f.doc.querySelector('[data-setting=thumbnailSize]').closest('label').querySelector('[data-setting-help]');
+    const tooltip = f.doc.querySelector('.epc-setting-tooltip');
+    label.dispatchEvent(new f.win.MouseEvent('pointerover', { bubbles: true }));
+    assert.equal(tooltip.hidden, false);
+    assert.equal(tooltip.textContent, label.dataset.settingHelp);
+    f.doc.dispatchEvent(new f.win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    assert.equal(tooltip.hidden, true);
+    assert.equal(panes[0].closest('.epc-panel').hidden, false);
+  } finally { f.close(); }
+});
 test('tag whitelist overrides blacklist; Hard Pass and individual overrides are retained', async () => {
   const rows = rowHTML(1, { tags: 'blocked allow' }) + rowHTML(2, { tags: 'blocked' }) + rowHTML(3, { tags: 'hard allow' }) + rowHTML(4, { tags: 'blocked' });
   const f = await setup({ nseTaglist: 'blocked', nseWhitelist: 'allow', nseHardPassTaglist: 'hard',

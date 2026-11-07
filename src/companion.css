@@ -20,6 +20,9 @@
 .epc-root a{color:var(--epc-accent);text-decoration:underline}
 .epc-root p{margin:8px 0}
 .epc-root summary{cursor:pointer;font-weight:650;padding:7px 0}
+.epc-panel :is(span,h3)[data-setting-help]{width:fit-content;max-width:100%;cursor:help}
+.epc-panel :is(span,h3)[data-setting-help]:hover{text-decoration:underline dotted;text-underline-offset:3px}
+.epc-setting-tooltip{position:fixed;z-index:2147483001;width:max-content;max-width:min(340px,calc(100vw - 16px));padding:7px 10px;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-bg);color:var(--epc-fg);box-shadow:var(--epc-shadow);font-size:12px;line-height:1.45;overflow-wrap:anywhere}
 .epc-tools{position:fixed;right:16px;bottom:16px;z-index:2147483000}
 .epc-launcher{border-radius:999px!important;background:var(--epc-accent)!important;color:white!important;font-weight:750!important;padding:9px 13px!important;box-shadow:0 2px 12px #0003}
 .epc-panel{position:absolute;right:0;bottom:50px;width:min(460px,calc(100vw - 32px));max-height:calc(100vh - 100px);overflow:auto;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:10px;box-shadow:0 12px 40px #0004;padding:14px}

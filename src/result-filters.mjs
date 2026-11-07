@@ -4,6 +4,7 @@ import { ConditionalRuleEditor } from './conditional-rule-editor.mjs';
 import { torrentID } from './backfill.mjs';
 import { mountFilterControls, optionGroup } from './workspace.mjs';
 import { resultTitleLink } from './result-tools.mjs';
+import { setSettingHelp, settingHelp } from './setting-help.mjs';
 
 const SEEN_PREFIX = 'ep.seen.';
 const IGNORED_KEY = 'nseIndividualUploadHidingBlacklist';
@@ -173,14 +174,15 @@ export class ResultFilters {
       const option = app.node('option', caption); option.value = value; mode.append(option);
     }
     mode.value = app.settings.seenMode;
-    label.append(app.node('span', 'Previously opened torrents'), mode);
+    label.append(setSettingHelp(app.node('span', 'Previously opened torrents'), settingHelp.seenMode, mode), mode);
     app.controls.set('seenMode', mode);
     const listLabel = app.node('label', null, 'epc-field');
     const listType = this.historyType = app.node('select');
     for (const [value, caption] of [['seen', 'Seen torrents'], ['ignored', 'Ignored torrents']]) {
       const option = app.node('option', caption); option.value = value; listType.append(option);
     }
-    listLabel.append(app.node('span', 'Review history'), listType);
+    listLabel.append(setSettingHelp(app.node('span', 'Review history'),
+      'Switch between results you’ve opened and results you’ve hidden individually. You can mark them unseen or unignore them here.', listType), listType);
     this.historyList = app.node('ul', null, 'epc-history-list');
     this.historyCount = app.node('p', '', 'epc-caption');
     this.historyCount.setAttribute('role', 'status');

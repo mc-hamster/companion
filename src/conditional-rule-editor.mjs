@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { compileConditionalRules, CONDITIONAL_RULE_LIMIT } from './conditional-rules.mjs';
 import { optionGroup } from './workspace.mjs';
+import { setSettingHelp } from './setting-help.mjs';
 
 const RULE_ACTIONS = [
   ['HIDE', 'Hide matching results', 'Hide'],
@@ -17,12 +18,12 @@ const RULE_FIELDS = {
 };
 const RULE_MATCHES = Object.entries(RULE_FIELDS).flatMap(([key, field]) => [[key, field.positive], ['!' + key, field.negative]]);
 
-function ruleSelect(app, title, options) {
+function ruleSelect(app, title, options, help) {
   const field = app.node('label', null, 'epc-field'), select = app.node('select');
   for (const [value, text] of options) {
     const option = app.node('option', text); option.value = value; select.append(option);
   }
-  field.append(app.node('span', title), select);
+  field.append(setSettingHelp(app.node('span', title), help, select), select);
   return { field, select };
 }
 
@@ -68,8 +69,10 @@ export class ConditionalRuleEditor {
     this.builder = app.node('div', null, 'epc-conditional-builder');
     this.builder.hidden = true;
     this.heading = app.node('h3');
-    const action = ruleSelect(app, 'When conditions match', RULE_ACTIONS);
-    const match = ruleSelect(app, 'Match results that meet', [['AND', 'Every condition'], ['OR', 'Any condition']]);
+    const action = ruleSelect(app, 'When conditions match', RULE_ACTIONS,
+      'Choose Hide, Allow, or Hard Pass. Hard Pass takes priority over ordinary Allow rules.');
+    const match = ruleSelect(app, 'Match results that meet', [['AND', 'Every condition'], ['OR', 'Any condition']],
+      'Every condition requires all checks to match. Any condition lets one matching check trigger the rule.');
     this.action = action.select; this.join = match.select; this.joinField = match.field;
     this.rows = app.node('div');
     this.addCondition = app.button('Add condition', () => this.appendCondition().focus());
@@ -86,12 +89,14 @@ export class ConditionalRuleEditor {
     this.rawStatus = app.node('p', '', 'epc-caption'); this.rawStatus.setAttribute('role', 'status');
     this.rawStatus.id = 'epc-conditional-status';
     this.raw.setAttribute('aria-describedby', this.rawStatus.id);
-    const label = app.node('label', null, 'epc-field'); label.append(app.node('span', 'Rule text'), this.raw);
+    const label = app.node('label', null, 'epc-field');
+    label.append(setSettingHelp(app.node('span', 'Rule text'),
+      'Enter one rule per line. Use $TA for a tag, $TI for a title phrase, or $UP for an uploader, and apply the text to save it.', this.raw), this.raw);
     this.applyText = app.button('Apply rule text', () => this.saveText(this.raw.value));
     this.discardText = app.button('Discard draft', () => { this.raw.value = this.source; this.validateText(); });
     const rawControls = app.node('div', null, 'epc-actions');
     rawControls.append(this.applyText, this.discardText);
-    raw.append(app.node('summary', 'Advanced rule text'),
+    raw.append(setSettingHelp(app.node('summary', 'Advanced rule text'), 'Edit multiple rules together or use parentheses to group conditions.'),
       app.node('p', 'Enter one rule per line. Use AND, OR, NOT, and parentheses to group conditions.', 'epc-caption'),
       app.node('code', 'HIDE: $UP{uploader} AND NOT ($TA{favorite.tag} OR $TI{collection})'), label, this.rawStatus, rawControls);
     this.raw.addEventListener('input', () => this.validateText());
@@ -165,7 +170,8 @@ export class ConditionalRuleEditor {
   }
   appendCondition({ match = 'TA', value = '' } = {}) {
     const row = this.app.node('div', null, 'epc-conditional-row');
-    const condition = ruleSelect(this.app, 'Condition', RULE_MATCHES);
+    const condition = ruleSelect(this.app, 'Condition', RULE_MATCHES,
+      'Pick what to match on this result, or choose a negative condition to match when the value is absent.');
     condition.select.value = match;
     const label = this.app.node('label', null, 'epc-field'), caption = this.app.node('span');
     const input = this.app.node('input'); input.type = 'text'; input.value = value;
@@ -173,6 +179,7 @@ export class ConditionalRuleEditor {
       const field = RULE_FIELDS[condition.select.value.replace('!', '')];
       caption.textContent = field.label;
       input.placeholder = field.example;
+      setSettingHelp(caption, 'Enter the ' + field.label.toLowerCase() + ' to check. ' + field.example, input);
     };
     condition.select.addEventListener('change', sync); sync();
     input.addEventListener('input', () => input.removeAttribute('aria-invalid'));

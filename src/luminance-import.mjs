@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { setSettingHelp } from './setting-help.mjs';
 
 const legacyLuminanceGroups = new Map([
   ['good', '1a'], ['loved', '1b'], ['performer', '2a'], ['loveperf', '2b'],
@@ -86,12 +87,17 @@ export function planLuminanceImport(groups, choices, settings, nse) {
 export function mountLuminanceImport(app, parent) {
   const panel = app.node('details', null, 'epc-luminance-import');
   panel.dataset.optionItem = '';
-  panel.append(app.node('summary', 'Import from Luminance'));
+  panel.append(setSettingHelp(app.node('summary', 'Import from Luminance'),
+    'Bring your tag lists into Companion. You can review what each group will do before anything is applied.'));
   panel.append(app.node('p', 'Copy the JSON from LTH → Import/Export → Export Settings, or choose your saved export.', 'epc-caption'));
   const input = app.node('textarea'); input.rows = 3;
   input.setAttribute('aria-label', 'Luminance export JSON');
+  const inputLabel = app.node('label', null, 'epc-field');
+  inputLabel.append(setSettingHelp(app.node('span', 'Luminance export JSON'),
+    'Paste the settings export you copied from Luminance. Preview import reads the tag groups and shows their suggested destinations.', input), input);
   const file = app.node('input'); file.type = 'file'; file.accept = '.json,.txt,application/json,text/plain';
   file.setAttribute('aria-label', 'Choose Luminance export');
+  setSettingHelp(file, 'Open a Luminance JSON or text export and preview its tag groups.');
   const preview = app.node('section', null, 'epc-luminance-preview');
   const status = app.node('p', '', 'epc-caption'); status.setAttribute('role', 'status');
   let groups = [], choices = [], plan, apply;
@@ -122,11 +128,13 @@ export function mountLuminanceImport(app, parent) {
       for (const [index, group] of groups.entries()) {
         const row = app.node('div', null, 'epc-luminance-group');
         const tags = app.node('details');
-        tags.append(app.node('summary', group.name + ' · ' + group.tags.length),
+        const heading = app.node('summary', group.name + ' · ' + group.tags.length);
+        tags.append(heading,
           app.node('p', group.tags.join(' '), 'epc-luminance-tags'));
         if (group.note) tags.append(app.node('p', group.note, 'epc-caption'));
         const select = app.node('select');
         select.setAttribute('aria-label', 'Destination for ' + group.name);
+        setSettingHelp(heading, 'Open to inspect the tags. Use the adjacent menu to choose how Companion treats this group.', select);
         for (const [value, label] of Object.entries(luminanceDestinations)) {
           if (value === 'collapse' && group.id !== '7d') continue;
           const option = app.node('option', label); option.value = value; select.append(option);
@@ -161,7 +169,8 @@ export function mountLuminanceImport(app, parent) {
           preview.replaceChildren();
         } catch (error) { status.textContent = 'Nothing imported · ' + error.message; }
       });
-      preview.append(apply); render();
+      preview.append(setSettingHelp(apply, 'Merge the selected tags into your preferences. Undo changes can reverse the import.'));
+      render();
     } catch (error) { status.textContent = error.message; }
   };
   input.addEventListener('input', () => { preview.replaceChildren(); status.textContent = ''; });
@@ -174,6 +183,7 @@ export function mountLuminanceImport(app, parent) {
     } catch (error) { status.textContent = error.message; }
     finally { file.value = ''; }
   });
-  panel.append(input, app.button('Preview import', analyze), file, status, preview);
+  panel.append(inputLabel, setSettingHelp(app.button('Preview import', analyze),
+    'Review detected tag groups, suggested mappings, and conflicts before importing.'), file, status, preview);
   parent.append(panel);
 }

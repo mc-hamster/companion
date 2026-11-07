@@ -14,6 +14,7 @@ import { ResultGrid, gridCardSizeChoices } from './grid-view.mjs';
 import { ResultFilters } from './result-filters.mjs';
 import { compileConditionalRules } from './conditional-rules.mjs';
 import { mountLuminanceImport } from './luminance-import.mjs';
+import { mountSettingTooltips, setSettingHelp, settingHelp } from './setting-help.mjs';
 import { coalesceScanRoots, presentationMutation, mutationChangesResults } from './scheduling.mjs';
 
 const SETTINGS_KEY = 'ep.settings';
@@ -363,10 +364,10 @@ export class CompanionApp {
     this.panes.filters.append(this.node('p', 'Loading filter preferences…', 'epc-filter-placeholder'));
     this.panes.searches.append(this.node('p', 'Click a name to run its search. More lets you edit saved criteria here.', 'epc-caption'));
     const displaySection=this.node('section',null,'epc-settings-section');displaySection.dataset.settingsGroup='Appearance';
-    displaySection.append(this.node('h3','Appearance'));
+    displaySection.append(setSettingHelp(this.node('h3','Appearance'), 'Choose how results, thumbnails, and previews look.'));
     const settings = this.node('div', null, 'epc-basic-settings');displaySection.append(settings);
     this.basicAppearance = this.node('div'); settings.append(this.basicAppearance);
-    const browsingSection=this.node('section',null,'epc-settings-section');browsingSection.dataset.settingsGroup='Browsing';browsingSection.append(this.node('h3','Browsing'));
+    const browsingSection=this.node('section',null,'epc-settings-section');browsingSection.dataset.settingsGroup='Browsing';browsingSection.append(setSettingHelp(this.node('h3','Browsing'), 'Choose how Companion loads extra pages and groups alternate versions.'));
     const browsing=this.node('div',null,'epc-basic-settings');browsingSection.append(browsing);
     this.panes.settings.append(displaySection,browsingSection);
     this.cacheUsage=this.node('section',null,'epc-cache-usage');this.cacheUsage.setAttribute('aria-label','Image cache');
@@ -378,13 +379,13 @@ export class CompanionApp {
       catch{this.cacheUsageFields.activity.textContent='Could not reset usage history. Please try again.';}
       finally{resetUsage.disabled=false;}
     },'Reset cache usage statistics');
-    resetUsage.title='Reset activity and savings in every time window. Saved images stay in the cache.';
+    setSettingHelp(resetUsage, 'Reset activity and savings in every time window. Saved images stay in the cache.');
     this.cacheStatsPinned = false;
     this.cachePinButton = this.button('Pin statistics', () => this.toggleCacheStatsPin());
-    this.cachePinButton.title = 'Show image cache statistics below the Companion toolbar on every page.';
+    setSettingHelp(this.cachePinButton, 'Show image cache statistics below the Companion toolbar on every page.');
     this.cachePinButton.dataset.optionItem = '';
     this.cachePinButton.setAttribute('aria-controls', 'epc-cache-statistics');
-    cacheHeading.append(this.node('strong','Image cache'), this.cachePinButton);this.cacheUsage.append(cacheHeading);
+    cacheHeading.append(setSettingHelp(this.node('strong','Image cache'), 'See saved image usage and control how much space Companion uses in this browser.'), this.cachePinButton);this.cacheUsage.append(cacheHeading);
     this.cacheDetails=optionGroup(this,this.cacheUsage,'Statistics & storage',{key:'cache-details'});
     const cacheActions=this.node('div',null,'epc-actions');cacheActions.append(resetUsage);resetUsage.dataset.optionItem='';
     const usageList=this.node('dl');this.cacheUsageFields={};
@@ -488,7 +489,8 @@ export class CompanionApp {
     ];
     for (const [key, label, type, min, max] of schema) {
       const row = this.node('label', null, 'epc-setting');
-      row.dataset.optionItem = ''; row.append(this.node('span', label));
+      const caption = this.node('span', label);
+      row.dataset.optionItem = ''; row.append(caption);
       const control = this.node(Array.isArray(type) ? 'select' : 'input');
       if (Array.isArray(type)) {
         for (const value of type) {
@@ -510,6 +512,7 @@ export class CompanionApp {
       }
       if (key === 'gridCardWidth') { gridCardSizeChoices(control, this.settings.gridCardWidth); control.dataset.numeric = ''; }
       control.dataset.setting = key; this.controls.set(key, control); row.append(control);
+      setSettingHelp(caption, settingHelp[key], control);
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
       const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridSpacing','gridAutoplayGifs','listAutoplayGifs','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
@@ -528,16 +531,21 @@ export class CompanionApp {
     shortcuts.dataset.optionItem = '';
     this.optionGroups.interaction.append(shortcuts);
     this.syncSettingsUI();
-    const retry = this.button('Retry visible images', () => this.media.retryVisible()); retry.dataset.optionItem = '';
+    const retry = setSettingHelp(this.button('Retry visible images', () => this.media.retryVisible()),
+      'Try loading visible images that failed again. Useful after reconnecting or when an image host is back online.');
+    retry.dataset.optionItem = '';
     this.optionGroups.loading.append(retry);
     const cacheStatus=this.node('p','Saved thumbnails and previews stay until you clear them or storage needs space.','epc-caption');
     const clearSaved=this.button('Clear saved images',async()=>{
       try{this.cancelCacheUsage();await this.imageCache.clear();cacheStatus.textContent='Saved image cache cleared. Images already on this page stay visible.';void this.refreshCacheUsage();}
       catch{cacheStatus.textContent='Browser image storage is unavailable.';}
-    });clearSaved.dataset.optionItem='';this.cacheDetails.append(cacheStatus,clearSaved);
+    });
+    setSettingHelp(clearSaved, 'Delete saved image files from this browser. Images already displayed on the page stay visible.');
+    clearSaved.dataset.optionItem='';this.cacheDetails.append(cacheStatus,clearSaved);
     const backup = optionGroup(this, this.panes.settings, 'Backup & restore', { key: 'backup',searchable:true });
     const picker = this.node('input'); picker.type = 'file'; picker.accept = '.json,application/json';
     picker.setAttribute('aria-label', 'Import companion or legacy settings JSON');
+    setSettingHelp(picker, 'Choose a Companion, legacy filter, or saved-search backup. Companion keeps a copy of your previous settings before applying it.');
     picker.addEventListener('change', async () => {
       const file = picker.files?.[0]; if (!file) return;
       try {
@@ -549,32 +557,39 @@ export class CompanionApp {
     });
     backup.append(
       this.node('p', 'Import a Companion backup, a legacy filter export, or an older saved-search backup.'),
-      this.button('Export everything', () => {
+      setSettingHelp(this.button('Export everything', () => {
         this.download('empornium-companion-backup.json', JSON.stringify(this.exportData(), null, 2));
-      }), picker,
-      this.button('Restore previous import', () => {
+      }), 'Download your preferences, filters, and saved searches as JSON. Saved image files are separate.'), picker,
+      setSettingHelp(this.button('Restore previous import', () => {
         const previous = this.storage.get('ep.previousImport', null);
         if (!previous) { this.toast('No previous import is available.'); return; }
         try { this.importData(JSON.stringify(previous), false); this.toast('Previous data restored. Your preferences are active.'); }
         catch (e) { this.toast(e.message); }
-      })
+      }), 'Restore the settings and saved searches from just before your most recent full import.')
     );
     for(const item of backup.querySelectorAll('button,input'))item.dataset.optionItem='';
     mountLuminanceImport(this, backup);
-    const setupHelp=this.button('Getting started',()=>this.onboarding.show());setupHelp.classList.add('epc-settings-help');this.panes.settings.append(setupHelp);
+    const setupHelp=setSettingHelp(this.button('Getting started',()=>this.onboarding.show()),
+      'Reopen the setup guide to review common browsing and image choices.');
+    setupHelp.classList.add('epc-settings-help');this.panes.settings.append(setupHelp);
     const diagnostics = this.optionGroups.diagnostics;
     this.diagnosticList = this.node('pre', '', 'epc-log');
-    diagnostics.append(this.button('Show recent events', () => {
+    diagnostics.append(setSettingHelp(this.button('Show recent events', () => {
       this.diagnosticList.textContent = this.log.length ? JSON.stringify(this.log.slice(-30), null, 2) : 'No events recorded. Enable local diagnostic history in settings.';
-    }), this.button('Export diagnostic history', () => this.download('empornium-image-diagnostics.json', JSON.stringify(this.log, null, 2))),
-    this.button('Clear history', () => { this.log = []; this.diagnosticList.textContent = ''; }), this.diagnosticList);
+    }), 'Show up to 30 recent loading events in this section.'),
+    setSettingHelp(this.button('Export diagnostic history', () => this.download('empornium-image-diagnostics.json', JSON.stringify(this.log, null, 2))),
+      'Download the locally recorded loading events as a JSON file for troubleshooting.'),
+    setSettingHelp(this.button('Clear history', () => { this.log = []; this.diagnosticList.textContent = ''; }),
+      'Clear the recorded diagnostic events. Saved images and cache statistics stay available.'), this.diagnosticList);
     for (const button of diagnostics.querySelectorAll('button')) button.dataset.optionItem = '';
     this.saveBar = this.node('footer', null, 'epc-savebar');
     this.saveStatus = this.node('span', 'Changes save automatically', 'epc-caption');
     this.saveStatus.setAttribute('role', 'status');
-    this.undoPreferences = this.button('Undo changes', () => this.preferences.undo());
+    this.undoPreferences = setSettingHelp(this.button('Undo changes', () => this.preferences.undo()),
+      'Restore the most recent preference checkpoint. Your current saved searches stay available.');
     this.undoPreferences.hidden = !this.preferences.checkpoint;
     this.saveBar.append(this.saveStatus, this.undoPreferences); this.panel.append(this.saveBar);
+    this.hideSettingHelp = mountSettingTooltips(this);
     this.savedShortcuts = this.node('nav', null, 'epc-saved-shortcuts');
     this.savedShortcuts.setAttribute('aria-label', 'Saved searches'); this.savedShortcuts.hidden = true;
     this.toolbarUtilities.append(this.savedShortcuts);
@@ -613,6 +628,7 @@ export class CompanionApp {
     if (key === 'images') key = 'settings';
     this.preferences.flush();
     if (!this.panes?.[key]) return;
+    this.hideSettingHelp?.();
     if (key === 'filters' || key === 'settings') mountFilterControls(this);
     if (key === 'searches') this.ensureSavedSearchUI();
     if (key === 'searches' && !this.savedDrawer) {
@@ -644,7 +660,7 @@ export class CompanionApp {
     this.cacheStatsPinned = pinned;
     this.cachePinned.hidden = !pinned;
     this.cachePinButton.textContent = pinned ? 'Unpin statistics' : 'Pin statistics';
-    this.cachePinButton.title = pinned ? 'Return the statistics to Settings.' : 'Show image cache statistics below the Companion toolbar on every page.';
+    setSettingHelp(this.cachePinButton, pinned ? 'Return the statistics to Settings.' : 'Show image cache statistics below the Companion toolbar on every page.');
     if (pinned) {
       this.cacheStatistics.hidden = false;
       this.cachePinned.append(this.cacheStatistics);
@@ -738,6 +754,7 @@ export class CompanionApp {
     if((this.cacheStatsPinned||this.cacheDetails.open)&&s.recent?.some(row=>row[0]+5000>now-3600000))this.cacheUsageClock=this.win.setTimeout(()=>this.renderCacheActivity(),5000);
   }
   closePane() {
+    this.hideSettingHelp?.();
     this.preferences.flush();
     const trigger = this.paneButtons.get(this.activePane);
     this.panel.hidden = true; this.activePane = null;

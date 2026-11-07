@@ -193,7 +193,7 @@ nse += '\n' + (await read('src/nse-live.inc.js'))
 const stripExports = text => text.replace(/^export /gm, '');
 const core = stripExports(await read('src/core.mjs'));
 const app = stripExports((await read('src/app.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
-const workspace = stripExports(await read('src/workspace.mjs'));
+const workspace = stripExports((await read('src/workspace.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const preferences = stripExports((await read('src/preferences.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const backfill = stripExports((await read('src/backfill.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const collageQuickAdd = stripExports(await read('src/collage-quick-add.mjs'));
@@ -201,7 +201,8 @@ const onboarding = stripExports((await read('src/onboarding.mjs')).replace(/impo
 const imageCache = stripExports((await read('src/image-cache.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const searchEditor = stripExports((await read('src/search-editor.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const resultTools = stripExports(await read('src/result-tools.mjs'));
-const luminanceImport = stripExports(await read('src/luminance-import.mjs'));
+const luminanceImport = stripExports((await read('src/luminance-import.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
+const tooltips = stripExports(await read('src/setting-help.mjs'));
 const conditionalRules = stripExports(await read('src/conditional-rules.mjs'));
 const conditionalRuleEditor = stripExports((await read('src/conditional-rule-editor.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const resultFilters = stripExports((await read('src/result-filters.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
@@ -235,7 +236,7 @@ const bootstrap = (await read('src/bootstrap.inc.js'))
   .replace('/*COMPANION_CSS*/', JSON.stringify(css))
   .replace('/*NSE_BODY*/', nse);
 await mkdir(new URL('dist/', root), { recursive: true });
-const artifact = header + '\n\n(function () {\n"use strict";\n' + core + '\n' + imageCache + '\n' + preferences + '\n' + backfill + '\n' + collageQuickAdd + '\n' + onboarding + '\n' + searchEditor + '\n' + resultTools + '\n' + gridView + '\n' + scheduling + '\n' + workspace + '\n' + conditionalRules + '\n' + conditionalRuleEditor + '\n' + resultFilters + '\n' + luminanceImport + '\n' + app + '\n' + settings + '\n' + bootstrap + '\n})();\n';
+const artifact = header + '\n\n(function () {\n"use strict";\n' + core + '\n' + imageCache + '\n' + preferences + '\n' + backfill + '\n' + collageQuickAdd + '\n' + onboarding + '\n' + searchEditor + '\n' + resultTools + '\n' + gridView + '\n' + scheduling + '\n' + tooltips + '\n' + workspace + '\n' + conditionalRules + '\n' + conditionalRuleEditor + '\n' + resultFilters + '\n' + luminanceImport + '\n' + app + '\n' + settings + '\n' + bootstrap + '\n})();\n';
 await writeFile(new URL('dist/EmporniumCompanion.meta.js', root), header + '\n');
 await writeFile(new URL('dist/EmporniumCompanion.user.js', root), artifact);
 await writeFile(new URL('dist/EmporniumCompanion-' + releaseVersion + '.user.js', root), artifact);
