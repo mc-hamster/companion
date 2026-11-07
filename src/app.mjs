@@ -330,23 +330,8 @@ export class CompanionApp {
       this.panel.append(pane);
     }
     main.append(navigation);
-    const context = this.node('div', null, 'epc-toolbar-context');
-    this.browseTools = this.node('div', null, 'epc-browse-tools');
-    this.browseMenu = this.node('details', null, 'epc-browse-menu'); this.browseMenu.hidden = true;
-    const browseTrigger = this.node('summary', 'Browse options');
-    browseTrigger.prepend(companionIcon(this, 'browse'));
-    this.browseControls = this.node('div', null, 'epc-browse-controls');
-    this.browseMenu.append(browseTrigger, this.browseControls); this.browseTools.append(this.browseMenu);
+    this.toolbarContext = this.node('div', null, 'epc-toolbar-context');
     this.contextActions = this.node('div', null, 'epc-context-actions');
-    context.append(this.browseTools, this.contextActions);
-    this.on(this.doc, 'pointerdown', event => {
-      if (this.browseMenu.open && !this.browseMenu.contains(event.target)) this.browseMenu.open = false;
-    });
-    this.browseMenu.addEventListener('keydown', event => {
-      if (event.key !== 'Escape' || !this.browseMenu.open || event.defaultPrevented) return;
-      event.preventDefault(); event.stopPropagation();
-      this.browseMenu.open = false; browseTrigger.focus();
-    });
     const footer = this.node('div', null, 'epc-toolbar-footer');
     this.toolbarUtilities = this.node('div', null, 'epc-toolbar-utilities');
     this.toolbarStatus = this.node('div', null, 'epc-toolbar-status');
@@ -355,7 +340,7 @@ export class CompanionApp {
     this.health = this.node('span', '', 'epc-health'); this.health.hidden = true;
     this.toolbarStatus.append(this.filterSummary, this.health);
     footer.append(this.toolbarUtilities, this.toolbarStatus);
-    this.toolbar.append(main, context, footer);
+    this.toolbar.append(main, this.toolbarContext, footer);
     const filteredLabel = this.node('span', 'Show filtered');
     this.filteredCount = this.node('span', '', 'epc-filtered-count');
     this.filteredCount.setAttribute('aria-hidden', 'true');
@@ -366,10 +351,13 @@ export class CompanionApp {
       this.syncGridFilters(); this.media.demandListener?.();
     });
     this.toggleFiltered.dataset.epReveal = '';
+    this.toggleFiltered.hidden = true;
     this.toggleFiltered.setAttribute('aria-pressed', 'false');
     this.toggleFiltered.append(companionIcon(this, 'eye'), filteredLabel, this.filteredCount);
-    this.browseControls.append(this.toggleFiltered);
+    this.controls = new Map();
     this.grid.mount();
+    this.resultFilters.mountFreeleech();
+    this.toolbarContext.append(this.toggleFiltered, this.contextActions);
     this.backfill.mount();
     this.panes.filters.append(this.node('p', 'Loading filter preferences…', 'epc-filter-placeholder'));
     this.panes.searches.append(this.node('p', 'Click a name to run its search. More lets you edit saved criteria here.', 'epc-caption'));
@@ -452,8 +440,6 @@ export class CompanionApp {
     }
     const imageKeys = new Set(['enabled', 'previews', 'inlineThumbnails', 'compactBodyImages', 'thumbnailPlacement',
       'categoryDisplay', 'thumbnailMode', 'previewWidth', 'progressBar']);
-    this.controls = new Map();
-    this.resultFilters.mountFreeleech();
     const schema = [
       ['enabled', 'Enable image improvements', 'checkbox'],
       ['previews', 'Enlarge images on hover', 'checkbox'],
@@ -622,7 +608,6 @@ export class CompanionApp {
     if (key === 'images') key = 'settings';
     this.preferences.flush();
     if (!this.panes?.[key]) return;
-    this.browseMenu.open = false;
     if (key === 'filters' || key === 'settings') mountFilterControls(this);
     if (key === 'searches') this.ensureSavedSearchUI();
     if (key === 'searches' && !this.savedDrawer) {
@@ -1304,10 +1289,6 @@ export class CompanionApp {
       this.toggleFiltered.disabled = !filtered && !removed;
       this.toggleFiltered.hidden = !filtered && !removed || !this.storage.get('nseFloatingToggleButtonEnabled', true);
       this.filteredCount.textContent = (filtered + removed).toLocaleString();
-      this.browseMenu.hidden = this.resultFilters.freeleechControl.hidden && this.toggleFiltered.hidden;
-      if (this.browseMenu.hidden) this.browseMenu.open = false;
-      this.browseMenu.toggleAttribute('data-active', !!this.revealingFiltered ||
-        this.settings[this.resultFilters.freeleechKey] !== 'all');
       styleRowControls(this, newRows ? rows : undefined);
     }
     this.backfill?.sync();

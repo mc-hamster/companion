@@ -50,7 +50,7 @@ export class ResultFilters {
     label.append(app.node('span', 'Freeleech'), select, help);
     label.hidden = true;
     app.controls.set(this.freeleechKey, select);
-    app.browseControls.prepend(label);
+    app.toolbarContext.append(label);
     this.freeleechControl = label;
   }
   mountRules(parent) {

@@ -26,7 +26,7 @@ For installation and everyday use, start with the [README](../README.md). This p
 
 ## Freeleech, conditional rules, and seen history
 
-**Freeleech** under **Browse options** applies to loaded results in List and Grid, including backfilled rows. **Any freeleech** includes permanent and temporary offers. **Sitewide only** shows time-limited sitewide offers. Permanent freeleech icons have a dashed outline and sitewide freeleech icons have a solid outline. Bookmarks remembers its own view. **Show filtered** reveals filtered rows within the selected Freeleech view.
+**Freeleech** in the toolbar applies to loaded results in List and Grid, including backfilled rows. **Any freeleech** includes permanent and temporary offers. **Sitewide only** shows time-limited sitewide offers. Permanent freeleech icons have a dashed outline and sitewide freeleech icons have a solid outline. Bookmarks remembers its own view. The toolbar's **Show filtered** button reveals filtered rows within the selected Freeleech view.
 
 Choose **Add a rule** under **Filters → Conditional rules**. Select what to do, add tag, title, or uploader conditions, and choose whether every condition or any condition should match. Save the rule to apply it. The same section lists active rules with Edit and Remove actions.
 

@@ -34,7 +34,7 @@ export class ResultGrid {
       this.layoutButtons.set(value, button); this.layout.append(button);
     }
     this.syncControls();
-    app.browseTools.prepend(this.layout);
+    app.toolbarContext.append(this.layout);
   }
   syncControls() {
     for (const [value, button] of this.layoutButtons) button.setAttribute('aria-pressed', String(this.app.settings.resultsView === value));

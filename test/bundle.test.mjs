@@ -535,25 +535,21 @@ test('irrelevant toolbar actions are quiet and filtered-result access appears wh
   } finally { f.close(); }
 });
 
-test('Browse options keep result controls together and return focus on Escape', async () => {
+test('Freeleech and Show filtered are directly available beside the layout switch', async () => {
   const f = await setup({ nseTaglist: 'blocked' }, rowHTML(1, { tags: 'blocked' }) + rowHTML(2));
   try {
-    const menu = f.doc.querySelector('.epc-browse-menu');
-    const trigger = menu.querySelector('summary');
-    const reveal = menu.querySelector('[data-ep-reveal]');
-    const freeleech = menu.querySelector('[data-setting=freeleechView]');
-    assert.equal(exposed(freeleech), false);
-    assert.equal(exposed(f.doc.querySelector('[data-ep-layout=list]')), true);
-    trigger.click();
+    const context = f.doc.querySelector('.epc-toolbar-context');
+    const reveal = context.querySelector(':scope > [data-ep-reveal]');
+    const freeleech = context.querySelector(':scope > label [data-setting=freeleechView]');
+    assert.equal(exposed(context.querySelector('[data-ep-layout=list]')), true);
     assert.equal(exposed(freeleech), true);
     assert.equal(exposed(reveal), true);
-    reveal.focus();
-    reveal.dispatchEvent(new f.win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-    assert.equal(menu.open, false);
-    assert.equal(f.doc.activeElement, trigger);
-    trigger.click();
-    f.doc.querySelector('.epc-navigation [data-pane=filters]').click();
-    assert.equal(menu.open, false);
+    reveal.click();
+    assert.equal(reveal.getAttribute('aria-pressed'), 'true');
+    assert.match(reveal.textContent, /Hide filtered/);
+    reveal.click();
+    assert.equal(reveal.getAttribute('aria-pressed'), 'false');
+    assert.match(reveal.textContent, /Show filtered/);
   } finally { f.close(); }
 });
 

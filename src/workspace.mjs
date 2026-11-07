@@ -5,7 +5,6 @@ const toolbarIcons = {
   filters: 'M4 6h16M7 12h10m-7 6h4',
   searches: 'M6 4h12v16l-6-4-6 4V4Z',
   settings: 'M4 6h5m4 0h7M4 12h9m4 0h3M4 18h2m4 0h10M9 4v4m4 2v4m-7 2v4',
-  browse: 'M4 6h16M4 12h16M4 18h16M8 4v4m8 2v4m-7 2v4',
   list: 'M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01',
   grid: 'M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6z',
   add: 'M12 5v14M5 12h14',

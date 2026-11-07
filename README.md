@@ -29,9 +29,9 @@ If you use older scripts for the same features, back up their settings first, th
 
 ## Start browsing
 
-**Filters** lets you choose what to hide or highlight. Most changes save automatically. Open **Browse options** and choose **Show filtered** to temporarily bring hidden results back without removing your rules.
+**Filters** lets you choose what to hide or highlight. Most changes save automatically. When results are hidden, click **Show filtered** in the toolbar to temporarily bring them back.
 
-In **Browse options**, use **Freeleech** to switch between **All results**, **Any freeleech**, and **Sitewide only**. Bookmarks remembers its own selection.
+Use **Freeleech** in the toolbar to switch between **All results**, **Any freeleech**, and **Sitewide only**. Bookmarks remembers its own selection.
 
 In **Filters → Conditional rules**, choose **Add a rule** to combine tags, titles, and uploaders. **Filters → Seen & Ignored** lets you show, dim, or hide torrents you have opened and undo individual seen or ignored entries. [Filter examples](docs/REFERENCE.md#freeleech-conditional-rules-and-seen-history)
 
