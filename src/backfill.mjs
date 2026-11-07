@@ -318,6 +318,8 @@ export class BackfillController {
     const burst = limit <= COLLAGE_BURST_PAGES && COLLAGE_PATH.test(this.win.location.pathname);
     let pages = 0, added = 0;
     this.busy = true;
+    this.loadProgress = { loaded: 0, limit: Number.isFinite(limit) ? limit : null, status: 'loading' };
+    this.app.scheduleHealth();
     this.app.versions?.releaseLayout(this.table());
     try {
       for (; pages < limit && this.nextURL; ) {
@@ -371,14 +373,17 @@ export class BackfillController {
         });
         for (const id of acceptedIDs) this.seenIDs.add(id);
         pages++; added += prepared.length; this.pages++; this.added += prepared.length;
+        this.loadProgress.loaded = pages; this.app.scheduleHealth();
         this.loaded.add(url);
         this.nextURL = result.rows.length ? nextBackfillURL(result.page, url, this.search, this.loaded) ||
           nextBackfillURL(this.doc, url, this.search, this.loaded) : null;
         this.updatePager();
       }
+      this.loadProgress.status = 'ready';
       this.message = added + ' results added from ' + pages + (pages === 1 ? ' page' : ' pages') + (this.nextURL ? '' : ' · No more pages');
     } catch (error) {
       if (generation === this.generation && !this.disposed) {
+        this.loadProgress.status = 'failed';
         this.failedURL = this.nextURL;
         this.message = (pages ? pages + (pages === 1 ? ' page kept. ' : ' pages kept. ') : '') + 'Could not load page ' + pageNumber(this.nextURL) +
           ': ' + error.message + (this.now() < (this.notBefore || 0) ? ' Loading is available again after the cooldown.' : '') + ' Try Load more again.';
@@ -386,6 +391,7 @@ export class BackfillController {
     } finally {
       if (generation === this.generation) {
         this.busy = false; this.controller = null; this.sync();
+        this.app.scheduleHealth();
         this.app.versions?.stabilizeLayouts();
       }
     }
@@ -394,6 +400,8 @@ export class BackfillController {
     this.cancelForeground?.();
     this.cancelDelay?.();
     this.generation++; this.controller?.abort(); this.controller = null; this.busy = false;
+    if (this.loadProgress?.status === 'loading') this.loadProgress.status = 'stopped';
+    this.app.scheduleHealth();
     this.message = 'Backfill stopped. Loaded results are kept.'; this.sync();
     this.app.versions?.stabilizeLayouts();
   }

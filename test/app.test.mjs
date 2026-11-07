@@ -687,10 +687,10 @@ test('undoing preferences keeps searches saved after the automatic restore point
 });
 test('filtered-out image failures do not ask for attention during ordinary browsing', async () => {
   const f = await setup(overlayHTML(1, 'https://x.test/a.jpg'), { inlineThumbnails: true, maxRetries: 0 });
-  f.c.images[0].fail(); assert.equal(f.app.media.counts().failed, 1);
+  f.c.images[0].fail(); assert.equal(f.app.media.loadCounts().thumbnail.failed, 1);
   const row = f.doc.querySelector('tr.torrent'); row.classList.add('hidden');
   f.app.updateHealth();
-  assert.equal(f.app.media.counts().failed, 0); assert.equal(f.app.health.hidden, true);
+  assert.equal(f.app.media.loadCounts().thumbnail.failed, 0); assert.equal(f.app.health.hidden, true);
   f.close();
 });
 
@@ -804,11 +804,14 @@ test('[HOV-09] hover keeps the thumbnail through incomplete and failed larger lo
     const entry=[...f.app.media.pool.entries.values()].find(e=>e.url.endsWith('/upgrade.jpg')&&e.lane==='large');
     f.c.images[1].naturalWidth=900;f.c.images[1].naturalHeight=600;entry.status='streaming';f.app.media.pool.emit(entry);
     assert.equal(preview.image.src,small,'dimensions alone must not replace a loaded thumbnail');
+    assert.equal(record.image.src,small);
     entry.status='partial';f.app.media.pool.emit(entry);assert.equal(preview.image.src,small);
     f.c.images[1].fail();assert.equal(preview.image.src,small);assert.equal(preview.image.hidden,false);
     assert.match(preview.status.textContent,/Larger image unavailable.*thumbnail/);
+    assert.equal(record.image.src,small);
     f.app.media.pool.budget.get(entry.url).last-=31001;
     preview.retry();await until(()=>f.c.images.length===3);f.c.images.at(-1).succeed(900,600);assert.match(preview.image.src,/\/upgrade\.jpg(?:\?|$)/);assert.equal(preview.status.textContent,'');
+    assert.equal(record.image.src,preview.image.src);
   }finally{f.close();}
 });
 
@@ -833,11 +836,13 @@ test('[HOV-09] a shared page image stays in place and a failed or stale display 
   const f=await setup(overlayHTML(1,'https://hamsterimg.net/images/shared.jpg'),{inlineThumbnails:true});
   try{
     const record=[...f.app.media.thumbnails.values()][0],preview=f.app.preview,button=record.element.querySelector('button');
-    f.c.images[0].succeed(160,90);Object.defineProperty(record.image,'naturalWidth',{get:()=>160});
+    f.c.images[0].succeed(160,90);
+    Object.defineProperty(record.image,'naturalWidth',{get(){return this.src.endsWith('.th.jpg') ? 160 : 0;}});
     const owned=f.doc.createElement('img');Object.defineProperties(owned,{naturalWidth:{get:()=>900},naturalHeight:{get:()=>600},complete:{get:()=>true}});
     f.doc.querySelector('#content').append(owned);
-    f.app.media.pool.request(record.source,{lane:'large',target:owned});owned.onload();
-    preview.showFor(button);const small=preview.image.src;assert.equal(owned.parentElement.id,'content');
+    f.app.media.pool.request(record.source,{lane:'large',target:owned});
+    preview.showFor(button);const small=preview.image.src;owned.onload();
+    assert.equal(owned.parentElement.id,'content');assert.equal(record.image.src,owned.src);
     assert.ok(preview.pendingImage);assert.equal(preview.image.src,small);
     preview.pendingImage.onerror();assert.equal(preview.image.src,small);assert.match(preview.status.textContent,/unavailable/);
     preview.showFor(button);const stale=preview.pendingImage,late=stale.onload;preview.hide();late();assert.equal(preview.open,false);assert.equal(preview.image.hasAttribute('src'),false);

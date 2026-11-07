@@ -11,7 +11,7 @@ const repository = /^git\+https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\.git$/.exec(
 if (!repository) throw new Error('A GitHub repository URL is required for install and update links.');
 const repositoryURL = 'https://github.com/' + repository;
 const downloadBase = 'https://raw.githubusercontent.com/' + repository + '/main/dist/';
-if (!/^\d+\.\d+\.\d+$/.test(releaseVersion)) throw new Error('Invalid release version.');
+if (!/^\d+\.\d+\.\d+(?:-alpha(?:\.\d+)?)?$/.test(releaseVersion)) throw new Error('Invalid release version.');
 const upstream = await read('vendor/noshitempornium/NoShitEmpornium.user.js');
 const expectedHash = '75fd5dff4919ba07a3e7135a9ab86fb764cd427e';
 const actualHash = createHash('sha1').update('blob ' + Buffer.byteLength(upstream) + '\0').update(upstream).digest('hex');

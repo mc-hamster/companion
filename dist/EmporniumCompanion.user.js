@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Empornium Companion
 // @namespace    empornium-companion.local
-// @version      2.13.3
+// @version      2.14.0-alpha.6
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion
@@ -46,7 +46,8 @@ const DEFAULTS = Object.freeze({
   enabled: true, previews: true, inlineThumbnails: true,
   thumbnailPlacement: 'title', categoryDisplay: 'keep', thumbnailMode: 'auto',
   thumbnailSize: 100, previewWidth: 440, hoverDelay: 140, hideDelay: 240,
-  resultsView: 'list', gridCardWidth: 320, gridShowDetails: false, gridShowTags: false,
+  resultsView: 'list', gridCardWidth: 320, gridSpacing: 'standard', gridAutoplayGifs: false,
+  gridShowDetails: false, gridShowTags: false,
   concurrency: 8, maxRetries: 2, stallMs: 8000, timeoutMs: 24000, thumbnailTimeoutMs: 4500,
   cacheEntries: 24, cacheMegapixels: 48, preloadScreens: 0.8,
   persistentImages: true, persistentCacheMB: 512,
@@ -89,7 +90,7 @@ function validateSettings(input = {}) {
   for (const [key, options] of Object.entries({
     thumbnailPlacement: ['title', 'category'], categoryDisplay: ['keep', 'overlay', 'hide'],
     thumbnailMode: ['auto', 'small', 'supplied', 'original'], navigationScope: ['off', 'results', 'site'],
-    backfillMode: ['off', 'pages', 'all'], resultsView: ['list', 'grid'],
+    backfillMode: ['off', 'pages', 'all'], resultsView: ['list', 'grid'], gridSpacing: ['standard', 'compact'],
     seenMode: ['show', 'dim', 'hide'], freeleechView: ['all', 'freeleech', 'sitewide'],
     bookmarkFreeleechView: ['all', 'freeleech', 'sitewide']
   })) if (options.includes(input[key])) result[key] = input[key];
@@ -357,6 +358,7 @@ class MediaPool {
     entry.lane = options.lane || 'thumbnail';
     entry.keepAlive = !!options.keepAlive;
     entry.cacheMode = options.cacheMode || null;
+    entry.gridAutoplay = options.gridAutoplay === true;
     entry.cacheFresh = !!options.force;
     entry.target = options.target || null;
     entry.eligible = options.eligible;
@@ -466,10 +468,10 @@ class MediaPool {
     if (this.env.now() < host.until) return false;
     if (this.activeLanes[lane] >= (lane === 'thumbnail' ? this.settings.concurrency : entry.priority >= 90 ? 3 : 2)) return false;
     const hostLimit = Math.min(host.limit, this.settings.concurrency);
-    // When the host is down to one slot, an in-flight original can take tens
-    // of seconds. Keep one thumbnail moving alongside it after cooldown.
+    // Keep thumbnails and visible playback moving alongside each other after cooldown.
     const thumbnailReserve = lane === 'thumbnail' && hostLimit === 1 && host.large === 1 && !host.thumbnail;
-    if (host.constrained && host.thumbnail + host.large >= hostLimit && !thumbnailReserve) return false;
+    const playbackReserve = entry.gridAutoplay && lane === 'large' && hostLimit === 1 && host.thumbnail === 1 && !host.large;
+    if (host.constrained && host.thumbnail + host.large >= hostLimit && !thumbnailReserve && !playbackReserve) return false;
     // Ordinary large images have their own bounded lane. A hover can use one
     // extra host slot without displacing active thumbnail pixels.
     return lane === 'thumbnail' ? host.thumbnail < hostLimit :
@@ -677,8 +679,16 @@ class MediaPool {
       }
       failed('The image request failed.');
     };
+    let usingNativePlayback = false;
     if (!cacheOnly) entry.timers.push(this.env.setTimeout(() => {
       if (!current() || entry.status !== 'loading') return;
+      if (entry.gridAutoplay && !entry.displayURL && entry.abortTransfer) {
+        // A buffered download cannot show frames until the full response arrives.
+        usingNativePlayback = entry.preferNativePlayback = true;
+        entry.abortTransfer(); entry.abortTransfer = null;
+        assign(url, true);
+        return;
+      }
       if (image.naturalWidth) {
         entry.dimensions = { width: image.naturalWidth, height: image.naturalHeight };
         entry.status = 'streaming'; entry.reason = 'The full image is still loading.';
@@ -716,12 +726,12 @@ class MediaPool {
       }
       const abort = cache.load(url, {
         kind: entry.cacheMode === 'thumbnail' ? 'thumbnail' : 'preview',
-        network: !cacheOnly && (entry.cacheMode === 'network' || entry.cacheMode === 'thumbnail' &&
+        network: !cacheOnly && !entry.preferNativePlayback && (entry.cacheMode === 'network' || entry.cacheMode === 'thumbnail' &&
           (lane === 'thumbnail' || !/\.gif(?:\?|$)/i.test(url))),
         candidates: entry.cacheMode === 'thumbnail' && entry.smallFirst ? entry.candidates.slice(entry.candidateIndex + 1) : [],
         fresh: cacheFresh, diagnostic
       }, result => {
-        if (!current()) return;
+        if (!current() || usingNativePlayback) return;
         if (cacheOnly && !result?.hit) { queueTransfer(); return; }
         if (!result) { assign(url, true); return; }
         if (result.failure) {
@@ -1669,6 +1679,8 @@ class BackfillController {
     const burst = limit <= COLLAGE_BURST_PAGES && COLLAGE_PATH.test(this.win.location.pathname);
     let pages = 0, added = 0;
     this.busy = true;
+    this.loadProgress = { loaded: 0, limit: Number.isFinite(limit) ? limit : null, status: 'loading' };
+    this.app.scheduleHealth();
     this.app.versions?.releaseLayout(this.table());
     try {
       for (; pages < limit && this.nextURL; ) {
@@ -1722,14 +1734,17 @@ class BackfillController {
         });
         for (const id of acceptedIDs) this.seenIDs.add(id);
         pages++; added += prepared.length; this.pages++; this.added += prepared.length;
+        this.loadProgress.loaded = pages; this.app.scheduleHealth();
         this.loaded.add(url);
         this.nextURL = result.rows.length ? nextBackfillURL(result.page, url, this.search, this.loaded) ||
           nextBackfillURL(this.doc, url, this.search, this.loaded) : null;
         this.updatePager();
       }
+      this.loadProgress.status = 'ready';
       this.message = added + ' results added from ' + pages + (pages === 1 ? ' page' : ' pages') + (this.nextURL ? '' : ' · No more pages');
     } catch (error) {
       if (generation === this.generation && !this.disposed) {
+        this.loadProgress.status = 'failed';
         this.failedURL = this.nextURL;
         this.message = (pages ? pages + (pages === 1 ? ' page kept. ' : ' pages kept. ') : '') + 'Could not load page ' + pageNumber(this.nextURL) +
           ': ' + error.message + (this.now() < (this.notBefore || 0) ? ' Loading is available again after the cooldown.' : '') + ' Try Load more again.';
@@ -1737,6 +1752,7 @@ class BackfillController {
     } finally {
       if (generation === this.generation) {
         this.busy = false; this.controller = null; this.sync();
+        this.app.scheduleHealth();
         this.app.versions?.stabilizeLayouts();
       }
     }
@@ -1745,6 +1761,8 @@ class BackfillController {
     this.cancelForeground?.();
     this.cancelDelay?.();
     this.generation++; this.controller?.abort(); this.controller = null; this.busy = false;
+    if (this.loadProgress?.status === 'loading') this.loadProgress.status = 'stopped';
+    this.app.scheduleHealth();
     this.message = 'Backfill stopped. Loaded results are kept.'; this.sync();
     this.app.versions?.stabilizeLayouts();
   }
@@ -1935,6 +1953,7 @@ class CollageQuickAdd {
     const { id, title } = pin;
     const controller = new this.app.win.AbortController();
     this.operation = controller;
+    this.app.scheduleHealth();
     const { signal } = controller;
     const timeout = this.app.win.setTimeout(() => controller.abort(), 20000);
     this.renderAdd();
@@ -1975,6 +1994,7 @@ class CollageQuickAdd {
     } finally {
       this.app.win.clearTimeout(timeout);
       this.operation = null;
+      this.app.scheduleHealth();
       if (!this.app.disposed) this.refresh();
     }
   }
@@ -2049,7 +2069,15 @@ class OnboardingController {
     this.gridSize = app.node('select'); gridCardSizeChoices(this.gridSize, app.settings.gridCardWidth);
     this.gridSize.dataset.welcomeSetting = 'gridCardWidth';
     field(form, 'Grid card size', this.gridSize);
-    form.append(app.node('p', 'Grid cards show thumbnails. Open an image preview to see the larger version. Grid card width is separate from list thumbnail width.', 'epc-caption'));
+    this.gridSpacing = app.controls.get('gridSpacing').cloneNode(true);
+    this.gridSpacing.removeAttribute('data-setting'); this.gridSpacing.dataset.welcomeSetting = 'gridSpacing';
+    this.gridSpacing.value = app.settings.gridSpacing;
+    field(form, 'Grid spacing', this.gridSpacing);
+    this.gridAutoplayGifs = app.node('input'); this.gridAutoplayGifs.type = 'checkbox';
+    this.gridAutoplayGifs.checked = app.settings.gridAutoplayGifs;
+    this.gridAutoplayGifs.dataset.welcomeSetting = 'gridAutoplayGifs';
+    field(form, 'Play animated covers in Grid', this.gridAutoplayGifs);
+    form.append(app.node('p', 'Preload full-size covers, including off-screen cards. Animations play in view. This can use more data. Covers stay still when your system requests reduced motion.', 'epc-caption'));
     this.shortcuts = app.node('input'); this.shortcuts.type = 'checkbox'; this.shortcuts.checked = app.settings.keyboardShortcuts;
     this.shortcuts.dataset.welcomeSetting = 'keyboardShortcuts';
     this.shortcuts.setAttribute('aria-controls', 'epc-welcome-shortcuts');
@@ -2086,6 +2114,7 @@ class OnboardingController {
         backfillPages: mode === 'pages' ? Number(this.pages.value) : app.settings.backfillPages,
         thumbnailSize: Number(this.size.value), previews: this.hover.checked, groupVersions: this.group.checked,
         resultsView: this.view.value, gridCardWidth: Number(this.gridSize.value),
+        gridSpacing: this.gridSpacing.value, gridAutoplayGifs: this.gridAutoplayGifs.checked,
         keyboardShortcuts: this.shortcuts.checked,
         favoriteTags: this.tags.get('favoriteTags').value, cautionTags: this.tags.get('cautionTags').value };
       app.importData(JSON.stringify({ ...current, settings,
@@ -2105,7 +2134,7 @@ class OnboardingController {
     this.element?.remove(); this.element = null;
     if (this.returnFocus?.isConnected) this.returnFocus.focus({ preventScroll: true });
     this.form = this.tags = this.pages = this.size = this.hover = this.group = this.status = this.save = this.returnFocus = null;
-    this.view = this.gridSize = this.gridLarge = this.shortcuts = null;
+    this.view = this.gridSize = this.gridSpacing = this.gridAutoplayGifs = this.shortcuts = null;
   }
   dispose() { this.close(); }
 }
@@ -2648,10 +2677,23 @@ class ResultGrid {
   }
   syncControls() {
     for (const [value, button] of this.layoutButtons) button.setAttribute('aria-pressed', String(this.app.settings.resultsView === value));
+    if (this.settingsSwitch) this.settingsSwitch.hidden = this.layout.hidden || this.app.settings.resultsView === 'grid';
+  }
+  settingsHelp() {
+    const { app } = this;
+    const help = app.node('div', null, 'epc-caption');
+    this.settingsSwitch = app.button('Switch to Grid', () => {
+      this.layoutButtons.get('grid').click();
+      if (this.settingsSwitch.hidden) app.controls.get('resultsView').focus();
+    });
+    help.append(app.node('p', 'Grid spacing and cover playback apply to Grid results and the site’s Cover Art grid.'), this.settingsSwitch);
+    this.syncControls();
+    return help;
   }
   refresh() {
     const app = this.app, grid = app.settings.resultsView === 'grid';
     app.batchDOM(() => {
+      app.doc.documentElement.toggleAttribute('data-ep-compact-cover-grid', app.settings.gridSpacing === 'compact');
       for (const table of this.tables.keys()) if (!table.isConnected || !grid) this.release(table);
       const candidates = new Set(this.tables.keys());
       // Retain managed tables when Hard Pass temporarily removes every row.
@@ -2662,6 +2704,7 @@ class ResultGrid {
         table.classList.add('epc-result-grid');
         table.dataset.epGridDetails = String(app.settings.gridShowDetails);
         table.dataset.epGridTags = String(app.settings.gridShowTags);
+        table.dataset.epGridSpacing = app.settings.gridSpacing;
         table.style.setProperty('--epc-grid-width', app.settings.gridCardWidth + 'px');
         const headings = [...table.querySelectorAll('tr')].find(row => row.querySelector('th') || row.matches('.colhead_dark'));
         if (headings) {
@@ -2698,6 +2741,7 @@ class ResultGrid {
     }
     if (this.layout?.hidden && (rows.some(row => row.closest('#content')) || this.app.detachedFilterRows.size)) {
       this.layout.hidden = false;
+      this.syncControls();
     }
   }
   decorateRows(rows, labels) {
@@ -2719,6 +2763,7 @@ class ResultGrid {
     table.classList.remove('epc-result-grid'); table.style.removeProperty('--epc-grid-width'); this.tables.delete(table);
     delete table.dataset.epGridDetails;
     delete table.dataset.epGridTags;
+    delete table.dataset.epGridSpacing;
     for (const row of this.headings) if (!row.isConnected || row.closest('table') === table) {
       delete row.dataset.epGridHeader; this.headings.delete(row);
     }
@@ -2727,7 +2772,11 @@ class ResultGrid {
       delete cell.dataset.epGridCell; delete cell.dataset.epGridLabel; this.cells.delete(cell);
     }
   }
-  dispose() { for (const table of this.tables.keys()) this.release(table); this.layout?.remove(); }
+  dispose() {
+    for (const table of this.tables.keys()) this.release(table);
+    this.app.doc.documentElement.removeAttribute('data-ep-compact-cover-grid');
+    this.layout?.remove();
+  }
 }
 
 // SPDX-License-Identifier: GPL-3.0-or-later
@@ -3633,7 +3682,19 @@ const SETTINGS_KEY = 'ep.settings';
 const SEARCH_KEY = 'ep.searches';
 const CACHE_STATS_PIN_KEY = 'ep.cacheStatsPinned';
 const DIAGNOSTIC_LIMIT = 3000;
-const OWN = '.epc-root,.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-media-retry,.epc-engine,.epc-version-control,.epc-version-columns,#nseOuter,#nseFloatyBoi';
+const OWN = '.epc-root,.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback,.epc-media-retry,.epc-engine,.epc-version-control,.epc-version-columns,#nseOuter,#nseFloatyBoi';
+// Image URLs can be extensionless, and formats such as WebP can carry animation.
+const coverMayAnimate = source => !/\.(?:jpe?g|bmp|ico)$/i.test(new URL(source).pathname);
+const loadLabels = {
+  thumbnail: 'Thumbnails', cover: 'Collage covers', animation: 'Cover playback', preview: 'Image previews',
+  image: 'Page images', background: 'Background images', backfill: 'Result pages', collage: 'Collage update'
+};
+const emptyLoadCounts = () => ({ ready: 0, partial: 0, failed: 0, pending: 0, deferred: 0 });
+const pendingLoadStates = ['queued', 'loading', 'streaming', 'retrying', 'stalled'];
+function countLoad(counts, state) {
+  if (pendingLoadStates.includes(state)) counts.pending++;
+  else if (['ready', 'partial', 'failed', 'deferred'].includes(state)) counts[state]++;
+}
 const searchSignature = fields => JSON.stringify(fields.map(field => [field.name, field.type, field.value, !!field.checked]));
 const smallLegacyResize = source => {
   const resize = source.match(/\/images\/resize\/(\d+)\//);
@@ -3818,7 +3879,7 @@ class CompanionApp {
       for (const mutation of mutations) {
         if (mutation.target.nodeType === 1 && mutation.target.closest?.(OWN)) continue;
         if (mutation.type === 'childList' && [...mutation.addedNodes, ...mutation.removedNodes].every(node =>
-          node.nodeType === 1 && node.matches('.epc-thumbnail,.epc-cover-image,.epc-cover-status'))) continue;
+          node.nodeType === 1 && node.matches('.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback'))) continue;
         if (presentationMutation(mutation)) continue;
         const results = mutationChangesResults(mutation);
         if (mutation.type === 'attributes') this.schedule(mutation.target, results);
@@ -3913,6 +3974,7 @@ class CompanionApp {
     const pageName = toolbarPageName(this.win.location.href);
     brand.append(mark, this.launcher);
     if (pageName) brand.append(this.node('span', pageName, 'epc-page-name'));
+    this.buildLoadProgress(brand, main);
     main.append(brand);
     this.panel = this.node('section', null, 'epc-panel'); this.panel.hidden = true;
     const heading = this.node('header', null, 'epc-panel-heading');
@@ -4065,6 +4127,8 @@ class CompanionApp {
       ['thumbnailSize', 'Thumbnail width', 'number', 48, 300],
       ['resultsView', 'Results layout', ['list', 'grid']],
       ['gridCardWidth', 'Grid card size', [240, 320, 420, 540]],
+      ['gridSpacing', 'Grid spacing', ['standard', 'compact']],
+      ['gridAutoplayGifs', 'Play animated covers in Grid', 'checkbox'],
       ['gridShowDetails', 'Show details in grid cards', 'checkbox'],
       ['gridShowTags', 'Show tags in grid cards', 'checkbox'],
       ['previewWidth', 'Preview width', 'number', 240, 800],
@@ -4086,7 +4150,7 @@ class CompanionApp {
       ['persistentImages', 'Remember images between page loads', 'checkbox'],
       ['persistentCacheMB', 'Saved image cache limit (MB)', 'number', 32, 2048],
       ['preloadScreens', 'Prioritize nearby images (screens)', 'number', 0, 2],
-      ['progressBar', 'Thumbnail progress bar', 'checkbox'],
+      ['progressBar', 'Header load progress', 'checkbox'],
       ['keyboardShortcuts', 'Use keyboard shortcuts', 'checkbox'],
       ['navigationScope', 'Arrow key pagination', ['off', 'results', 'site']],
       ['diagnostics', 'Keep a local diagnostic history', 'checkbox'],
@@ -4104,7 +4168,8 @@ class CompanionApp {
           const label = key === 'thumbnailMode' ? ({ auto: 'Small first', supplied: 'Page preview', original: 'Full original' })[value] :
             key === 'navigationScope' ? ({ off: 'Off', results: 'Results only', site: 'Across site' })[value] :
             key === 'backfillMode' ? ({ off: 'When I click Backfill', pages: 'Automatically load a few pages', all: 'Automatically load all pages' })[value] :
-            key === 'resultsView' ? ({ list: 'List', grid: 'Grid' })[value] : value;
+            key === 'resultsView' ? ({ list: 'List', grid: 'Grid' })[value] :
+            key === 'gridSpacing' ? ({ standard: 'Standard', compact: 'Compact' })[value] : value;
           const option = this.node('option', label); option.value = value; control.append(option);
         }
         control.value = this.settings[key];
@@ -4119,7 +4184,7 @@ class CompanionApp {
       if (key === 'gridCardWidth') { gridCardSizeChoices(control, this.settings.gridCardWidth); control.dataset.numeric = ''; }
       control.dataset.setting = key; this.controls.set(key, control); row.append(control);
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
-      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
+      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridSpacing','gridAutoplayGifs','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
         key === 'diagnostics' ? this.optionGroups.diagnostics : ['keyboardShortcuts', 'navigationScope'].includes(key) ? this.optionGroups.interaction :
         imageKeys.has(key) ? this.optionGroups.images : this.optionGroups.loading;
@@ -4127,7 +4192,9 @@ class CompanionApp {
       if(type==='checkbox'&&(parent===settings||parent===browsing))row.prepend(control);
     }
     settings.append(this.controls.get('previews').closest('label'));
-    settings.append(this.node('p', 'Grid cards show thumbnails first, then optionally load larger images. Card width is separate from list thumbnail width; larger images use more data.', 'epc-caption'));
+    settings.append(this.grid.settingsHelp());
+    settings.append(this.node('p', 'Preload full-size covers, including off-screen cards. Animations play in view. This can use more data. Covers stay still when your system requests reduced motion.', 'epc-caption'));
+    settings.append(this.node('p', 'Reduced motion is currently on. Animated covers will stay still.', 'epc-caption epc-cover-motion-note'));
     const shortcuts = keyboardShortcutList(this);
     shortcuts.dataset.optionItem = '';
     this.optionGroups.interaction.append(shortcuts);
@@ -4202,9 +4269,6 @@ class CompanionApp {
     this.root.addEventListener('compositionend', event => { this.composing = false; this.markDirty(event.target, event); });
     this.attachWorkspace();
     this.setCacheStatsPinned(this.storage.get(CACHE_STATS_PIN_KEY, false) === true);
-    this.progress = this.node('div', null, 'epc-root epc-progress'); this.progress.hidden = true;
-    this.progress.setAttribute('role', 'progressbar'); this.progress.setAttribute('aria-label', 'Thumbnails ready');
-    this.progressBar = this.node('div'); this.progress.append(this.progressBar); this.doc.body.append(this.progress);
     this.preview.build();
   }
   attachWorkspace() {
@@ -4921,27 +4985,97 @@ class CompanionApp {
     this.media.prepareThumbnails();
     this.schedule(this.doc.body, !initial);
   }
+  buildLoadProgress(brand, main) {
+    const wrapper = this.loadProgress = this.node('div', null, 'epc-load-progress');
+    const panel = this.node('div', null, 'epc-load-detail'); panel.id = 'epc-load-detail'; panel.hidden = true;
+    const show = open => {
+      if (open) panel.style.top = (trigger.getBoundingClientRect().bottom - main.getBoundingClientRect().top) + 'px';
+      panel.hidden = !open; trigger.setAttribute('aria-expanded', String(open));
+    };
+    let pinned = false, hovering = false;
+    const trigger = this.loadGauge = this.button('—', () => {
+      pinned = !pinned; show(pinned || hovering);
+    }, 'Load progress');
+    trigger.className = 'epc-load-gauge';
+    trigger.setAttribute('aria-controls', panel.id);
+    trigger.setAttribute('aria-describedby', panel.id);
+    trigger.setAttribute('aria-expanded', 'false');
+    wrapper.addEventListener('pointerenter', event => {
+      if (event.pointerType !== 'touch') { hovering = true; show(true); }
+    });
+    wrapper.addEventListener('pointerleave', () => {
+      hovering = false;
+      if (!pinned && !trigger.matches(':focus-visible')) show(false);
+    });
+    trigger.addEventListener('focus', () => show(true));
+    trigger.addEventListener('blur', () => { if (!pinned && !hovering) show(false); });
+    this.on(this.doc, 'keydown', event => {
+      if (event.key !== 'Escape' || panel.hidden || wrapper.hidden || event.defaultPrevented) return;
+      event.preventDefault(); event.stopPropagation(); pinned = false; show(false);
+    });
+    this.on(this.doc, 'pointerdown', event => {
+      if (pinned && !wrapper.contains(event.target)) { pinned = false; show(false); }
+    });
+    this.loadRows = new Map();
+    panel.append(this.node('strong', 'Load progress'));
+    this.loadIdle = this.node('p', 'Nothing queued'); panel.append(this.loadIdle);
+    for (const [key, label] of Object.entries(loadLabels)) {
+      const row = this.node('div', null, 'epc-load-row'); row.dataset.loadKind = key; row.hidden = true;
+      const status = this.node('span', '', 'epc-load-count');
+      const bar = this.node('progress'); bar.setAttribute('aria-hidden', 'true');
+      row.append(this.node('span', label), status, bar); panel.append(row);
+      this.loadRows.set(key, { row, status, bar });
+    }
+    wrapper.append(trigger, panel); brand.append(wrapper);
+    wrapper.hidden = !this.settings.progressBar;
+  }
   updateHealth() {
     if (!this.health) return;
-    const counts = this.media.counts();
-    this.health.textContent = counts.failed + ' failed · ' + counts.waiting + ' loading · ' + counts.deferred + ' deferred';
-    const thumbs = Array.from(this.media.thumbnails.values()).filter(record =>
-      !record.row.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden'));
-    const ready = thumbs.filter(t => t.state === 'ready' || t.state === 'partial').length;
-    const busy = thumbs.some(t => ['loading', 'streaming', 'queued', 'retrying', 'stalled'].includes(t.state));
-    this.progress.hidden = !this.settings.progressBar || !busy;
-    this.progress.setAttribute('aria-valuemin', '0');
-    this.progress.setAttribute('aria-valuemax', String(thumbs.length));
-    this.progress.setAttribute('aria-valuenow', String(ready));
-    this.progress.setAttribute('aria-valuetext', ready + ' of ' + thumbs.length + ' thumbnails ready');
-    this.progressBar.style.width = thumbs.length ? ready / thumbs.length * 100 + '%' : '0%';
-    this.launcher.title = 'Empornium Companion: ' + counts.failed + ' images need attention';
-    if (thumbs.length) this.health.textContent = ready + '/' + thumbs.length + ' thumbnails' + (counts.failed ? ' · ' + counts.failed + ' need attention' : '');
-    if (!this.settings.diagnostics) {
-      this.health.hidden = !counts.failed && !busy;
-      this.health.textContent = counts.failed ? counts.failed + (counts.failed === 1 ? ' image unavailable' : ' images unavailable') : 'Loading previews…';
-      this.launcher.title = 'Empornium Companion';
-    } else this.health.hidden = false;
+    const loads = this.media.loadCounts();
+    const failedImages = Object.values(loads).reduce((sum, counts) => sum + counts.failed, 0);
+    const pages = this.backfill.loadProgress;
+    if (pages) {
+      loads.backfill = {
+        ...emptyLoadCounts(), ready: pages.loaded, failed: Number(pages.status === 'failed'),
+        pending: pages.status === 'loading' && pages.limit !== null ? Math.max(0, pages.limit - pages.loaded) : 0,
+        indeterminate: pages.status === 'loading' && pages.limit === null,
+        note: pages.status === 'stopped' ? 'Stopped' : ''
+      };
+    }
+    if (this.collageQuickAdd.operation) loads.collage = { ...emptyLoadCounts(), indeterminate: true };
+    let total = 0, finished = 0, failed = 0, indeterminate = false, hasRows = false;
+    for (const [key, { row, status, bar }] of this.loadRows) {
+      const counts = loads[key];
+      const done = counts ? counts.ready + counts.partial + counts.failed : 0;
+      const size = done + (counts?.pending || 0);
+      row.hidden = !(size || counts?.deferred || counts?.indeterminate || counts?.note);
+      if (row.hidden) continue;
+      hasRows = true; indeterminate ||= !!counts.indeterminate;
+      if (!counts.indeterminate) { total += size; finished += done; }
+      failed += counts.failed;
+      const parts = [
+        counts.indeterminate ? (counts.ready ? counts.ready + ' ready' : '') : size ? counts.ready + '/' + size + ' ready' : '',
+        counts.pending ? counts.pending + ' pending' : '',
+        counts.partial ? counts.partial + ' partial' : '',
+        counts.failed ? counts.failed + ' failed' : '',
+        counts.deferred ? counts.deferred + ' deferred' : '',
+        counts.indeterminate ? 'Loading…' : counts.note
+      ];
+      status.textContent = parts.filter(Boolean).join(' · ');
+      bar.hidden = !(size || counts.indeterminate);
+      bar.max = size || 1;
+      if (counts.indeterminate) bar.removeAttribute('value'); else bar.value = done;
+    }
+    this.loadProgress.hidden = !this.settings.progressBar;
+    this.loadIdle.hidden = hasRows;
+    const percent = total && !indeterminate ? Math.floor(finished * 100 / total) + '%' : '';
+    this.loadGauge.textContent = percent || (indeterminate ? '…' : '—');
+    this.loadGauge.style.setProperty('--epc-load-fill', percent || '0%');
+    this.loadGauge.setAttribute('aria-label', 'Load progress, ' +
+      (percent ? percent + ' processed' : indeterminate ? 'loading, total unknown' : 'nothing queued') +
+      (failed ? ', ' + failed + ' failed' : ''));
+    this.health.hidden = !failedImages && !this.settings.diagnostics;
+    this.health.textContent = failedImages ? failedImages + (failedImages === 1 ? ' image unavailable' : ' images unavailable') : '';
   }
   scheduleHealth() {
     if (this.healthFrame || this.disposed) return;
@@ -4972,7 +5106,7 @@ class CompanionApp {
     this.customStyle?.remove();
     for (const cleanup of this.cleanups) cleanup();
     this.searchEdits.clear();
-    this.root?.remove(); this.progress?.remove(); this.savedDrawer?.remove(); this.searchFeedback?.remove();
+    this.root?.remove(); this.savedDrawer?.remove(); this.searchFeedback?.remove();
     this.doc.getElementById('nseRCMBox')?.remove();
   }
 }
@@ -4984,6 +5118,10 @@ class PageMedia {
     this.app = app; this.win = app.win; this.doc = app.doc;
     this.definitions = new Map(); this.scriptText = new WeakMap(); this.knownVariants = new Map();
     this.records = new Map(); this.thumbnails = new Map(); this.thumbnailsByOriginal = new Map(); this.near = new Map();
+    this.gridGifs = new Map();
+    this.reducedMotion = this.win.matchMedia?.('(prefers-reduced-motion: reduce)');
+    this.motionListener = () => this.prepareThumbnails();
+    this.reducedMotion?.addEventListener('change', this.motionListener);
     this.layoutVersion = 0;
     this.viewportTop = this.win.scrollY; this.viewportHeight = this.win.innerHeight;
     this.nativeTimers = new Set(); this.disposed = false;
@@ -4999,7 +5137,7 @@ class PageMedia {
     }, app.settings);
     this.pool.listeners.add(entry => {
       app.record(entry, 'scheduled'); app.scheduleHealth();
-      if (entry.status === 'ready') for (const record of this.thumbnailsByOriginal.get(canonicalImageURL(entry.actualURL)) || []) {
+      if (entry.status === 'ready' && !entry.gridAutoplay) for (const record of this.thumbnailsByOriginal.get(entry.actualKey) || []) {
         this.useLoadedOriginal(record, entry);
       }
       if (['ready','streaming','partial'].includes(entry.status)) app.preview?.acceptRecovered(entry);
@@ -5054,10 +5192,13 @@ class PageMedia {
     this.invalidateLayout();
     this.syncCoverGate();
     this.pool.settings = settings; this.pool.budget.maxRetries = settings.maxRetries;
-    for (const [element, record] of this.records) if (record.kind === 'background' &&
-        (!settings.recoverBackgrounds || record.coverArt && settings.thumbnailMode !== previous.thumbnailMode)) {
-      this.clearRecord(record); this.clearCover(record); this.intersection?.unobserve(element); this.near.delete(element);
-      this.records.delete(element); this.pool.abandon(record.lastEntry);
+    for (const [element, record] of this.records) if (record.kind === 'background') {
+      const playbackChanged = record.coverArt && settings.gridAutoplayGifs !== previous.gridAutoplayGifs;
+      if (!settings.recoverBackgrounds || record.coverArt && (settings.thumbnailMode !== previous.thumbnailMode ||
+          playbackChanged && record.state !== 'ready')) {
+        this.clearRecord(record); this.clearCover(record); this.intersection?.unobserve(element); this.near.delete(element);
+        this.records.delete(element); this.pool.abandon(record.lastEntry);
+      } else if (!settings.gridAutoplayGifs) this.stopGridGif(record);
     }
     for (const [row, record] of this.thumbnails) {
       if (!this.thumbnailsEnabled(row)) {
@@ -5077,6 +5218,7 @@ class PageMedia {
         if (row.classList.contains(name) !== wanted) row.classList.toggle(name, wanted);
       }
       const grid = row.closest('table')?.classList.contains('epc-result-grid');
+      if (!grid || !settings.gridAutoplayGifs) this.stopGridGif(record);
       const entry = record.lastEntry, usable = ['ready', 'partial'].includes(record.state);
       const changedLayout = settings.resultsView !== previous.resultsView;
       const layoutNeedsReload = changedLayout && (!usable || grid && (!entry ||
@@ -5091,10 +5233,11 @@ class PageMedia {
           entry.target = null;
         }
         record.image.removeAttribute('src'); delete record.image.dataset.epImageSource;
+        record.gifPoster?.remove(); record.gifPoster = null;
         record.lastEntry = null; record.state = 'deferred'; record.element.dataset.state = 'deferred';
         record.failedAt = null; record.autoRecoveryAttempted = false;
         record.status.textContent = 'Waiting'; record.status.hidden = false;
-      }
+      } else if (grid && changedLayout && entry) this.drawGridGifPoster(record, entry);
     }
     if (settings.preloadScreens !== previous.preloadScreens) this.makeObserver();
     this.pool.trim(); this.pool.pump();
@@ -5176,7 +5319,15 @@ class PageMedia {
     return distance <= this.app.settings.preloadScreens ? 40 - distance : 10 / (1 + distance);
   }
   prepareThumbnails(rows, cards) {
-    if (this.disposed || !this.app.filtersReady || this.doc.hidden) return;
+    if (this.disposed || !this.app.filtersReady) return;
+    const playGifs = this.app.settings.gridAutoplayGifs && !this.reducedMotion?.matches;
+    if (!playGifs && this.gridGifs.size) this.pool.batch(() => {
+      for (const record of this.gridGifs.keys()) this.stopGridGif(record);
+    });
+    if (this.doc.hidden) {
+      for (const record of this.gridGifs.keys()) this.syncGridGif(record);
+      return;
+    }
     // Scroll and resize already request this pass. Reading the viewport from
     // the scheduler would force layout again after each image updates its DOM.
     this.viewportTop = this.win.scrollY; this.viewportHeight = this.win.innerHeight;
@@ -5197,6 +5348,7 @@ class PageMedia {
       for (const record of records) {
         if (record.coverArt) this.loadBackground(record);
         else this.loadThumbnail(record);
+        if (playGifs) this.syncGridGif(record);
       }
       this.pool.pump();
     });
@@ -5427,21 +5579,29 @@ class PageMedia {
     const categoryClass = 'epc-category-' + this.app.settings.categoryDisplay;
     if (!row.classList.contains(categoryClass)) row.classList.add(categoryClass);
     const original = fullSizeURL(canonicalImageURL(definition.src));
+    host.toggleAttribute('data-ep-grid-gif', coverMayAnimate(definition.src));
     const record = { element: host, row, image, status, link, source: definition.src, original, state: 'deferred', unsubscribe: null };
     this.thumbnails.set(row, record);
-    if (!this.thumbnailsByOriginal.has(original)) this.thumbnailsByOriginal.set(original, new Set());
-    this.thumbnailsByOriginal.get(original).add(record);
+    this.indexThumbnail(record);
     this.invalidateLayout();
     // Hover offers a temporary enlargement; clicking either image opens controls.
     this.app.preview.bind(button, { ...definition, title: this.app.preview.titleOf(link), href: link.href });
   }
   removeThumbnail(record) {
+    this.stopGridGif(record);
     this.thumbnails.delete(record.row);
+    this.unindexThumbnail(record);
+    record.unsubscribe?.(); this.intersection?.unobserve(record.element); this.near.delete(record.element);
+    record.element.remove(); this.pool.abandon(record.lastEntry);
+  }
+  indexThumbnail(record) {
+    if (!this.thumbnailsByOriginal.has(record.original)) this.thumbnailsByOriginal.set(record.original, new Set());
+    this.thumbnailsByOriginal.get(record.original).add(record);
+  }
+  unindexThumbnail(record) {
     const matching = this.thumbnailsByOriginal.get(record.original);
     matching.delete(record);
     if (!matching.size) this.thumbnailsByOriginal.delete(record.original);
-    record.unsubscribe?.(); this.intersection?.unobserve(record.element); this.near.delete(record.element);
-    record.element.remove(); this.pool.abandon(record.lastEntry);
   }
   thumbnailOptions(source, rescueEntry, mode = this.app.settings.thumbnailMode, preferred) {
     const grid = mode === 'grid', original = fullSizeURL(canonicalImageURL(source));
@@ -5480,12 +5640,146 @@ class PageMedia {
     if (record.image.getAttribute('src') !== displayURL) record.image.src = displayURL;
     record.image.dataset.epImageSource = entry.actualURL;
     record.status.hidden = true;
+    if (record.coverArt || record.row.closest('.epc-result-grid')) this.drawGridGifPoster(record, entry);
   }
-  useLoadedOriginal(record, entry) {
-    if (entry?.cancelled || !entry?.image?.naturalWidth || !this.app.filtersReady || this.disposed ||
-        (record.status.hidden && ['ready', 'partial', 'streaming'].includes(record.state)) || this.doc.hidden ||
-        !this.thumbnailsEnabled(record.row) || !this.displayed(record.element, record)) return false;
+  drawGridGifPoster(record, entry) {
+    const animatedThumbnail = coverMayAnimate(entry.actualURL) ||
+      this.app.settings.gridAutoplayGifs && entry.actualKey === (record.original || record.source);
+    record.element.toggleAttribute('data-ep-grid-gif', animatedThumbnail);
+    if (!animatedThumbnail) {
+      record.gifPoster?.remove(); record.gifPoster = null;
+      return;
+    }
+    const image = entry.image;
+    if (entry.status !== 'ready' || !(image instanceof this.win.HTMLImageElement) ||
+        !image.naturalWidth || !image.naturalHeight) return;
+    if (record.gifPoster?.dataset.source === entry.actualURL) return;
+    const poster = record.gifPoster || this.app.node('canvas', null, 'epc-grid-gif-poster');
+    const scale = Math.min(1, 256 / Math.max(image.naturalWidth, image.naturalHeight));
+    poster.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    poster.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    // Drawing an animated image uses its default frame, even for cross-origin images.
+    poster.getContext('2d')?.drawImage(image, 0, 0, poster.width, poster.height);
+    poster.dataset.source = entry.actualURL;
+    poster.setAttribute('aria-hidden', 'true');
+    if (!record.gifPoster) record.image.before(poster);
+    record.gifPoster = poster;
+  }
+  gridGifEligible(record) {
+    return !this.disposed && !this.reducedMotion?.matches && this.app.settings.gridAutoplayGifs &&
+      (record.coverArt ? this.app.settings.recoverBackgrounds : !!record.row.closest('.epc-result-grid')) &&
+      this.displayed(record.element, record);
+  }
+  gridGifVisible(record) {
+    if (this.doc.hidden || !this.gridGifEligible(record)) return false;
+    const { top, bottom, left, right } = record.element.getBoundingClientRect();
+    return bottom > 0 && top < this.win.innerHeight && right > 0 && left < this.win.innerWidth;
+  }
+  syncGridGif(record) {
+    if (!this.gridGifEligible(record)) { this.stopGridGif(record); return; }
+    const previous = this.gridGifs.get(record);
+    if (previous?.entry) {
+      this.updateGridGif(record, previous, this.pool.entries.get(previous.entry.key) || previous.entry);
+      return;
+    }
+    const visible = this.gridGifVisible(record);
+    if (this.doc.hidden || previous && !visible) return;
+    // Match the enlarged preview. A supplied resize can be a still image.
+    const original = record.original || record.source;
+    const supplied = canonicalImageURL(record.originalSource || record.source);
+    const visiblePriority = coverMayAnimate(original) ? 65 : 45;
+    const ready = this.pool.readyImages.get(original);
+    if (previous?.state === 'failed' && !ready) return;
+    const entry = ready || this.pool.request(original, {
+      lane: 'large', cacheMode: 'network', candidates: [original, supplied], gridAutoplay: true,
+      eligible: () => this.gridGifEligible(record),
+      priorityFor: () => {
+        const distance = this.thumbnailDistance(record);
+        return distance ? 20 / (1 + distance) : visiblePriority;
+      }
+    });
+    if (!entry) return;
+    if (ready) this.pool.recordMemoryHit(ready);
+    const playback = { entry, state: entry.status };
+    this.gridGifs.set(record, playback);
+    this.app.scheduleHealth();
+    playback.unsubscribe = this.pool.subscribe(entry, item => this.updateGridGif(record, playback, item));
+    if (!visible && !pendingLoadStates.includes(playback.state)) this.releaseGridGif(playback);
+  }
+  updateGridGif(record, playback, item) {
+    playback.entry = item;
+    playback.state = item.status;
+    if (!this.gridGifVisible(record)) {
+      this.hideGridGif(record, playback);
+      if (!pendingLoadStates.includes(item.status)) this.releaseGridGif(playback);
+      return;
+    }
+    if (!['streaming', 'partial', 'ready'].includes(item.status) || !item.image?.naturalWidth) {
+      this.hideGridGif(record, playback);
+      return;
+    }
+    if (playback.image) return;
+    const native = item.image instanceof this.win.HTMLImageElement;
+    const movable = native && !item.target && !item.image.isConnected;
+    if (native && !movable && item.status !== 'ready') return;
+    const image = playback.image = movable ? item.image : this.app.node('img');
+    const show = () => {
+      if (this.gridGifs.get(record) !== playback || !this.gridGifVisible(record)) return;
+      image.classList.add('epc-grid-gif-playback'); image.alt = ''; image.draggable = false;
+      record.image.after(image);
+      record.element.setAttribute('data-ep-grid-playing', '');
+    };
+    if (movable) {
+      // Keep the loaded node in the card without letting a popup move it.
+      item.target = image; playback.owner = item;
+      show();
+    } else {
+      if (native) {
+        image.onload = () => { image.onload = image.onerror = null; show(); };
+        image.onerror = () => this.stopGridGif(record);
+      }
+      image.src = item.displayURL || item.actualURL;
+      if (!native) show();
+    }
+  }
+  releaseGridGif(playback) {
+    const { unsubscribe } = playback;
+    if (!unsubscribe) return;
+    playback.unsubscribe = playback.entry = null;
+    unsubscribe();
+  }
+  hideGridGif(record, playback) {
+    const { image, owner } = playback;
+    if (!image) return;
+    record.element.removeAttribute('data-ep-grid-playing');
+    image.classList.remove('epc-grid-gif-playback');
+    image.remove();
+    if (owner) {
+      if (owner.target === image) owner.target = null;
+    } else {
+      image.onload = image.onerror = null;
+      image.removeAttribute('src');
+    }
+    playback.image = playback.owner = null;
+  }
+  stopGridGif(record) {
+    const playback = this.gridGifs.get(record);
+    if (!playback) return;
+    this.gridGifs.delete(record);
+    const { entry } = playback;
+    this.hideGridGif(record, playback);
+    this.releaseGridGif(playback);
+    const live = entry && this.pool.entries.get(entry.key);
+    if (!live?.keepAlive) this.pool.abandon(live);
+    this.app.scheduleHealth();
+  }
+  useLoadedOriginal(record, entry = this.pool.readyImages.get(record.original)) {
     const previous = record.lastEntry;
+    if (entry?.status !== 'ready' || entry.cancelled || entry.gridAutoplay || !entry.image?.naturalWidth ||
+        record.state === 'ready' && previous?.actualKey === record.original ||
+        !this.app.filtersReady || this.disposed || this.doc.hidden ||
+        !(record.coverArt ? this.app.settings.recoverBackgrounds : this.thumbnailsEnabled(record.row)) ||
+        !this.displayed(record.element, record)) return false;
     record.state = record.element.dataset.state = 'ready';
     record.lastEntry = entry;
     record.unsubscribe?.(); record.unsubscribe = null;
@@ -5498,17 +5792,13 @@ class PageMedia {
     }
     this.showThumbnail(record, entry);
     record.status.textContent = '';
+    this.removeRetry(record);
     this.app.scheduleHealth();
     return true;
   }
   loadThumbnail(record, force = false, rescue = false) {
-    const original = this.pool.readyImages.get(record.original);
-    if (!force && record.state !== 'deferred') {
-      if (original) this.useLoadedOriginal(record, original);
-      return;
-    }
+    if (this.useLoadedOriginal(record) || !force && record.state !== 'deferred') return;
     if (!this.app.filtersReady || this.disposed || !this.thumbnailsEnabled(record.row) || this.doc.hidden || !this.displayed(record.element, record)) return;
-    if (this.useLoadedOriginal(record, original)) return;
     const grid = !!record.row.closest('.epc-result-grid');
     const options = this.thumbnailOptions(record.source, rescue ? record.lastEntry : null, grid ? 'grid' : this.app.settings.thumbnailMode);
     if (!options) {
@@ -5535,7 +5825,7 @@ class PageMedia {
     const update = item => {
       if (this.disposed || !record.element.isConnected) return;
       record.state = item.status;
-      if (item.status === 'failed' && this.useLoadedOriginal(record, this.pool.readyImages.get(record.original))) return;
+      if (item.status === 'failed' && this.useLoadedOriginal(record)) return;
       this.trackRecovery(record, item);
       record.status.textContent = ({ queued: 'Waiting', loading: 'Loading', retrying: 'Retrying',
         stalled: 'Slow load', failed: grid ? 'Thumbnail unavailable' : record.autoRecoveryAttempted || !this.app.settings.maxRetries ? 'Unavailable' : 'Retrying soon',
@@ -5569,7 +5859,10 @@ class PageMedia {
   }
   clearCover(record) {
     if (!record.coverArt) return;
+    this.stopGridGif(record);
+    this.unindexThumbnail(record);
     this.app.preview?.unbind(record.link);
+    record.gifPoster?.remove(); delete record.element.dataset.epGridGif;
     record.image?.remove(); record.status?.remove(); record.element.classList.remove('epc-managed-cover', 'epc-cover-positioned');
   }
   addBackground(element) {
@@ -5589,6 +5882,9 @@ class PageMedia {
     const record = { kind: 'background', element, source, originalSource: supplied, coverArt, state: 'deferred' };
     this.records.set(element, record);
     if (coverArt) {
+      record.original = canonicalImageURL(source);
+      this.indexThumbnail(record);
+      element.toggleAttribute('data-ep-grid-gif', coverMayAnimate(supplied));
       const thumb = safeImageURL(element.getAttribute('data-thumbnail'), this.win.location.href);
       const resized = smallLegacyResize(supplied) ? supplied : null;
       record.preferredThumbnail = thumb || resized;
@@ -5602,11 +5898,20 @@ class PageMedia {
     } else this.watchNear(element, () => this.loadBackground(record));
   }
   loadBackground(record, force = false, rescue = false) {
+    if (record.coverArt && this.useLoadedOriginal(record)) return;
     if (!force && record.state !== 'deferred') return;
     if (!this.app.filtersReady || this.disposed || !this.app.settings.recoverBackgrounds ||
         !(record.coverArt ? this.displayed(record.element, record) : this.visible(record.element, true)) || this.doc.hidden) return;
-    const entry = this.pool.request(record.source, {
-      ...(record.coverArt ? this.thumbnailOptions(record.originalSource, rescue ? record.lastEntry : null, undefined, record.preferredThumbnail) : { lane: 'large' }),
+    const viewportPlayback = record.coverArt && this.app.settings.gridAutoplayGifs;
+    const options = record.coverArt ? this.thumbnailOptions(record.originalSource, rescue ? record.lastEntry : null,
+      viewportPlayback ? 'grid' : undefined, record.preferredThumbnail) : { lane: 'large' };
+    if (!options) {
+      record.state = 'failed'; record.status.textContent = 'Thumbnail unavailable'; record.status.hidden = false;
+      this.app.scheduleHealth(); return;
+    }
+    const source = viewportPlayback ? (rescue ? record.lastEntry.url : options.candidates[0]) : record.source;
+    const entry = this.pool.request(source, {
+      ...options,
       priority: record.coverArt ? this.thumbnailPriority(record) : this.visible(record.element) ? 30 : 5,
       ...(record.coverArt ? { priorityFor: () => this.thumbnailPriority(record), target: this.app.options.Image ? null : record.image } : {}), force,
       eligible: () => !this.disposed && this.app.settings.recoverBackgrounds && !this.doc.hidden &&
@@ -5616,6 +5921,7 @@ class PageMedia {
     const update = item => {
       if (this.disposed || !record.element.isConnected) return;
       record.state = item.status;
+      if (record.coverArt && item.status === 'failed' && this.useLoadedOriginal(record)) return;
       this.trackRecovery(record, item);
       if (record.coverArt) {
         if(item.status==='ready')this.rememberThumbnail(record,item);
@@ -5624,7 +5930,7 @@ class PageMedia {
       }
       if (item.image?.naturalWidth && ['streaming', 'partial', 'ready'].includes(item.status)) {
         record.appliedURL = item.actualURL;
-        if (record.coverArt) { const displayURL=item.displayURL||item.actualURL;if(record.image.getAttribute('src')!==displayURL)record.image.src=displayURL;record.image.dataset.epImageSource=item.actualURL; }
+        if (record.coverArt) this.showThumbnail(record, item);
         else {
           const value = 'url("' + item.actualURL.replace(/\\/g, '%5C').replace(/"/g, '%22').replace(/\n/g, '%0A') + '")';
           if (record.element.style.backgroundImage !== value) record.element.style.backgroundImage = value;
@@ -5646,13 +5952,32 @@ class PageMedia {
     record.unsubscribe = this.pool.subscribe(entry, update);
     if (['ready', 'failed', 'partial'].includes(entry.status)) { record.unsubscribe(); record.unsubscribe = null; }
   }
-  counts() {
-    const counts = { failed: 0, waiting: 0, deferred: 0 };
+  loadCounts() {
+    const counts = Object.fromEntries(Object.keys(loadLabels).map(key => [key, emptyLoadCounts()]));
     for (const record of [...this.records.values(), ...this.thumbnails.values()]) {
-      if (!record.element.isConnected) continue;
-      if (record.state === 'failed' && this.visible(record.element)) counts.failed++;
-      else if (record.state === 'deferred') counts.deferred++;
-      else if (['queued', 'loading', 'streaming', 'retrying', 'stalled'].includes(record.state)) counts.waiting++;
+      if (!record.element.isConnected || record.element.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden')) continue;
+      const key = record.coverArt ? 'cover' : record.kind || 'thumbnail';
+      const lazy = record.kind === 'image' && record.state === 'loading' && record.element.loading === 'lazy' && !this.visible(record.element);
+      countLoad(counts[key], lazy ? 'deferred' : record.state);
+    }
+    const animationEntries = new Set();
+    let animationLoads = 0;
+    for (const [record, playback] of this.gridGifs) {
+      if (!record.element.isConnected || record.element.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden')) continue;
+      animationLoads++;
+      if (playback.entry) animationEntries.add(playback.entry);
+      countLoad(counts.animation, playback.state);
+    }
+    if (!animationLoads && (this.app.settings.resultsView === 'grid' || counts.cover.ready || counts.cover.pending)) {
+      counts.animation.note = !this.app.settings.enabled || !this.app.settings.gridAutoplayGifs ? 'Off' :
+        this.reducedMotion?.matches ? 'Reduced motion' : 'No covers to load';
+    }
+    const preview = this.app.preview;
+    if (preview.open) countLoad(counts.preview, preview.element.dataset.state || 'loading');
+    for (const entry of this.pool.entries.values()) {
+      if (entry.keepAlive && entry !== preview.progressEntry && !animationEntries.has(entry) && pendingLoadStates.includes(entry.status)) {
+        countLoad(counts.preview, entry.status);
+      }
     }
     return counts;
   }
@@ -5682,7 +6007,10 @@ class PageMedia {
     }
   }
   dispose() {
-    this.disposed = true; this.intersection?.disconnect(); this.layoutObserver?.disconnect(); this.pool.dispose();
+    this.disposed = true; this.intersection?.disconnect(); this.layoutObserver?.disconnect();
+    this.reducedMotion?.removeEventListener('change', this.motionListener);
+    for (const record of this.gridGifs.keys()) this.stopGridGif(record);
+    this.pool.dispose();
     this.doc.documentElement?.classList.remove('epc-cover-art');
     this.pool.env.clearTimeout(this.recoveryTimer);
     this.win.removeEventListener('resize', this.resizeListener);
@@ -5990,14 +6318,17 @@ class PreviewController {
       this.app.media.pool.request(gridTitle ? requestOptions.candidates[0] : source, {
       ...requestOptions, priority: 100, force: !!options.force,
       eligible: () => this.open && version === this.version,
+      priorityFor: () => this.open && version === this.version ? 100 : 0,
       fresh: !!options.force });
     if (!entry) {
       previousUnsubscribe?.();
+      this.progressEntry = null; this.element.dataset.state = 'failed'; this.app.scheduleHealth();
       this.clearLoadStats(); this.setStatusText(requestOptions ? 'Retry limit reached. Try again after a short pause.' : 'Thumbnail unavailable');
       this.position(); return;
     }
     const update = current => {
       if (!this.open || version !== this.version) return;
+      this.progressEntry = current;
       const visible = !this.image.hidden && this.image.hasAttribute('src');
       // A first frame may be useful when no image exists. It must not replace
       // a working thumbnail until the larger request has actually succeeded.
@@ -6024,7 +6355,7 @@ class PreviewController {
       })[current.status] || '';
       if (pendingView) message = thumbnailVisible ? 'Loading larger image…' : 'Loading image…';
       this.setStatusText(message); this.updateLoadStats(current, version, pendingView);
-      this.element.dataset.state = pendingView ? 'loading' : current.status; this.position();
+      this.element.dataset.state = pendingView ? 'loading' : current.status; this.position(); this.app.scheduleHealth();
     };
     this.unsubscribe = this.app.media.pool.subscribe(entry, update);
     this.renderEntry = update;
@@ -6058,6 +6389,7 @@ class PreviewController {
     const restoreFocus = force && this.element?.contains(this.doc.activeElement);
     this.clearImage();
     this.unsubscribe?.(); this.unsubscribe = null; this.renderEntry = null; this.version++;
+    this.progressEntry = null; this.app.scheduleHealth();
     this.open = false; this.pinned = false; this.inside = false; this.zoom = false; this.titleHover = false;
     if (this.element) this.element.hidden = true;
     if (restoreFocus) this.anchor?.focus({ preventScroll: true });
@@ -6201,7 +6533,7 @@ const epStorage = {
   list: () => GM_listValues(),
   delete: key => GM_deleteValue(key)
 };
-GM_addStyle("/* SPDX-License-Identifier: GPL-3.0-or-later */\n.epc-root,.epc-thumbnail{\n  --epc-bg:#fbfcfe;--epc-fg:#18243a;--epc-line:#dbe2ee;--epc-accent:#274f9d;\n  --epc-muted:color-mix(in srgb,var(--epc-fg) 77%,var(--epc-bg));\n  --epc-subtle:color-mix(in srgb,var(--epc-bg) 95%,var(--epc-fg));\n  --epc-soft:color-mix(in srgb,var(--epc-bg) 88%,var(--epc-accent));\n  --epc-radius:12px;--epc-control-radius:7px;--epc-shadow:0 8px 24px #12234124;\n  box-sizing:border-box;font:13px/1.45 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:var(--epc-fg);color-scheme:light dark\n}\n.epc-root *,.epc-thumbnail *{box-sizing:border-box}\n.epc-root [hidden],.epc-root[hidden],.epc-filter-hidden{display:none!important}\n.epc-root :is(button,input,select),button.epc-root.epc-media-retry{\n  font:inherit;color:inherit;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);\n  background:var(--epc-bg);padding:5px 8px;margin:2px;max-width:100%;box-shadow:none!important;text-shadow:none\n}\n.epc-root button,button.epc-root.epc-media-retry{appearance:none;cursor:pointer;min-height:32px}\n.epc-root button:hover,button.epc-root.epc-media-retry:hover{background:var(--epc-subtle)}\n.epc-root :is(button,a,input,select,textarea,summary):focus-visible,button.epc-root.epc-media-retry:focus-visible{outline:2px solid var(--epc-accent);outline-offset:2px}\n.epc-root :is(input[type=radio],input[type=checkbox]){accent-color:var(--epc-accent)}\n.epc-root a{color:var(--epc-accent);text-decoration:underline}\n.epc-root p{margin:8px 0}\n.epc-root summary{cursor:pointer;font-weight:650;padding:7px 0}\n.epc-tools{position:fixed;right:16px;bottom:16px;z-index:2147483000}\n.epc-launcher{border-radius:999px!important;background:var(--epc-accent)!important;color:white!important;font-weight:750!important;padding:9px 13px!important;box-shadow:0 2px 12px #0003}\n.epc-panel{position:absolute;right:0;bottom:50px;width:min(460px,calc(100vw - 32px));max-height:calc(100vh - 100px);overflow:auto;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:10px;box-shadow:0 12px 40px #0004;padding:14px}\n.epc-panel-heading,.epc-preview-heading{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:7px}\n.epc-panel-heading strong{font-size:16px}\n.epc-panel details{border-top:1px solid var(--epc-line);margin-top:8px}\n.epc-setting{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0}\n.epc-setting input[type=number],.epc-setting select{width:100px;flex-shrink:0}\n.epc-setting select[data-setting=gridCardWidth]{width:180px}\n.epc-setting input[type=checkbox]{width:18px;height:18px}\n.epc-actions{display:flex;flex-wrap:wrap;gap:4px;align-items:center}\n.epc-notice{white-space:pre-wrap;font-size:12px;color:var(--epc-accent)}\n.epc-health{font-variant-numeric:tabular-nums}\n.epc-log{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;font:11px/1.4 ui-monospace,monospace}\n.epc-saved{background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:7px;padding:6px 12px;margin:10px 0}\n.epc-saved-list{display:grid;gap:6px;margin-top:8px}\n.epc-saved-row{display:flex;gap:3px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--epc-line);padding-top:5px}\n.epc-search-name{flex:1;min-width:130px;text-align:left}\n.epc-progress{position:fixed;z-index:2147482998;bottom:0;left:0;width:100%;height:4px;background:#0002;pointer-events:none}\n.epc-progress>div{height:100%;background:#3979ef;transition:width .15s linear}\n.epc-thumbnail{display:inline-flex;float:left;position:relative;margin:0 8px 5px 0;vertical-align:top}\n.epc-thumb-button{display:flex;position:relative;justify-content:center;align-items:center;width:var(--epc-thumb-size);height:var(--epc-thumb-size);padding:0;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle);overflow:hidden;cursor:zoom-in}\n.epc-thumb-button>img{display:block;width:100%;height:100%;object-fit:contain;border:0;margin:0}\n.epc-thumb-status{position:absolute;inset:auto 2px 2px;background:#17213ae8;color:#fff;font:11px/1.3 system-ui,sans-serif;text-align:center;padding:2px;border-radius:3px}\n.epc-thumb-button>img:not([src]){visibility:hidden}\n.epc-thumbnail [hidden]{display:none!important}\nhtml.epc-cover-art .torrent_grid__torrent .torrent__cover[style*=\"background\"]:not(.epc-native-cover),.torrent__cover.epc-managed-cover{background-image:none!important}\n.torrent__cover.epc-cover-positioned{position:relative}\n.epc-cover-image{position:absolute!important;inset:0;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover;object-position:center;pointer-events:none}\n.epc-cover-image:not([src]){visibility:hidden}\n.epc-cover-status{position:absolute;bottom:5px;left:5px;right:5px;text-align:center;font:11px system-ui;color:#fff;background:#17213abf;border-radius:3px;padding:2px;pointer-events:none}\n.epc-cover-status[hidden]{display:none!important}\n.epc-category-overlay .cats_col,.epc-category-overlay .cats_cols{position:relative}\n.epc-category-overlay .cats_col>div[title],.epc-category-overlay .cats_cols>div[title]{position:absolute;top:2px;left:2px;z-index:1;width:24px;overflow:hidden}\n.epc-category-hide .cats_col>div[title],.epc-category-hide .cats_cols>div[title]{display:none!important}\n.epc-preview{position:fixed;z-index:2147482999;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:var(--epc-radius);box-shadow:var(--epc-shadow);padding:12px;overflow:auto;max-width:calc(100vw - 24px)}\n.epc-preview-heading strong{font-size:13px;overflow-wrap:anywhere}\n.epc-preview-heading button{flex-shrink:0}\n.epc-preview-frame{display:flex;align-items:center;justify-content:center;min-height:90px;overflow:hidden;background:var(--epc-subtle);border-radius:var(--epc-control-radius)}\n.epc-preview-frame>img{display:block;max-width:100%;max-height:inherit;width:auto;height:auto;object-fit:contain;margin:auto}\n.epc-preview-status{font-size:12px;min-height:18px}\n.epc-preview-stats{color:var(--epc-fg);opacity:.65;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}\n.epc-preview-summary{font-size:11px;max-height:65px;overflow:auto;overflow-wrap:anywhere}\n.epc-thumb-button,.epc-preview-frame{user-select:none}\n.epc-preview[data-mode=zoom]{padding:6px;overflow:hidden;cursor:zoom-in}\n.epc-preview[data-mode=zoom] .epc-preview-frame>img{width:100%;height:auto}\n.epc-preview[data-mode=zoom] .epc-preview-status:empty{display:none}\n.epc-preview[data-mode=tooltip]{padding:8px;overflow:hidden}\n.epc-preview[data-mode=tooltip] .epc-preview-frame{min-height:0;background:none}\n.epc-preview[data-mode=tooltip] .epc-preview-status:empty{display:none}\n.epc-preview[data-state=failed] .epc-preview-status,.epc-preview[data-state=stalled] .epc-preview-status{color:#a3391a}\n.epc-media-retry{display:inline-block;background:var(--epc-bg);padding:3px 7px;vertical-align:middle}\n#content img.epc-page-image{max-width:min(100%,calc(100vw - 48px))!important;height:auto}\n#content img.epc-page-image.epc-compact{max-height:75vh!important;object-fit:contain}\n@media(prefers-color-scheme:dark){.epc-root,.epc-thumbnail{--epc-bg:#1e2532;--epc-fg:#edf2fd;--epc-line:#3c495e;--epc-accent:#a8c0ff;--epc-shadow:0 8px 24px #0006}.epc-preview[data-state=failed] .epc-preview-status,.epc-preview[data-state=stalled] .epc-preview-status{color:#ffb194}}\n@media(prefers-reduced-motion:reduce){.epc-progress>div{transition:none}}\n\n/* One in-page workspace. Engine DOM is private behavior infrastructure. */\n.epc-engine,#nseOuter,#nseFloatyBoi,#nseUpdateToast{display:none!important}\n.epc-workspace{display:block;margin:16px 0 20px;padding:0;border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);color:var(--epc-fg);clear:both;max-width:100%;text-align:left}\n.epc-toolbar{position:relative}\n.epc-toolbar-main,.epc-toolbar-context,.epc-toolbar-footer{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;padding:10px 14px;min-width:0}\n.epc-toolbar-main{gap:6px 12px;padding-block:11px}\n.epc-toolbar-brand{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}\n.epc-brand-mark{display:grid;place-items:center;width:31px;height:31px;border-radius:8px;background:var(--epc-soft);color:var(--epc-accent)}\n.epc-root .epc-brand{font-weight:680;letter-spacing:-.025em;font-size:15px;margin:0}\n.epc-page-name{font-size:12px;color:var(--epc-muted)}\n.epc-icon{display:inline-block;width:15px;height:15px;flex:none;vertical-align:middle}\n.epc-toolbar :is(button,summary){display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:0}\n.epc-toolbar-context{border-top:1px solid var(--epc-line);background:var(--epc-subtle);padding-block:8px}\n.epc-toolbar-context:not(:has(.epc-layout-switch:not([hidden]),.epc-browse-menu:not([hidden]),.epc-context-actions> :not([hidden]))){display:none}\n.epc-browse-tools,.epc-context-actions,.epc-toolbar-utilities,.epc-toolbar-status,.epc-collage-tools{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap;min-width:0}\n.epc-context-actions{justify-content:flex-end;margin-inline-start:auto;max-width:100%}\n.epc-context-actions:not(:has(> :not([hidden]))),.epc-browse-tools:not(:has(> :not([hidden]))){display:none}\n.epc-layout-switch{display:inline-flex;padding:2px;border-radius:9px;border:1px solid var(--epc-line);gap:2px}\n.epc-root .epc-layout-switch button{min-height:27px;padding:3px 8px;border-radius:5px;background:transparent;border-color:transparent;color:var(--epc-muted)}\n.epc-root .epc-layout-switch button[aria-pressed=true]{background:var(--epc-bg);color:var(--epc-accent);border-color:var(--epc-line);font-weight:650}\n.epc-root .epc-browse-menu>summary{list-style:none;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-bg);padding:5px 8px;min-height:32px;font-weight:500}\n.epc-browse-menu>summary::-webkit-details-marker{display:none}\n.epc-root .epc-browse-menu>summary:hover{background:var(--epc-soft)}\n.epc-root .epc-browse-menu:is([open],[data-active])>summary{color:var(--epc-accent);background:var(--epc-soft)}\n.epc-browse-controls{position:absolute;inset-block-start:calc(100% + 5px);inset-inline-start:clamp(12px,calc(100% - 360px),146px);z-index:5;\n  display:flex;align-items:center;flex-wrap:wrap;gap:6px;width:min(345px,calc(100% - 24px));padding:9px;\n  border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);box-shadow:var(--epc-shadow)}\n.epc-filtered-count{font-size:11px;border-radius:4px;padding:0 5px;color:var(--epc-accent);background:var(--epc-soft);font-variant-numeric:tabular-nums}\n.epc-toolbar .epc-stop-icon,.epc-toolbar [aria-busy=true]>.epc-load-icon{display:none}\n.epc-toolbar [aria-busy=true]>.epc-stop-icon{display:inline-block}\n.epc-toolbar-footer{border-top:1px solid var(--epc-line);padding-block:8px}\n.epc-toolbar-footer:not(:has(.epc-toolbar-utilities> :not([hidden]),.epc-toolbar-status>span:not([hidden]):not(:empty))){display:none}\n.epc-toolbar-utilities:not(:has(> :not([hidden]))),.epc-toolbar-status:not(:has(>span:not([hidden]):not(:empty))){display:none}\n.epc-toolbar-status>span:empty{display:none}\n.epc-toolbar-status{margin-inline-start:auto;color:var(--epc-muted);font-size:12px;font-variant-numeric:tabular-nums}\n.epc-toolbar-status :is(.epc-backfill-status,.epc-collage-status){color:var(--epc-accent);overflow-wrap:anywhere}\n.epc-collage-tools select{margin:0}\n.epc-collage-tools button,.epc-collage-status{overflow-wrap:anywhere}\n.epc-toolbar .epc-collage-tools button{white-space:normal;text-align:start}\n.epc-root button:disabled{cursor:default;opacity:.6}\na.epc-backfilled-page{text-decoration:line-through!important;opacity:.65}\na.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;pointer-events:none}\n.epc-navigation{display:flex;align-items:center;gap:2px;flex-wrap:wrap}\n.epc-root :is(.epc-navigation button,.epc-quiet){background:transparent;border-color:transparent;color:var(--epc-muted)}\n.epc-root .epc-navigation button[aria-expanded=true],.epc-root .epc-browse-controls button[aria-pressed=true]{color:var(--epc-accent);background:var(--epc-soft)}\n.epc-workspace>.epc-panel{display:block;position:static;width:auto;max-height:none;border:0;border-top:1px solid var(--epc-line);border-radius:0 0 var(--epc-radius) var(--epc-radius);box-shadow:none;overflow:visible;padding:16px}\n.epc-panel-heading{margin-bottom:8px}\n.epc-panel-heading strong{font-size:17px;letter-spacing:-.025em}\n.epc-root .epc-caption{font-size:12px;color:var(--epc-muted);line-height:1.5;margin:4px 0 12px}\n.epc-root .epc-shortcut-list{padding-inline-start:20px;list-style:disc}\n.epc-root .epc-notice{margin:0 12px 8px;padding:8px 10px;border-radius:5px;background:color-mix(in srgb,var(--epc-accent) 10%,transparent)}\n.epc-root .epc-notice:empty{display:none}\n.epc-rule-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}\n.epc-root .epc-group{display:block!important;margin:12px 0;padding:0;border:0}\n.epc-root .epc-option-group[hidden]{display:none!important}\n.epc-root .epc-option-group{border-top:1px solid var(--epc-line);padding:5px 0;margin:8px 0}\n.epc-option-group>summary{display:flex;align-items:center;gap:10px;list-style:none}\n.epc-option-group>summary::-webkit-details-marker{display:none}\n.epc-option-group>summary:before{content:\"›\";font-size:18px;line-height:1;transition:transform .1s}\n.epc-option-group[open]>summary:before{transform:rotate(90deg)}\n.epc-option-count{font-size:11px;font-weight:400;opacity:.65;margin-left:auto}\n.epc-basic-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;max-width:700px;margin:12px 0 18px}\n.epc-basic-settings .epc-field,.epc-basic-settings .epc-setting{margin:0}\n.epc-basic-settings .epc-setting{font-size:12px;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:5px}\n.epc-basic-settings .epc-setting input,.epc-basic-settings .epc-setting select{width:100%;margin:0}\n.epc-settings-section{margin:10px 0 18px;max-width:700px}\n.epc-settings-section>h3{font-size:13px;margin:0 0 10px;font-weight:650}\n.epc-settings-section .epc-basic-settings{margin:0;gap:12px 20px}\n.epc-basic-settings .epc-setting-toggle{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px}\n.epc-basic-settings .epc-setting-toggle input{width:16px;height:16px;margin:0}\n.epc-settings-help{font-size:12px;margin-top:10px}\n.epc-cache-usage .epc-option-group{margin-bottom:0}\n.epc-settings-section[hidden]{display:none!important}\n.epc-settings-search{display:block;width:min(100%,480px);margin:8px 0 12px!important}\n.epc-search-more{margin:0!important;border:0!important}\n.epc-search-more>summary{font-size:12px;font-weight:400;padding:4px 8px}\n.epc-search-more[open]{flex-basis:100%}\n.epc-is-editing>.epc-search-more>button{display:none}\n.epc-search-editor{padding:12px;margin:6px 0;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle)}\n.epc-search-editor>strong{display:block;margin-bottom:8px}\n.epc-search-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}\n.epc-search-editor .epc-field input:not([type=checkbox]),.epc-search-editor .epc-field select{width:100%}\n.epc-search-editor-extra{margin:8px 0}\n.epc-search-editor-status:empty{display:none}\n.epc-root h3{font:650 13px/1.5 system-ui,sans-serif;color:var(--epc-fg);margin:0 0 8px}\n.epc-root .epc-field{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:500;margin:10px 0}\n.epc-root textarea{width:100%;resize:vertical;min-height:65px;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle);color:var(--epc-fg);font:12px/1.5 ui-monospace,monospace;padding:8px;box-sizing:border-box}\n.epc-root textarea{font-family:var(--epc-list-font,ui-monospace,monospace)}\n.epc-root .epc-field input,.epc-root .epc-field select{margin:0}\n.epc-check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 20px}\n.epc-root .epc-check{display:flex;flex-direction:row;align-items:center;margin:3px 0;gap:8px;font-weight:400}\n.epc-check input{accent-color:var(--epc-accent)}\n.epc-root .epc-check input[type=checkbox]{flex:0 0 16px;width:16px;height:16px}\n.epc-root .epc-savebar{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--epc-line);margin-top:14px;padding-top:12px}\n.epc-root .epc-savebar .epc-caption{margin:0}\n.epc-root .epc-primary{background:var(--epc-accent);border-color:var(--epc-accent);color:var(--epc-bg);font-weight:650}\n.epc-root .epc-primary:hover{background:var(--epc-accent);filter:brightness(1.1)}\n.epc-root button:disabled{cursor:default;opacity:.5}\n.epc-saved{border:0;padding:0;margin:0}\n.epc-statistics{display:grid;grid-template-columns:1fr auto;gap:5px 16px;font-size:12px;max-width:500px}\n.epc-statistics dd{margin:0;font-variant-numeric:tabular-nums}\n.epc-setting{max-width:650px}\n.epc-setting:nth-child(n+12){font-size:12px}\n.epc-revealed{opacity:.75}\n.epc-seen-dim{opacity:.6}\n.epc-freeleech-view{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--epc-muted)}\n.epc-root .epc-freeleech-view select{max-width:100%;margin:0;color:var(--epc-fg)}\n.epc-conditional-list{list-style:none;padding:0;margin:0}\n.epc-conditional-list li{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 12px;padding:6px 0;border-bottom:1px solid var(--epc-line)}\n.epc-conditional-list li>span{min-width:0;overflow-wrap:anywhere}\n.epc-conditional-list:not(:empty)+button{margin-top:8px}\n.epc-conditional-advanced{margin-top:12px}\n.epc-conditional-advanced code{overflow-wrap:anywhere}\n.epc-conditional-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;align-items:end;gap:8px;margin-bottom:8px}\n.epc-root .epc-conditional-row .epc-field{min-width:0;margin:0}\n.epc-conditional-row input,.epc-conditional-row select{width:100%;min-width:0}\n.epc-conditional-builder>label{max-width:320px}\n@media(max-width:480px){.epc-conditional-row{grid-template-columns:minmax(0,1fr)}.epc-conditional-row>button{justify-self:start}}\n[data-ep-freeleech=sitewide]{outline:2px solid #db9e27;outline-offset:1px}\n[data-ep-freeleech=unlimited]{outline:1px dashed currentColor;outline-offset:1px}\n.epc-history-list{list-style:none;padding:0;margin:0}\n.epc-history-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0}\n.epc-history-list a{min-width:0;overflow-wrap:anywhere}\n.epc-history-list button{flex-shrink:0}\n.nseToggleIcon{display:inline-flex!important;width:22px;height:22px;align-items:center;justify-content:center;cursor:pointer;border:1px solid #8a98ad!important;border-radius:5px!important;background:transparent!important;font:14px/1 system-ui,sans-serif!important;color:inherit}\n.nseToggleIcon>img{display:none!important}\n.nseToggleIcon:before{content:\"−\";font:14px/1 system-ui,sans-serif!important}\n.nseToggleIcon.nseIndividuallyBlacklisted:before{content:\"+\"}\n.nseToggleIcon.nseIndividuallyWhitelisted:before{content:\"↺\"}\n.nseToggleIcon:focus-visible{outline:2px solid var(--epc-accent,#4289dd);outline-offset:2px}\n#nseRCMBox.epc-root{position:fixed!important;z-index:2147483001!important;width:min(340px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;padding:14px;border-radius:var(--epc-radius);background:var(--epc-bg)!important;color:var(--epc-fg)!important;border:1px solid var(--epc-line)!important;box-shadow:var(--epc-shadow)}\n#nseRCMBox .nseRCMButton{display:inline-block;background:var(--epc-bg)!important;color:var(--epc-fg)!important;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);font:12px/1.5 system-ui,sans-serif;padding:5px 8px;margin:3px 0;cursor:pointer}\n#nseRCMBox .nseRCMButton:hover{background:var(--epc-soft)!important}\n#nseRCMBox #nseRCMClose{font:12px/1.5 system-ui,sans-serif;cursor:pointer}\n.epc-rule-import{display:inline-block;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-bg);padding:5px 8px;cursor:pointer}\n.epc-rule-import:focus-visible{outline:2px solid var(--epc-accent);outline-offset:2px}\n.epc-saved-shortcuts{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}\n.epc-saved-shortcuts>strong{font-size:12px;font-weight:500;color:var(--epc-muted)}\n.epc-root a.epc-saved-shortcut{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:3px 7px;border-radius:var(--epc-control-radius);color:var(--epc-accent)!important;background:var(--epc-soft);text-decoration:none;overflow-wrap:anywhere}\n.epc-root a.epc-saved-shortcut:hover{background:var(--epc-subtle)}\n.epc-saved-shortcut .epc-icon{width:12px;height:12px}\n.epc-toolbar .epc-quick-search{min-height:27px;padding:3px 5px}\n.epc-search-name{overflow-wrap:anywhere}\n.epc-search-feedback{display:flex;align-items:center;flex-wrap:wrap;gap:8px;grid-column:1/-1;margin:8px 0;padding:9px 12px;border:1px solid var(--epc-line);border-radius:5px;background:var(--epc-bg)}\n.epc-savebar [role=status]{font-size:12px;opacity:.72}\n.epc-root [aria-invalid=true]{border-color:#bf493e!important;outline:1px solid #bf493e}\n#content .nseHiddenTag,#content .nseHiddenTitle,#content .nseHiddenUploader,#content .nseBlacklistIdentifier{color:var(--epc-blocked,#f00)!important}\n#content .nseWhitelistedTag,#content .nseWhitelistedTitle,#content .nseWhitelistedUploader{color:var(--epc-allowed,#0f0)!important}\n#content .nseHardPassTag,#content .nseHardPassTitle{color:var(--epc-hard-pass,#a00)!important}\n/* Result tools share the existing list and rule menu. No extra toolbar. */\n#content tr.epc-version-hidden{display:none!important}\n#content tr.epc-version-member>td:nth-child(2){border-inline-start:2px solid #7a8ba780}\n#content .epc-version-control{display:inline-block;margin:3px 0 3px 8px;padding:2px 7px;border:1px solid #7a8ba780;border-radius:4px;background:transparent;color:inherit;font:11px/1.6 system-ui,sans-serif;cursor:pointer;vertical-align:middle}\n#content .epc-version-control:before{content:\"▸\";margin-inline-end:4px}\n#content .epc-version-control[aria-expanded=true]:before{content:\"▾\"}\n#content .epc-version-control:hover{background:#7a8ba720}\n#content .epc-version-control:focus-visible{outline:2px solid #4289dd;outline-offset:2px}\n#content a[data-ep-tag-tone=favorite]:not(.nseHiddenTag):not(.nseHardPassTag){background:#ccefe0;color:#154f39!important;box-shadow:inset 0 -2px #298661;border-radius:3px}\n#content a[data-ep-tag-tone=caution]:not(.nseHiddenTag):not(.nseHardPassTag){background:#ffe2a8;color:#68420b!important;box-shadow:inset 0 -2px #b67816;border-radius:3px}\n#content table.epc-stable-columns{table-layout:fixed;width:100%;min-width:var(--epc-table-min-width,0px)}\n#content table.epc-stable-columns td[width],#content table.epc-stable-columns th[width]{width:auto}\n#content table.epc-stable-columns td.user,#content table.epc-stable-columns .tags{overflow-wrap:anywhere}\n#content a.epc-tag-match{text-decoration:underline!important;text-decoration-thickness:2px!important;text-underline-offset:3px;font-weight:700}\n#nseRCMBox .epc-highlight-actions{margin-top:10px;padding-top:8px;border-top:1px solid var(--epc-line)}\n#nseRCMBox .epc-highlight-actions p{margin:0 0 5px}\n#nseRCMBox .epc-highlight-actions button{padding:4px 7px;margin:0 5px 4px 0}\n#nseRCMBox .epc-highlight-actions button[aria-pressed=true]{box-shadow:inset 0 0 0 2px var(--epc-accent)}\n#nseRCMBox .epc-menu-caption{display:block;margin-top:8px}\n#nseRCMBox[data-ep-rule-kind=tag] #nseRCMBoxChoices{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}\n#nseRCMBox[data-ep-rule-kind=tag] #nseRCMBoxChoices br{display:none}\n@media(max-width:700px){.epc-rule-grid,.epc-basic-settings,.epc-search-editor-fields,.epc-check-grid{grid-template-columns:1fr}.epc-savebar{flex-wrap:wrap}}\n@media(max-width:530px){\n  .epc-toolbar :is(.epc-toolbar-main,.epc-toolbar-context,.epc-toolbar-footer){padding-inline:10px}\n  .epc-navigation{width:100%;justify-content:space-between}.epc-navigation button{flex:1}\n  .epc-toolbar-status{margin-inline-start:0}\n}\n@media(pointer:coarse){\n  .epc-root .epc-toolbar :is(button,select,summary),.epc-root a.epc-saved-shortcut{min-height:44px}\n  .epc-root .epc-layout-switch button{min-height:40px}\n}\n\n/* First-use setup reuses the workspace's visual language and settings. */\n.epc-onboarding{width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 32px);overflow:auto;margin:auto;padding:22px;border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);color:var(--epc-fg);text-align:left;box-shadow:var(--epc-shadow)}\n.epc-onboarding::backdrop{background:#1017239c}\n.epc-onboarding h2{margin:0 0 10px;font-size:21px;line-height:1.25;color:inherit}\n.epc-welcome-heading{display:flex;align-items:center;gap:10px;margin-block-end:10px}\n.epc-welcome-heading .epc-brand-mark{flex:none}\n.epc-onboarding .epc-welcome-heading h2{margin:0}\n.epc-onboarding fieldset{margin:16px 0 12px;padding:12px;border:1px solid var(--epc-line);border-radius:8px;min-width:0}\n.epc-onboarding legend{padding:0 5px;font-weight:650}\n.epc-welcome-choice{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer}\n.epc-welcome-field{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}\n.epc-welcome-field input[type=number]{width:70px}\n.epc-onboarding textarea{width:100%;font:inherit;color:inherit;background:var(--epc-subtle);border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);padding:7px;resize:vertical}\n.epc-onboarding details{border-top:1px solid var(--epc-line);margin-top:16px;padding-top:4px}\n.epc-onboarding details .epc-welcome-field{display:block}\n.epc-welcome-sample{width:var(--epc-sample-width);max-width:100%;height:64px;border-radius:var(--epc-control-radius);margin:8px 0 12px;display:grid;place-items:center;color:var(--epc-accent);background:var(--epc-soft);font-size:11px}\n.epc-onboarding .epc-actions{justify-content:flex-end;margin-top:16px}\n@media(max-width:420px){.epc-onboarding{padding:16px}.epc-welcome-field{flex-wrap:wrap}.epc-onboarding h2{font-size:19px}}\n.epc-onboarding{padding:18px}\n.epc-onboarding p{margin:6px 0}\n.epc-onboarding fieldset{margin:12px 0 10px;padding:10px}\n.epc-welcome-choice{padding:2px 0}\n.epc-welcome-sample{height:40px}\n.epc-onboarding .epc-actions{position:sticky;bottom:-18px;padding:10px 0 4px;background:var(--epc-bg);box-shadow:0 -8px 8px var(--epc-bg)}\n@media(max-width:420px){.epc-onboarding .epc-actions{bottom:-16px}}\n.epc-cache-usage,.epc-cache-pinned{margin:12px 0;padding:12px;border:1px solid var(--epc-line);border-radius:7px;max-width:560px}\n.epc-cache-pinned{margin-inline:14px}\n#epc-cache-statistics dl{margin:6px 0}\n#epc-cache-statistics dl>div{display:flex;justify-content:space-between;gap:16px;padding:2px 0}\n#epc-cache-statistics dt,#epc-cache-statistics dd{margin:0}\n#epc-cache-statistics dd{font-variant-numeric:tabular-nums;text-align:right}\n:is(.epc-cache-usage,.epc-cache-pinned) p{margin:4px 0 0}\n.epc-cache-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}\n.epc-cache-heading strong{font-size:13px}\n.epc-cache-heading button{font-size:11px;min-height:25px;padding:3px 7px}\n.epc-cache-activity{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;table-layout:auto}\n.epc-cache-activity th,.epc-cache-activity td{padding:4px 3px;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}\n.epc-cache-activity th{font-size:11px;font-weight:600}\n.epc-cache-activity th:first-child{text-align:left;width:18%}\n.epc-cache-activity thead th{border-bottom:1px solid var(--epc-line);cursor:help;text-decoration:underline dotted;text-underline-offset:2px}\n.epc-cache-activity tbody th{font-weight:400}\n.epc-cache-activity tbody tr:last-child>*{border-top:1px solid var(--epc-line)}\n@media(max-width:420px){.epc-cache-usage,.epc-cache-pinned{padding:10px 8px}.epc-cache-activity{font-size:11px}.epc-cache-activity th{font-size:10px}.epc-cache-activity th,.epc-cache-activity td{padding:4px 2px}}\n\n/* Grid presentation of the native result rows. */\n#content table.epc-result-grid{display:block!important;width:100%!important;min-width:0!important;table-layout:auto!important;border:0;border-spacing:0}\n#content .epc-result-grid>colgroup{display:none!important}\n#content .epc-result-grid>tbody{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--epc-grid-width,320px)),1fr));gap:16px;align-items:start;width:100%}\n#content .epc-result-grid>thead,#content .epc-result-grid>tfoot{display:block;width:100%;margin-bottom:12px}\n#content .epc-result-grid tr:not(.torrent){display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}\n#content .epc-result-grid tr[data-ep-grid-header=static]{display:none!important}\n#content .epc-result-grid tr[data-ep-grid-header=sortable]:before{content:\"Sort by\";align-self:center;font:11px system-ui,sans-serif;opacity:.65}\n#content .epc-result-grid tr:not(.torrent)>th,#content .epc-result-grid tr:not(.torrent)>td{display:block;width:auto!important;padding:5px;border:0}\n#content .epc-result-grid tr[data-ep-grid-header=sortable]>:is(th,td):not(:has(a,button,input,select)){display:none!important}\n#content .epc-result-grid tr:not(.torrent)>th:empty{display:none}\n#content .epc-result-grid tr.torrent{display:flex;flex-wrap:wrap;align-content:start;gap:0;min-width:0;max-width:100%;height:auto!important;min-height:0!important;margin:0;padding:12px;border:1px solid #7a8ba760;border-radius:10px;box-sizing:border-box;overflow:hidden;box-shadow:0 2px 7px #0000000a}\n#content .epc-result-grid tr.torrent[hidden],#content .epc-result-grid tr.torrent.hidden:not(.epc-revealed),#content .epc-result-grid tr.epc-version-hidden,#content tr.torrent.epc-filter-hidden{display:none!important}\n#content .epc-result-grid tr.torrent>td{display:block!important;box-sizing:border-box;min-width:0!important;width:auto!important;max-width:100%;height:auto!important;min-height:0!important;border:0!important;padding:6px 10px 6px 0;text-align:left;vertical-align:top;overflow-wrap:anywhere}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category-hidden],#content .epc-result-grid tr.torrent>td[hidden],#content .epc-result-grid tr.torrent>td.hidden{display:none!important}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=title]{order:0;flex:0 0 100%;padding:0 0 10px;font-size:14px;line-height:1.5}\n#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=title]{padding-bottom:0}\n#content .epc-result-grid [data-ep-grid-cell=title]>br{display:none}\n#content .epc-result-grid [data-ep-grid-cell=title]>a{font-weight:650}\n#content .epc-result-grid [data-ep-grid-title]{display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;max-height:3em;line-height:1.5;overflow-wrap:anywhere}\n#content .epc-result-grid [data-ep-grid-cell=title] .tags{margin-top:8px;font-size:12px;line-height:1.7}\n#content .epc-result-grid:not([data-ep-grid-tags=true]) tr.torrent .tags{display:none!important}\n#content .epc-result-grid [data-ep-grid-cell=title] .tags>a{display:inline-block;margin-inline-end:5px;max-width:100%;overflow-wrap:anywhere}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category]{order:2;flex:0 0 100%;font-size:11px;opacity:.8}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=meta]{order:1;flex:1 0 30%;font-size:12px;border-top:1px solid #7a8ba730!important}\n#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=meta],#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=category]{display:none!important}\n#content .epc-result-grid [data-ep-grid-cell=meta]:before{content:attr(data-ep-grid-label);display:block;font:10px/1.5 system-ui,sans-serif;opacity:.65}\n#content .epc-result-grid .epc-thumbnail{display:block;float:none;width:100%;margin:0 0 12px}\n#content .epc-result-grid .epc-thumb-button{width:100%;height:auto;aspect-ratio:4/3;min-height:120px;max-height:none;border:0;border-radius:6px}\n#content .epc-result-grid .epc-thumb-button>img{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain}\n#content .epc-result-grid .epc-version-control{display:none!important}\n#content .epc-result-grid .cats_col>div[title],#content .epc-result-grid .cats_cols>div[title]{position:static}\n@media(max-width:520px){#content .epc-result-grid>tbody{gap:12px}#content .epc-result-grid tr.torrent{padding:10px}}\n");
+GM_addStyle("/* SPDX-License-Identifier: GPL-3.0-or-later */\n.epc-root,.epc-thumbnail{\n  --epc-bg:#fbfcfe;--epc-fg:#18243a;--epc-line:#dbe2ee;--epc-accent:#274f9d;\n  --epc-muted:color-mix(in srgb,var(--epc-fg) 77%,var(--epc-bg));\n  --epc-subtle:color-mix(in srgb,var(--epc-bg) 95%,var(--epc-fg));\n  --epc-soft:color-mix(in srgb,var(--epc-bg) 88%,var(--epc-accent));\n  --epc-radius:12px;--epc-control-radius:7px;--epc-shadow:0 8px 24px #12234124;\n  box-sizing:border-box;font:13px/1.45 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:var(--epc-fg);color-scheme:light dark\n}\n.epc-root *,.epc-thumbnail *{box-sizing:border-box}\n.epc-root [hidden],.epc-root[hidden],.epc-filter-hidden{display:none!important}\n.epc-root :is(button,input,select),button.epc-root.epc-media-retry{\n  font:inherit;color:inherit;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);\n  background:var(--epc-bg);padding:5px 8px;margin:2px;max-width:100%;box-shadow:none!important;text-shadow:none\n}\n.epc-root button,button.epc-root.epc-media-retry{appearance:none;cursor:pointer;min-height:32px}\n.epc-root button:hover,button.epc-root.epc-media-retry:hover{background:var(--epc-subtle)}\n.epc-root :is(button,a,input,select,textarea,summary):focus-visible,button.epc-root.epc-media-retry:focus-visible{outline:2px solid var(--epc-accent);outline-offset:2px}\n.epc-root :is(input[type=radio],input[type=checkbox]){accent-color:var(--epc-accent)}\n.epc-root a{color:var(--epc-accent);text-decoration:underline}\n.epc-root p{margin:8px 0}\n.epc-root summary{cursor:pointer;font-weight:650;padding:7px 0}\n.epc-tools{position:fixed;right:16px;bottom:16px;z-index:2147483000}\n.epc-launcher{border-radius:999px!important;background:var(--epc-accent)!important;color:white!important;font-weight:750!important;padding:9px 13px!important;box-shadow:0 2px 12px #0003}\n.epc-panel{position:absolute;right:0;bottom:50px;width:min(460px,calc(100vw - 32px));max-height:calc(100vh - 100px);overflow:auto;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:10px;box-shadow:0 12px 40px #0004;padding:14px}\n.epc-panel-heading,.epc-preview-heading{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:7px}\n.epc-panel-heading strong{font-size:16px}\n.epc-panel details{border-top:1px solid var(--epc-line);margin-top:8px}\n.epc-setting{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0}\n.epc-setting input[type=number],.epc-setting select{width:100px;flex-shrink:0}\n.epc-setting select[data-setting=gridCardWidth]{width:180px}\n.epc-setting input[type=checkbox]{width:18px;height:18px}\n.epc-actions{display:flex;flex-wrap:wrap;gap:4px;align-items:center}\n.epc-notice{white-space:pre-wrap;font-size:12px;color:var(--epc-accent)}\n.epc-health{font-variant-numeric:tabular-nums}\n.epc-log{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;font:11px/1.4 ui-monospace,monospace}\n.epc-saved{background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:7px;padding:6px 12px;margin:10px 0}\n.epc-saved-list{display:grid;gap:6px;margin-top:8px}\n.epc-saved-row{display:flex;gap:3px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--epc-line);padding-top:5px}\n.epc-search-name{flex:1;min-width:130px;text-align:left}\n.epc-thumbnail{display:inline-flex;float:left;position:relative;margin:0 8px 5px 0;vertical-align:top}\n.epc-thumb-button{display:flex;position:relative;justify-content:center;align-items:center;width:var(--epc-thumb-size);height:var(--epc-thumb-size);padding:0;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle);overflow:hidden;cursor:zoom-in}\n.epc-thumb-button>img{display:block;width:100%;height:100%;object-fit:contain;border:0;margin:0}\n.epc-thumb-status{position:absolute;inset:auto 2px 2px;background:#17213ae8;color:#fff;font:11px/1.3 system-ui,sans-serif;text-align:center;padding:2px;border-radius:3px}\n.epc-thumb-button>img:not([src]){visibility:hidden}\n.epc-thumbnail [hidden]{display:none!important}\nhtml.epc-cover-art .torrent_grid__torrent .torrent__cover[style*=\"background\"]:not(.epc-native-cover),.torrent__cover.epc-managed-cover{background-image:none!important}\n.torrent__cover.epc-cover-positioned{position:relative}\n.epc-cover-image{position:absolute!important;inset:0;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover;object-position:center;pointer-events:none}\n.epc-cover-image:not([src]){visibility:hidden}\n.epc-cover-status{position:absolute;bottom:5px;left:5px;right:5px;text-align:center;font:11px system-ui;color:#fff;background:#17213abf;border-radius:3px;padding:2px;pointer-events:none}\n.epc-cover-status[hidden]{display:none!important}\n.epc-category-overlay .cats_col,.epc-category-overlay .cats_cols{position:relative}\n.epc-category-overlay .cats_col>div[title],.epc-category-overlay .cats_cols>div[title]{position:absolute;top:2px;left:2px;z-index:1;width:24px;overflow:hidden}\n.epc-category-hide .cats_col>div[title],.epc-category-hide .cats_cols>div[title]{display:none!important}\n.epc-preview{position:fixed;z-index:2147482999;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:var(--epc-radius);box-shadow:var(--epc-shadow);padding:12px;overflow:auto;max-width:calc(100vw - 24px)}\n.epc-preview-heading strong{font-size:13px;overflow-wrap:anywhere}\n.epc-preview-heading button{flex-shrink:0}\n.epc-preview-frame{display:flex;align-items:center;justify-content:center;min-height:90px;overflow:hidden;background:var(--epc-subtle);border-radius:var(--epc-control-radius)}\n.epc-preview-frame>img{display:block;max-width:100%;max-height:inherit;width:auto;height:auto;object-fit:contain;margin:auto}\n.epc-preview-status{font-size:12px;min-height:18px}\n.epc-preview-stats{color:var(--epc-fg);opacity:.65;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}\n.epc-preview-summary{font-size:11px;max-height:65px;overflow:auto;overflow-wrap:anywhere}\n.epc-thumb-button,.epc-preview-frame{user-select:none}\n.epc-preview[data-mode=zoom]{padding:6px;overflow:hidden;cursor:zoom-in}\n.epc-preview[data-mode=zoom] .epc-preview-frame>img{width:100%;height:auto}\n.epc-preview[data-mode=zoom] .epc-preview-status:empty{display:none}\n.epc-preview[data-mode=tooltip]{padding:8px;overflow:hidden}\n.epc-preview[data-mode=tooltip] .epc-preview-frame{min-height:0;background:none}\n.epc-preview[data-mode=tooltip] .epc-preview-status:empty{display:none}\n.epc-preview[data-state=failed] .epc-preview-status,.epc-preview[data-state=stalled] .epc-preview-status{color:#a3391a}\n.epc-media-retry{display:inline-block;background:var(--epc-bg);padding:3px 7px;vertical-align:middle}\n#content img.epc-page-image{max-width:min(100%,calc(100vw - 48px))!important;height:auto}\n#content img.epc-page-image.epc-compact{max-height:75vh!important;object-fit:contain}\n@media(prefers-color-scheme:dark){.epc-root,.epc-thumbnail{--epc-bg:#1e2532;--epc-fg:#edf2fd;--epc-line:#3c495e;--epc-accent:#a8c0ff;--epc-shadow:0 8px 24px #0006}.epc-preview[data-state=failed] .epc-preview-status,.epc-preview[data-state=stalled] .epc-preview-status{color:#ffb194}}\n\n/* One in-page workspace. Engine DOM is private behavior infrastructure. */\n.epc-engine,#nseOuter,#nseFloatyBoi,#nseUpdateToast{display:none!important}\n.epc-workspace{display:block;margin:16px 0 20px;padding:0;border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);color:var(--epc-fg);clear:both;max-width:100%;text-align:left}\n.epc-toolbar{position:relative}\n.epc-toolbar-main,.epc-toolbar-context,.epc-toolbar-footer{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;padding:10px 14px;min-width:0}\n.epc-toolbar-main{position:relative;gap:6px 12px;padding-block:11px}\n.epc-toolbar-brand{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}\n.epc-brand-mark{display:grid;place-items:center;width:31px;height:31px;border-radius:8px;background:var(--epc-soft);color:var(--epc-accent)}\n.epc-root .epc-brand{font-weight:680;letter-spacing:-.025em;font-size:15px;margin:0}\n.epc-page-name{font-size:12px;color:var(--epc-muted)}\n.epc-icon{display:inline-block;width:15px;height:15px;flex:none;vertical-align:middle}\n.epc-toolbar :is(button,summary){display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:0}\n.epc-toolbar .epc-load-gauge{width:34px;min-height:34px;padding:0;border:0;border-radius:50%;color:var(--epc-accent);font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;\n  background:radial-gradient(circle closest-side,var(--epc-bg) 79%,transparent 83%),conic-gradient(var(--epc-accent) var(--epc-load-fill,0%),var(--epc-line) 0)}\n.epc-toolbar .epc-load-gauge:hover{background:radial-gradient(circle closest-side,var(--epc-soft) 79%,transparent 83%),conic-gradient(var(--epc-accent) var(--epc-load-fill,0%),var(--epc-line) 0)}\n.epc-load-detail{position:absolute;inset-inline-start:10px;z-index:6;width:min(305px,calc(100% - 20px));padding:10px 12px;\n  border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);box-shadow:var(--epc-shadow);font-size:12px}\n.epc-load-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.65fr);gap:3px 8px;align-items:baseline;margin-top:7px}\n.epc-load-count{color:var(--epc-muted);text-align:end;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}\n.epc-load-row progress{appearance:none;grid-column:1/-1;width:100%;height:3px;border:0;border-radius:2px;overflow:hidden;background:var(--epc-line)}\n.epc-load-row progress::-webkit-progress-bar{background:var(--epc-line)}\n.epc-load-row progress::-webkit-progress-value{background:var(--epc-accent)}\n.epc-load-row progress::-moz-progress-bar{background:var(--epc-accent)}\n.epc-load-row progress:indeterminate{background:linear-gradient(90deg,var(--epc-line),var(--epc-accent),var(--epc-line))}\n.epc-toolbar-context{border-top:1px solid var(--epc-line);background:var(--epc-subtle);padding-block:8px}\n.epc-toolbar-context:not(:has(.epc-layout-switch:not([hidden]),.epc-browse-menu:not([hidden]),.epc-context-actions> :not([hidden]))){display:none}\n.epc-browse-tools,.epc-context-actions,.epc-toolbar-utilities,.epc-toolbar-status,.epc-collage-tools{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap;min-width:0}\n.epc-context-actions{justify-content:flex-end;margin-inline-start:auto;max-width:100%}\n.epc-context-actions:not(:has(> :not([hidden]))),.epc-browse-tools:not(:has(> :not([hidden]))){display:none}\n.epc-layout-switch{display:inline-flex;padding:2px;border-radius:9px;border:1px solid var(--epc-line);gap:2px}\n.epc-root .epc-layout-switch button{min-height:27px;padding:3px 8px;border-radius:5px;background:transparent;border-color:transparent;color:var(--epc-muted)}\n.epc-root .epc-layout-switch button[aria-pressed=true]{background:var(--epc-bg);color:var(--epc-accent);border-color:var(--epc-line);font-weight:650}\n.epc-root .epc-browse-menu>summary{list-style:none;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-bg);padding:5px 8px;min-height:32px;font-weight:500}\n.epc-browse-menu>summary::-webkit-details-marker{display:none}\n.epc-root .epc-browse-menu>summary:hover{background:var(--epc-soft)}\n.epc-root .epc-browse-menu:is([open],[data-active])>summary{color:var(--epc-accent);background:var(--epc-soft)}\n.epc-browse-controls{position:absolute;inset-block-start:calc(100% + 5px);inset-inline-start:clamp(12px,calc(100% - 360px),146px);z-index:5;\n  display:flex;align-items:center;flex-wrap:wrap;gap:6px;width:min(345px,calc(100% - 24px));padding:9px;\n  border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);box-shadow:var(--epc-shadow)}\n.epc-filtered-count{font-size:11px;border-radius:4px;padding:0 5px;color:var(--epc-accent);background:var(--epc-soft);font-variant-numeric:tabular-nums}\n.epc-toolbar .epc-stop-icon,.epc-toolbar [aria-busy=true]>.epc-load-icon{display:none}\n.epc-toolbar [aria-busy=true]>.epc-stop-icon{display:inline-block}\n.epc-toolbar-footer{border-top:1px solid var(--epc-line);padding-block:8px}\n.epc-toolbar-footer:not(:has(.epc-toolbar-utilities> :not([hidden]),.epc-toolbar-status>span:not([hidden]):not(:empty))){display:none}\n.epc-toolbar-utilities:not(:has(> :not([hidden]))),.epc-toolbar-status:not(:has(>span:not([hidden]):not(:empty))){display:none}\n.epc-toolbar-status>span:empty{display:none}\n.epc-toolbar-status{margin-inline-start:auto;color:var(--epc-muted);font-size:12px;font-variant-numeric:tabular-nums}\n.epc-toolbar-status :is(.epc-backfill-status,.epc-collage-status){color:var(--epc-accent);overflow-wrap:anywhere}\n.epc-collage-tools select{margin:0}\n.epc-collage-tools button,.epc-collage-status{overflow-wrap:anywhere}\n.epc-toolbar .epc-collage-tools button{white-space:normal;text-align:start}\n.epc-root button:disabled{cursor:default;opacity:.6}\na.epc-backfilled-page{text-decoration:line-through!important;opacity:.65}\na.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;pointer-events:none}\n.epc-navigation{display:flex;align-items:center;gap:2px;flex-wrap:wrap}\n.epc-root :is(.epc-navigation button,.epc-quiet){background:transparent;border-color:transparent;color:var(--epc-muted)}\n.epc-root .epc-navigation button[aria-expanded=true],.epc-root .epc-browse-controls button[aria-pressed=true]{color:var(--epc-accent);background:var(--epc-soft)}\n.epc-workspace>.epc-panel{display:block;position:static;width:auto;max-height:none;border:0;border-top:1px solid var(--epc-line);border-radius:0 0 var(--epc-radius) var(--epc-radius);box-shadow:none;overflow:visible;padding:16px}\n.epc-panel-heading{margin-bottom:8px}\n.epc-panel-heading strong{font-size:17px;letter-spacing:-.025em}\n.epc-root .epc-caption{font-size:12px;color:var(--epc-muted);line-height:1.5;margin:4px 0 12px}\n.epc-root .epc-shortcut-list{padding-inline-start:20px;list-style:disc}\n.epc-root .epc-notice{margin:0 12px 8px;padding:8px 10px;border-radius:5px;background:color-mix(in srgb,var(--epc-accent) 10%,transparent)}\n.epc-root .epc-notice:empty{display:none}\n.epc-rule-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}\n.epc-root .epc-group{display:block!important;margin:12px 0;padding:0;border:0}\n.epc-root .epc-option-group[hidden]{display:none!important}\n.epc-root .epc-option-group{border-top:1px solid var(--epc-line);padding:5px 0;margin:8px 0}\n.epc-option-group>summary{display:flex;align-items:center;gap:10px;list-style:none}\n.epc-option-group>summary::-webkit-details-marker{display:none}\n.epc-option-group>summary:before{content:\"›\";font-size:18px;line-height:1;transition:transform .1s}\n.epc-option-group[open]>summary:before{transform:rotate(90deg)}\n.epc-option-count{font-size:11px;font-weight:400;opacity:.65;margin-left:auto}\n.epc-basic-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;max-width:700px;margin:12px 0 18px}\n.epc-basic-settings .epc-field,.epc-basic-settings .epc-setting{margin:0}\n.epc-basic-settings .epc-setting{font-size:12px;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:5px}\n.epc-basic-settings .epc-setting input,.epc-basic-settings .epc-setting select{width:100%;margin:0}\n.epc-settings-section{margin:10px 0 18px;max-width:700px}\n.epc-settings-section>h3{font-size:13px;margin:0 0 10px;font-weight:650}\n.epc-settings-section .epc-basic-settings{margin:0;gap:12px 20px}\n.epc-basic-settings .epc-setting-toggle{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px}\n.epc-basic-settings .epc-setting-toggle input{width:16px;height:16px;margin:0}\n.epc-settings-help{font-size:12px;margin-top:10px}\n.epc-cache-usage .epc-option-group{margin-bottom:0}\n.epc-settings-section[hidden]{display:none!important}\n.epc-settings-search{display:block;width:min(100%,480px);margin:8px 0 12px!important}\n.epc-search-more{margin:0!important;border:0!important}\n.epc-search-more>summary{font-size:12px;font-weight:400;padding:4px 8px}\n.epc-search-more[open]{flex-basis:100%}\n.epc-is-editing>.epc-search-more>button{display:none}\n.epc-search-editor{padding:12px;margin:6px 0;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle)}\n.epc-search-editor>strong{display:block;margin-bottom:8px}\n.epc-search-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}\n.epc-search-editor .epc-field input:not([type=checkbox]),.epc-search-editor .epc-field select{width:100%}\n.epc-search-editor-extra{margin:8px 0}\n.epc-search-editor-status:empty{display:none}\n.epc-root h3{font:650 13px/1.5 system-ui,sans-serif;color:var(--epc-fg);margin:0 0 8px}\n.epc-root .epc-field{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:500;margin:10px 0}\n.epc-root textarea{width:100%;resize:vertical;min-height:65px;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle);color:var(--epc-fg);font:12px/1.5 ui-monospace,monospace;padding:8px;box-sizing:border-box}\n.epc-root textarea{font-family:var(--epc-list-font,ui-monospace,monospace)}\n.epc-root .epc-field input,.epc-root .epc-field select{margin:0}\n.epc-check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 20px}\n.epc-root .epc-check{display:flex;flex-direction:row;align-items:center;margin:3px 0;gap:8px;font-weight:400}\n.epc-check input{accent-color:var(--epc-accent)}\n.epc-root .epc-check input[type=checkbox]{flex:0 0 16px;width:16px;height:16px}\n.epc-root .epc-savebar{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--epc-line);margin-top:14px;padding-top:12px}\n.epc-root .epc-savebar .epc-caption{margin:0}\n.epc-root .epc-primary{background:var(--epc-accent);border-color:var(--epc-accent);color:var(--epc-bg);font-weight:650}\n.epc-root .epc-primary:hover{background:var(--epc-accent);filter:brightness(1.1)}\n.epc-root button:disabled{cursor:default;opacity:.5}\n.epc-saved{border:0;padding:0;margin:0}\n.epc-statistics{display:grid;grid-template-columns:1fr auto;gap:5px 16px;font-size:12px;max-width:500px}\n.epc-statistics dd{margin:0;font-variant-numeric:tabular-nums}\n.epc-setting{max-width:650px}\n.epc-setting:nth-child(n+12){font-size:12px}\n.epc-revealed{opacity:.75}\n.epc-seen-dim{opacity:.6}\n.epc-freeleech-view{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--epc-muted)}\n.epc-root .epc-freeleech-view select{max-width:100%;margin:0;color:var(--epc-fg)}\n.epc-conditional-list{list-style:none;padding:0;margin:0}\n.epc-conditional-list li{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 12px;padding:6px 0;border-bottom:1px solid var(--epc-line)}\n.epc-conditional-list li>span{min-width:0;overflow-wrap:anywhere}\n.epc-conditional-list:not(:empty)+button{margin-top:8px}\n.epc-conditional-advanced{margin-top:12px}\n.epc-conditional-advanced code{overflow-wrap:anywhere}\n.epc-conditional-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;align-items:end;gap:8px;margin-bottom:8px}\n.epc-root .epc-conditional-row .epc-field{min-width:0;margin:0}\n.epc-conditional-row input,.epc-conditional-row select{width:100%;min-width:0}\n.epc-conditional-builder>label{max-width:320px}\n@media(max-width:480px){.epc-conditional-row{grid-template-columns:minmax(0,1fr)}.epc-conditional-row>button{justify-self:start}}\n[data-ep-freeleech=sitewide]{outline:2px solid #db9e27;outline-offset:1px}\n[data-ep-freeleech=unlimited]{outline:1px dashed currentColor;outline-offset:1px}\n.epc-history-list{list-style:none;padding:0;margin:0}\n.epc-history-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0}\n.epc-history-list a{min-width:0;overflow-wrap:anywhere}\n.epc-history-list button{flex-shrink:0}\n.nseToggleIcon{display:inline-flex!important;width:22px;height:22px;align-items:center;justify-content:center;cursor:pointer;border:1px solid #8a98ad!important;border-radius:5px!important;background:transparent!important;font:14px/1 system-ui,sans-serif!important;color:inherit}\n.nseToggleIcon>img{display:none!important}\n.nseToggleIcon:before{content:\"−\";font:14px/1 system-ui,sans-serif!important}\n.nseToggleIcon.nseIndividuallyBlacklisted:before{content:\"+\"}\n.nseToggleIcon.nseIndividuallyWhitelisted:before{content:\"↺\"}\n.nseToggleIcon:focus-visible{outline:2px solid var(--epc-accent,#4289dd);outline-offset:2px}\n#nseRCMBox.epc-root{position:fixed!important;z-index:2147483001!important;width:min(340px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;padding:14px;border-radius:var(--epc-radius);background:var(--epc-bg)!important;color:var(--epc-fg)!important;border:1px solid var(--epc-line)!important;box-shadow:var(--epc-shadow)}\n#nseRCMBox .nseRCMButton{display:inline-block;background:var(--epc-bg)!important;color:var(--epc-fg)!important;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);font:12px/1.5 system-ui,sans-serif;padding:5px 8px;margin:3px 0;cursor:pointer}\n#nseRCMBox .nseRCMButton:hover{background:var(--epc-soft)!important}\n#nseRCMBox #nseRCMClose{font:12px/1.5 system-ui,sans-serif;cursor:pointer}\n.epc-rule-import{display:inline-block;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-bg);padding:5px 8px;cursor:pointer}\n.epc-rule-import:focus-visible{outline:2px solid var(--epc-accent);outline-offset:2px}\n.epc-saved-shortcuts{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}\n.epc-saved-shortcuts>strong{font-size:12px;font-weight:500;color:var(--epc-muted)}\n.epc-root a.epc-saved-shortcut{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:3px 7px;border-radius:var(--epc-control-radius);color:var(--epc-accent)!important;background:var(--epc-soft);text-decoration:none;overflow-wrap:anywhere}\n.epc-root a.epc-saved-shortcut:hover{background:var(--epc-subtle)}\n.epc-saved-shortcut .epc-icon{width:12px;height:12px}\n.epc-toolbar .epc-quick-search{min-height:27px;padding:3px 5px}\n.epc-search-name{overflow-wrap:anywhere}\n.epc-search-feedback{display:flex;align-items:center;flex-wrap:wrap;gap:8px;grid-column:1/-1;margin:8px 0;padding:9px 12px;border:1px solid var(--epc-line);border-radius:5px;background:var(--epc-bg)}\n.epc-savebar [role=status]{font-size:12px;opacity:.72}\n.epc-root [aria-invalid=true]{border-color:#bf493e!important;outline:1px solid #bf493e}\n#content .nseHiddenTag,#content .nseHiddenTitle,#content .nseHiddenUploader,#content .nseBlacklistIdentifier{color:var(--epc-blocked,#f00)!important}\n#content .nseWhitelistedTag,#content .nseWhitelistedTitle,#content .nseWhitelistedUploader{color:var(--epc-allowed,#0f0)!important}\n#content .nseHardPassTag,#content .nseHardPassTitle{color:var(--epc-hard-pass,#a00)!important}\n/* Result tools share the existing list and rule menu. No extra toolbar. */\n#content tr.epc-version-hidden{display:none!important}\n#content tr.epc-version-member>td:nth-child(2){border-inline-start:2px solid #7a8ba780}\n#content .epc-version-control{display:inline-block;margin:3px 0 3px 8px;padding:2px 7px;border:1px solid #7a8ba780;border-radius:4px;background:transparent;color:inherit;font:11px/1.6 system-ui,sans-serif;cursor:pointer;vertical-align:middle}\n#content .epc-version-control:before{content:\"▸\";margin-inline-end:4px}\n#content .epc-version-control[aria-expanded=true]:before{content:\"▾\"}\n#content .epc-version-control:hover{background:#7a8ba720}\n#content .epc-version-control:focus-visible{outline:2px solid #4289dd;outline-offset:2px}\n#content a[data-ep-tag-tone=favorite]:not(.nseHiddenTag):not(.nseHardPassTag){background:#ccefe0;color:#154f39!important;box-shadow:inset 0 -2px #298661;border-radius:3px}\n#content a[data-ep-tag-tone=caution]:not(.nseHiddenTag):not(.nseHardPassTag){background:#ffe2a8;color:#68420b!important;box-shadow:inset 0 -2px #b67816;border-radius:3px}\n#content table.epc-stable-columns{table-layout:fixed;width:100%;min-width:var(--epc-table-min-width,0px)}\n#content table.epc-stable-columns td[width],#content table.epc-stable-columns th[width]{width:auto}\n#content table.epc-stable-columns td.user,#content table.epc-stable-columns .tags{overflow-wrap:anywhere}\n#content a.epc-tag-match{text-decoration:underline!important;text-decoration-thickness:2px!important;text-underline-offset:3px;font-weight:700}\n#nseRCMBox .epc-highlight-actions{margin-top:10px;padding-top:8px;border-top:1px solid var(--epc-line)}\n#nseRCMBox .epc-highlight-actions p{margin:0 0 5px}\n#nseRCMBox .epc-highlight-actions button{padding:4px 7px;margin:0 5px 4px 0}\n#nseRCMBox .epc-highlight-actions button[aria-pressed=true]{box-shadow:inset 0 0 0 2px var(--epc-accent)}\n#nseRCMBox .epc-menu-caption{display:block;margin-top:8px}\n#nseRCMBox[data-ep-rule-kind=tag] #nseRCMBoxChoices{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}\n#nseRCMBox[data-ep-rule-kind=tag] #nseRCMBoxChoices br{display:none}\n@media(max-width:700px){.epc-rule-grid,.epc-basic-settings,.epc-search-editor-fields,.epc-check-grid{grid-template-columns:1fr}.epc-savebar{flex-wrap:wrap}}\n@media(max-width:530px){\n  .epc-toolbar :is(.epc-toolbar-main,.epc-toolbar-context,.epc-toolbar-footer){padding-inline:10px}\n  .epc-navigation{width:100%;justify-content:space-between}.epc-navigation button{flex:1}\n  .epc-toolbar-status{margin-inline-start:0}\n}\n@media(pointer:coarse){\n  .epc-root .epc-toolbar :is(button,select,summary),.epc-root a.epc-saved-shortcut{min-height:44px}\n  .epc-root .epc-layout-switch button{min-height:40px}\n  .epc-toolbar .epc-load-gauge{width:44px}\n}\n\n/* First-use setup reuses the workspace's visual language and settings. */\n.epc-onboarding{width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 32px);overflow:auto;margin:auto;padding:22px;border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);color:var(--epc-fg);text-align:left;box-shadow:var(--epc-shadow)}\n.epc-onboarding::backdrop{background:#1017239c}\n.epc-onboarding h2{margin:0 0 10px;font-size:21px;line-height:1.25;color:inherit}\n.epc-welcome-heading{display:flex;align-items:center;gap:10px;margin-block-end:10px}\n.epc-welcome-heading .epc-brand-mark{flex:none}\n.epc-onboarding .epc-welcome-heading h2{margin:0}\n.epc-onboarding fieldset{margin:16px 0 12px;padding:12px;border:1px solid var(--epc-line);border-radius:8px;min-width:0}\n.epc-onboarding legend{padding:0 5px;font-weight:650}\n.epc-welcome-choice{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer}\n.epc-welcome-field{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}\n.epc-welcome-field input[type=number]{width:70px}\n.epc-onboarding textarea{width:100%;font:inherit;color:inherit;background:var(--epc-subtle);border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);padding:7px;resize:vertical}\n.epc-onboarding details{border-top:1px solid var(--epc-line);margin-top:16px;padding-top:4px}\n.epc-onboarding details .epc-welcome-field{display:block}\n.epc-welcome-sample{width:var(--epc-sample-width);max-width:100%;height:64px;border-radius:var(--epc-control-radius);margin:8px 0 12px;display:grid;place-items:center;color:var(--epc-accent);background:var(--epc-soft);font-size:11px}\n.epc-onboarding .epc-actions{justify-content:flex-end;margin-top:16px}\n@media(max-width:420px){.epc-onboarding{padding:16px}.epc-welcome-field{flex-wrap:wrap}.epc-onboarding h2{font-size:19px}}\n.epc-onboarding{padding:18px}\n.epc-onboarding p{margin:6px 0}\n.epc-onboarding fieldset{margin:12px 0 10px;padding:10px}\n.epc-welcome-choice{padding:2px 0}\n.epc-welcome-sample{height:40px}\n.epc-onboarding .epc-actions{position:sticky;bottom:-18px;padding:10px 0 4px;background:var(--epc-bg);box-shadow:0 -8px 8px var(--epc-bg)}\n@media(max-width:420px){.epc-onboarding .epc-actions{bottom:-16px}}\n.epc-cache-usage,.epc-cache-pinned{margin:12px 0;padding:12px;border:1px solid var(--epc-line);border-radius:7px;max-width:560px}\n.epc-cache-pinned{margin-inline:14px}\n#epc-cache-statistics dl{margin:6px 0}\n#epc-cache-statistics dl>div{display:flex;justify-content:space-between;gap:16px;padding:2px 0}\n#epc-cache-statistics dt,#epc-cache-statistics dd{margin:0}\n#epc-cache-statistics dd{font-variant-numeric:tabular-nums;text-align:right}\n:is(.epc-cache-usage,.epc-cache-pinned) p{margin:4px 0 0}\n.epc-cache-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}\n.epc-cache-heading strong{font-size:13px}\n.epc-cache-heading button{font-size:11px;min-height:25px;padding:3px 7px}\n.epc-cache-activity{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;table-layout:auto}\n.epc-cache-activity th,.epc-cache-activity td{padding:4px 3px;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}\n.epc-cache-activity th{font-size:11px;font-weight:600}\n.epc-cache-activity th:first-child{text-align:left;width:18%}\n.epc-cache-activity thead th{border-bottom:1px solid var(--epc-line);cursor:help;text-decoration:underline dotted;text-underline-offset:2px}\n.epc-cache-activity tbody th{font-weight:400}\n.epc-cache-activity tbody tr:last-child>*{border-top:1px solid var(--epc-line)}\n@media(max-width:420px){.epc-cache-usage,.epc-cache-pinned{padding:10px 8px}.epc-cache-activity{font-size:11px}.epc-cache-activity th{font-size:10px}.epc-cache-activity th,.epc-cache-activity td{padding:4px 2px}}\n\n/* Grid presentation of the native result rows. */\n#content table.epc-result-grid{display:block!important;width:100%!important;min-width:0!important;table-layout:auto!important;border:0;border-spacing:0}\n#content .epc-result-grid>colgroup{display:none!important}\n#content .epc-result-grid>tbody{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--epc-grid-width,320px)),1fr));gap:16px;align-items:start;width:100%}\n#content .epc-result-grid>thead,#content .epc-result-grid>tfoot{display:block;width:100%;margin-bottom:12px}\n#content .epc-result-grid tr:not(.torrent){display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}\n#content .epc-result-grid tr[data-ep-grid-header=static]{display:none!important}\n#content .epc-result-grid tr[data-ep-grid-header=sortable]:before{content:\"Sort by\";align-self:center;font:11px system-ui,sans-serif;opacity:.65}\n#content .epc-result-grid tr:not(.torrent)>th,#content .epc-result-grid tr:not(.torrent)>td{display:block;width:auto!important;padding:5px;border:0}\n#content .epc-result-grid tr[data-ep-grid-header=sortable]>:is(th,td):not(:has(a,button,input,select)){display:none!important}\n#content .epc-result-grid tr:not(.torrent)>th:empty{display:none}\n#content .epc-result-grid tr.torrent{display:flex;flex-wrap:wrap;align-content:start;gap:0;min-width:0;max-width:100%;height:auto!important;min-height:0!important;margin:0;padding:12px;border:1px solid #7a8ba760;border-radius:10px;box-sizing:border-box;overflow:hidden;box-shadow:0 2px 7px #0000000a}\n#content .epc-result-grid tr.torrent[hidden],#content .epc-result-grid tr.torrent.hidden:not(.epc-revealed),#content .epc-result-grid tr.epc-version-hidden,#content tr.torrent.epc-filter-hidden{display:none!important}\n#content .epc-result-grid tr.torrent>td{display:block!important;box-sizing:border-box;min-width:0!important;width:auto!important;max-width:100%;height:auto!important;min-height:0!important;border:0!important;padding:6px 10px 6px 0;text-align:left;vertical-align:top;overflow-wrap:anywhere}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category-hidden],#content .epc-result-grid tr.torrent>td[hidden],#content .epc-result-grid tr.torrent>td.hidden{display:none!important}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=title]{order:0;flex:0 0 100%;padding:0 0 10px;font-size:14px;line-height:1.5}\n#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=title]{padding-bottom:0}\n#content .epc-result-grid [data-ep-grid-cell=title]>br{display:none}\n#content .epc-result-grid [data-ep-grid-cell=title]>a{font-weight:650}\n#content .epc-result-grid [data-ep-grid-title]{display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;max-height:3em;line-height:1.5;overflow-wrap:anywhere}\n#content .epc-result-grid [data-ep-grid-cell=title] .tags{margin-top:8px;font-size:12px;line-height:1.7}\n#content .epc-result-grid:not([data-ep-grid-tags=true]) tr.torrent .tags{display:none!important}\n#content .epc-result-grid [data-ep-grid-cell=title] .tags>a{display:inline-block;margin-inline-end:5px;max-width:100%;overflow-wrap:anywhere}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category]{order:2;flex:0 0 100%;font-size:11px;opacity:.8}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=meta]{order:1;flex:1 0 30%;font-size:12px;border-top:1px solid #7a8ba730!important}\n#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=meta],#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=category]{display:none!important}\n#content .epc-result-grid [data-ep-grid-cell=meta]:before{content:attr(data-ep-grid-label);display:block;font:10px/1.5 system-ui,sans-serif;opacity:.65}\n#content .epc-result-grid .epc-thumbnail{display:block;float:none;width:100%;margin:0 0 12px}\n#content .epc-result-grid .epc-thumb-button{width:100%;height:auto;aspect-ratio:4/3;min-height:120px;max-height:none;border:0;border-radius:6px}\n#content .epc-result-grid .epc-thumb-button>:is(img,canvas){position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain}\n.epc-grid-gif-poster{display:none}\n.epc-cover-motion-note{display:none}\n#content :is(.epc-result-grid,.epc-managed-cover) .epc-grid-gif-poster{display:block}\n#content .epc-managed-cover>:is(.epc-grid-gif-poster,.epc-grid-gif-playback){position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;pointer-events:none}\n#content .epc-result-grid [data-ep-grid-gif] img:not(.epc-grid-gif-playback){visibility:hidden}\n#content .epc-managed-cover[data-ep-grid-gif]>.epc-cover-image{visibility:hidden}\n#content :is(.epc-thumbnail[data-ep-grid-playing] .epc-thumb-button,.epc-managed-cover[data-ep-grid-playing])>:not(.epc-grid-gif-playback){visibility:hidden!important}\n@media(prefers-reduced-motion:reduce){\n  #content .epc-grid-gif-playback{display:none}\n  .epc-basic-settings:has([data-setting=gridAutoplayGifs]:checked) .epc-cover-motion-note{display:block}\n}\n#content .epc-result-grid .epc-version-control{display:none!important}\n#content .epc-result-grid .cats_col>div[title],#content .epc-result-grid .cats_cols>div[title]{position:static}\n@media(max-width:520px){#content .epc-result-grid>tbody{gap:12px}#content .epc-result-grid tr.torrent{padding:10px}}\n#content .epc-result-grid[data-ep-grid-spacing=compact]>tbody{gap:10px}\n#content .epc-result-grid[data-ep-grid-spacing=compact] tr.torrent{padding:0}\n#content .epc-result-grid[data-ep-grid-spacing=compact] tr.torrent>td[data-ep-grid-cell=title]{padding:0 8px 8px}\n#content .epc-result-grid[data-ep-grid-spacing=compact] .epc-thumbnail{width:calc(100% + 16px);margin:0 -8px 6px}\n#content .epc-result-grid[data-ep-grid-spacing=compact] .epc-thumb-button{border-radius:0}\n#content .epc-result-grid[data-ep-grid-spacing=compact] tr.torrent>td:is([data-ep-grid-cell=meta],[data-ep-grid-cell=category]){padding-inline:8px}\n\nhtml[data-ep-compact-cover-grid] #content .torrent_grid{gap:4px;padding:0}\nhtml[data-ep-compact-cover-grid] #content .torrent_grid>.torrent_grid__torrent{padding:0;border-width:1px}\nhtml[data-ep-compact-cover-grid] #content .torrent_grid .torrent_grid__torrent__info{padding:6px}\n");
 const epBridge = {};
 function epRunNSE(app) {
   const run = () => app.batchDOM(() => {

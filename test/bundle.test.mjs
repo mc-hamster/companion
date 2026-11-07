@@ -441,10 +441,12 @@ test('the simplified interface shows three task areas and grid preferences and f
     f.doc.querySelector('.epc-navigation [data-pane="settings"]').click();
     const pane = f.doc.querySelector('.epc-pane[data-pane="settings"]');
     const visible = [...pane.querySelectorAll('input,select,textarea')].filter(exposed);
-    assert.equal(visible.length, 11);
+    assert.equal(visible.length, 13);
     assert.ok(visible.some(control => control.id === 'nseThemeDropdown'));
     assert.ok(visible.some(control => control.dataset.setting === 'thumbnailSize'));
     assert.ok(visible.some(control => control.dataset.setting === 'gridCardWidth'));
+    assert.ok(visible.some(control => control.dataset.setting === 'gridSpacing'));
+    assert.ok(visible.some(control => control.dataset.setting === 'gridAutoplayGifs'));
     assert.equal(f.doc.querySelector('[data-option-group="advanced"]').open, false);
     f.doc.querySelector('.epc-navigation [data-pane="filters"]').click();
     assert.deepEqual([...f.doc.querySelectorAll('.epc-pane[data-pane="filters"] input,.epc-pane[data-pane="filters"] textarea')].filter(exposed).map(control => control.id),
@@ -645,7 +647,7 @@ test('highlight lists autosave in the folded Filters section without adding prim
     assert.equal(f.doc.querySelector('.tags a').dataset.epTagTone, 'favorite');
     assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag');
     assert.equal(f.doc.querySelectorAll('.epc-navigation button').length, 3);
-    assert.equal(f.doc.querySelectorAll('.epc-basic-settings input,.epc-basic-settings select').length, 10);
+    assert.equal(f.doc.querySelectorAll('.epc-basic-settings input,.epc-basic-settings select').length, 12);
     f.doc.querySelector('[data-setting=groupVersions]').checked = false;
     f.doc.querySelector('[data-setting=groupVersions]').dispatchEvent(new f.win.Event('change', { bubbles: true })); await settle(80);
     assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag');

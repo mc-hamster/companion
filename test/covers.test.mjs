@@ -4,11 +4,52 @@ import {createApp} from '../src/app.mjs';
 import {domFixture,fixtureHTML,memoryStorage,fakeClock,until,settle} from './helpers.mjs';
 
 const cover=(id,source='https://hamsterimg.net/images/cover-'+id+'.gif',extra='')=>'<article class="torrent_grid__torrent '+extra+'" data-cover-id="'+id+'"><a class="cover-link" href="/torrents.php?id='+id+'"><div class="torrent__cover" style="width:190px;height:194px;background-image:url('+source+')"></div></a><div class="torrent_grid__torrent__info"><a href="/torrents.php?id='+id+'"><h3>Neutral cover '+id+'</h3></a><a class="download" href="/torrents.php?action=download&id='+id+'">Download</a></div></article>';
-async function setup(markup,settings={}){
+async function setup(markup,settings={},configure=()=>{}){
   const f=domFixture(fixtureHTML('', '<div class="torrent_grid">'+markup+'</div>')),clock=fakeClock(),storage=memoryStorage({'ep.settings':{inlineThumbnails:false,...settings}});
+  configure(f);
   const app=createApp(f.win,storage,{Image:clock.env.Image}).start();await until(()=>app.root?.dataset.epReady==='true');
   return{...f,clock,app,storage,close(){app.dispose();f.close();}};
 }
+
+test('native Cover Art uses Grid spacing and plays visible animated covers with List results selected', async () => {
+  let reduced = true;
+  const supplied = 'https://hamsterimg.net/images/cover-1.md.webp';
+  const full = supplied.replace('.md.webp', '.webp');
+  const f = await setup(cover(1, supplied) + cover(2), { gridSpacing: 'compact', gridAutoplayGifs: true, maxRetries: 0 }, ({ win, doc }) => {
+    const motion = new win.EventTarget();
+    Object.defineProperty(motion, 'matches', { get: () => reduced });
+    win.matchMedia = () => motion;
+    for (const element of doc.querySelectorAll('.torrent__cover')) {
+      const y = element.closest('[data-cover-id="1"]') ? 10 : 1500;
+      element.getBoundingClientRect = () => ({ left: 0, right: 190, top: y - win.scrollY, bottom: y + 194 - win.scrollY });
+    }
+  });
+  const [first, second] = f.doc.querySelectorAll('.torrent__cover');
+  const gif = element => element.querySelector('.epc-grid-gif-playback');
+  const originals = () => f.clock.images.filter(image => image.src === full || /cover-\d\.gif$/.test(image.src));
+  try {
+    assert.equal(f.app.settings.resultsView, 'list');
+    assert.ok(f.doc.documentElement.hasAttribute('data-ep-compact-cover-grid'));
+    for (const image of [...f.clock.images]) image.succeed();
+    assert.equal(originals().length, 0);
+    reduced = false; f.app.media.reducedMotion.dispatchEvent(new f.win.Event('change'));
+    await until(() => originals().length === 2);
+    const original = originals()[0];
+    assert.equal(original.src, full);
+    assert.equal(f.app.media.pool.entries.get(original.src + '|normal').cacheMode, 'network');
+    original.succeed();
+    assert.equal(gif(first)?.src, original.src);
+    assert.equal(gif(second), null);
+    Object.defineProperty(f.win, 'scrollY', { value: 1450 });
+    f.win.dispatchEvent(new f.win.Event('scroll'));
+    await until(() => !gif(first) && originals().length === 2);
+    originals()[1].fail();
+    assert.equal(gif(second), null);
+    assert.match(second.querySelector('.epc-cover-image').src, /cover-2\.th\.gif$/);
+    f.app.controls.get('gridSpacing').value = 'standard'; f.app.dirty = true; f.app.preferences.flush();
+    assert.equal(f.doc.documentElement.hasAttribute('data-ep-compact-cover-grid'), false);
+  } finally { f.close(); }
+});
 
 test('[COV-01] cover art starts with two per-host slots and warms offscreen cards without original background assignments',async()=>{
   const f=await setup(Array.from({length:28},(_,i)=>cover(i+1)).join(''));
@@ -33,10 +74,12 @@ test('[COV-02] cover hover upgrades only after success, keeps small pixels on fa
     assert.equal(preview.element.dataset.mode,'zoom');assert.match(preview.image.src,/cover-1\.th\.gif$/);
     assert.match(preview.status.textContent,/Loading larger image/);assert.match(f.clock.images[1].src,/cover-1\.gif$/);
     f.clock.images[1].fail();assert.match(preview.image.src,/cover-1\.th\.gif$/);assert.match(preview.status.textContent,/Larger image unavailable/);
+    assert.match(record.image.src,/cover-1\.th\.gif$/);
     link.dispatchEvent(new f.win.MouseEvent('pointerleave',{clientX:900,clientY:900}));assert.equal(preview.open,false);
     f.app.media.pool.budget.get(record.source).last-=31001;link.dispatchEvent(new f.win.MouseEvent('pointerenter'));await settle(10);
     preview.retry();await until(()=>f.clock.images.length===3);f.clock.images.at(-1).succeed(960,540);assert.equal(preview.element.dataset.state,'ready');assert.match(preview.image.src,/cover-1\.gif(?:\?|$)/);
     preview.frame.click();assert.equal(preview.pinned,true);preview.hide(true);
+    assert.match(record.image.src,/cover-1\.gif(?:\?|$)/);
     let prevented;f.win.addEventListener('click',event=>{prevented=event.defaultPrevented;event.preventDefault();},{once:true});
     link.dispatchEvent(new f.win.MouseEvent('click',{bubbles:true,cancelable:true}));assert.equal(prevented,false);assert.equal(preview.pinned,false);
     assert.equal(f.app.preview.bound.has(f.doc.querySelector('.download')),false);

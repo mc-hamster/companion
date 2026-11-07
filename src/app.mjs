@@ -19,7 +19,19 @@ const SETTINGS_KEY = 'ep.settings';
 const SEARCH_KEY = 'ep.searches';
 const CACHE_STATS_PIN_KEY = 'ep.cacheStatsPinned';
 const DIAGNOSTIC_LIMIT = 3000;
-const OWN = '.epc-root,.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-media-retry,.epc-engine,.epc-version-control,.epc-version-columns,#nseOuter,#nseFloatyBoi';
+const OWN = '.epc-root,.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback,.epc-media-retry,.epc-engine,.epc-version-control,.epc-version-columns,#nseOuter,#nseFloatyBoi';
+// Image URLs can be extensionless, and formats such as WebP can carry animation.
+const coverMayAnimate = source => !/\.(?:jpe?g|bmp|ico)$/i.test(new URL(source).pathname);
+const loadLabels = {
+  thumbnail: 'Thumbnails', cover: 'Collage covers', animation: 'Cover playback', preview: 'Image previews',
+  image: 'Page images', background: 'Background images', backfill: 'Result pages', collage: 'Collage update'
+};
+const emptyLoadCounts = () => ({ ready: 0, partial: 0, failed: 0, pending: 0, deferred: 0 });
+const pendingLoadStates = ['queued', 'loading', 'streaming', 'retrying', 'stalled'];
+function countLoad(counts, state) {
+  if (pendingLoadStates.includes(state)) counts.pending++;
+  else if (['ready', 'partial', 'failed', 'deferred'].includes(state)) counts[state]++;
+}
 const searchSignature = fields => JSON.stringify(fields.map(field => [field.name, field.type, field.value, !!field.checked]));
 const smallLegacyResize = source => {
   const resize = source.match(/\/images\/resize\/(\d+)\//);
@@ -204,7 +216,7 @@ export class CompanionApp {
       for (const mutation of mutations) {
         if (mutation.target.nodeType === 1 && mutation.target.closest?.(OWN)) continue;
         if (mutation.type === 'childList' && [...mutation.addedNodes, ...mutation.removedNodes].every(node =>
-          node.nodeType === 1 && node.matches('.epc-thumbnail,.epc-cover-image,.epc-cover-status'))) continue;
+          node.nodeType === 1 && node.matches('.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback'))) continue;
         if (presentationMutation(mutation)) continue;
         const results = mutationChangesResults(mutation);
         if (mutation.type === 'attributes') this.schedule(mutation.target, results);
@@ -299,6 +311,7 @@ export class CompanionApp {
     const pageName = toolbarPageName(this.win.location.href);
     brand.append(mark, this.launcher);
     if (pageName) brand.append(this.node('span', pageName, 'epc-page-name'));
+    this.buildLoadProgress(brand, main);
     main.append(brand);
     this.panel = this.node('section', null, 'epc-panel'); this.panel.hidden = true;
     const heading = this.node('header', null, 'epc-panel-heading');
@@ -451,6 +464,8 @@ export class CompanionApp {
       ['thumbnailSize', 'Thumbnail width', 'number', 48, 300],
       ['resultsView', 'Results layout', ['list', 'grid']],
       ['gridCardWidth', 'Grid card size', [240, 320, 420, 540]],
+      ['gridSpacing', 'Grid spacing', ['standard', 'compact']],
+      ['gridAutoplayGifs', 'Play animated covers in Grid', 'checkbox'],
       ['gridShowDetails', 'Show details in grid cards', 'checkbox'],
       ['gridShowTags', 'Show tags in grid cards', 'checkbox'],
       ['previewWidth', 'Preview width', 'number', 240, 800],
@@ -472,7 +487,7 @@ export class CompanionApp {
       ['persistentImages', 'Remember images between page loads', 'checkbox'],
       ['persistentCacheMB', 'Saved image cache limit (MB)', 'number', 32, 2048],
       ['preloadScreens', 'Prioritize nearby images (screens)', 'number', 0, 2],
-      ['progressBar', 'Thumbnail progress bar', 'checkbox'],
+      ['progressBar', 'Header load progress', 'checkbox'],
       ['keyboardShortcuts', 'Use keyboard shortcuts', 'checkbox'],
       ['navigationScope', 'Arrow key pagination', ['off', 'results', 'site']],
       ['diagnostics', 'Keep a local diagnostic history', 'checkbox'],
@@ -490,7 +505,8 @@ export class CompanionApp {
           const label = key === 'thumbnailMode' ? ({ auto: 'Small first', supplied: 'Page preview', original: 'Full original' })[value] :
             key === 'navigationScope' ? ({ off: 'Off', results: 'Results only', site: 'Across site' })[value] :
             key === 'backfillMode' ? ({ off: 'When I click Backfill', pages: 'Automatically load a few pages', all: 'Automatically load all pages' })[value] :
-            key === 'resultsView' ? ({ list: 'List', grid: 'Grid' })[value] : value;
+            key === 'resultsView' ? ({ list: 'List', grid: 'Grid' })[value] :
+            key === 'gridSpacing' ? ({ standard: 'Standard', compact: 'Compact' })[value] : value;
           const option = this.node('option', label); option.value = value; control.append(option);
         }
         control.value = this.settings[key];
@@ -505,7 +521,7 @@ export class CompanionApp {
       if (key === 'gridCardWidth') { gridCardSizeChoices(control, this.settings.gridCardWidth); control.dataset.numeric = ''; }
       control.dataset.setting = key; this.controls.set(key, control); row.append(control);
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
-      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
+      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridSpacing','gridAutoplayGifs','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
         key === 'diagnostics' ? this.optionGroups.diagnostics : ['keyboardShortcuts', 'navigationScope'].includes(key) ? this.optionGroups.interaction :
         imageKeys.has(key) ? this.optionGroups.images : this.optionGroups.loading;
@@ -513,7 +529,9 @@ export class CompanionApp {
       if(type==='checkbox'&&(parent===settings||parent===browsing))row.prepend(control);
     }
     settings.append(this.controls.get('previews').closest('label'));
-    settings.append(this.node('p', 'Grid cards show thumbnails first, then optionally load larger images. Card width is separate from list thumbnail width; larger images use more data.', 'epc-caption'));
+    settings.append(this.grid.settingsHelp());
+    settings.append(this.node('p', 'Preload full-size covers, including off-screen cards. Animations play in view. This can use more data. Covers stay still when your system requests reduced motion.', 'epc-caption'));
+    settings.append(this.node('p', 'Reduced motion is currently on. Animated covers will stay still.', 'epc-caption epc-cover-motion-note'));
     const shortcuts = keyboardShortcutList(this);
     shortcuts.dataset.optionItem = '';
     this.optionGroups.interaction.append(shortcuts);
@@ -588,9 +606,6 @@ export class CompanionApp {
     this.root.addEventListener('compositionend', event => { this.composing = false; this.markDirty(event.target, event); });
     this.attachWorkspace();
     this.setCacheStatsPinned(this.storage.get(CACHE_STATS_PIN_KEY, false) === true);
-    this.progress = this.node('div', null, 'epc-root epc-progress'); this.progress.hidden = true;
-    this.progress.setAttribute('role', 'progressbar'); this.progress.setAttribute('aria-label', 'Thumbnails ready');
-    this.progressBar = this.node('div'); this.progress.append(this.progressBar); this.doc.body.append(this.progress);
     this.preview.build();
   }
   attachWorkspace() {
@@ -1307,27 +1322,97 @@ export class CompanionApp {
     this.media.prepareThumbnails();
     this.schedule(this.doc.body, !initial);
   }
+  buildLoadProgress(brand, main) {
+    const wrapper = this.loadProgress = this.node('div', null, 'epc-load-progress');
+    const panel = this.node('div', null, 'epc-load-detail'); panel.id = 'epc-load-detail'; panel.hidden = true;
+    const show = open => {
+      if (open) panel.style.top = (trigger.getBoundingClientRect().bottom - main.getBoundingClientRect().top) + 'px';
+      panel.hidden = !open; trigger.setAttribute('aria-expanded', String(open));
+    };
+    let pinned = false, hovering = false;
+    const trigger = this.loadGauge = this.button('—', () => {
+      pinned = !pinned; show(pinned || hovering);
+    }, 'Load progress');
+    trigger.className = 'epc-load-gauge';
+    trigger.setAttribute('aria-controls', panel.id);
+    trigger.setAttribute('aria-describedby', panel.id);
+    trigger.setAttribute('aria-expanded', 'false');
+    wrapper.addEventListener('pointerenter', event => {
+      if (event.pointerType !== 'touch') { hovering = true; show(true); }
+    });
+    wrapper.addEventListener('pointerleave', () => {
+      hovering = false;
+      if (!pinned && !trigger.matches(':focus-visible')) show(false);
+    });
+    trigger.addEventListener('focus', () => show(true));
+    trigger.addEventListener('blur', () => { if (!pinned && !hovering) show(false); });
+    this.on(this.doc, 'keydown', event => {
+      if (event.key !== 'Escape' || panel.hidden || wrapper.hidden || event.defaultPrevented) return;
+      event.preventDefault(); event.stopPropagation(); pinned = false; show(false);
+    });
+    this.on(this.doc, 'pointerdown', event => {
+      if (pinned && !wrapper.contains(event.target)) { pinned = false; show(false); }
+    });
+    this.loadRows = new Map();
+    panel.append(this.node('strong', 'Load progress'));
+    this.loadIdle = this.node('p', 'Nothing queued'); panel.append(this.loadIdle);
+    for (const [key, label] of Object.entries(loadLabels)) {
+      const row = this.node('div', null, 'epc-load-row'); row.dataset.loadKind = key; row.hidden = true;
+      const status = this.node('span', '', 'epc-load-count');
+      const bar = this.node('progress'); bar.setAttribute('aria-hidden', 'true');
+      row.append(this.node('span', label), status, bar); panel.append(row);
+      this.loadRows.set(key, { row, status, bar });
+    }
+    wrapper.append(trigger, panel); brand.append(wrapper);
+    wrapper.hidden = !this.settings.progressBar;
+  }
   updateHealth() {
     if (!this.health) return;
-    const counts = this.media.counts();
-    this.health.textContent = counts.failed + ' failed · ' + counts.waiting + ' loading · ' + counts.deferred + ' deferred';
-    const thumbs = Array.from(this.media.thumbnails.values()).filter(record =>
-      !record.row.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden'));
-    const ready = thumbs.filter(t => t.state === 'ready' || t.state === 'partial').length;
-    const busy = thumbs.some(t => ['loading', 'streaming', 'queued', 'retrying', 'stalled'].includes(t.state));
-    this.progress.hidden = !this.settings.progressBar || !busy;
-    this.progress.setAttribute('aria-valuemin', '0');
-    this.progress.setAttribute('aria-valuemax', String(thumbs.length));
-    this.progress.setAttribute('aria-valuenow', String(ready));
-    this.progress.setAttribute('aria-valuetext', ready + ' of ' + thumbs.length + ' thumbnails ready');
-    this.progressBar.style.width = thumbs.length ? ready / thumbs.length * 100 + '%' : '0%';
-    this.launcher.title = 'Empornium Companion: ' + counts.failed + ' images need attention';
-    if (thumbs.length) this.health.textContent = ready + '/' + thumbs.length + ' thumbnails' + (counts.failed ? ' · ' + counts.failed + ' need attention' : '');
-    if (!this.settings.diagnostics) {
-      this.health.hidden = !counts.failed && !busy;
-      this.health.textContent = counts.failed ? counts.failed + (counts.failed === 1 ? ' image unavailable' : ' images unavailable') : 'Loading previews…';
-      this.launcher.title = 'Empornium Companion';
-    } else this.health.hidden = false;
+    const loads = this.media.loadCounts();
+    const failedImages = Object.values(loads).reduce((sum, counts) => sum + counts.failed, 0);
+    const pages = this.backfill.loadProgress;
+    if (pages) {
+      loads.backfill = {
+        ...emptyLoadCounts(), ready: pages.loaded, failed: Number(pages.status === 'failed'),
+        pending: pages.status === 'loading' && pages.limit !== null ? Math.max(0, pages.limit - pages.loaded) : 0,
+        indeterminate: pages.status === 'loading' && pages.limit === null,
+        note: pages.status === 'stopped' ? 'Stopped' : ''
+      };
+    }
+    if (this.collageQuickAdd.operation) loads.collage = { ...emptyLoadCounts(), indeterminate: true };
+    let total = 0, finished = 0, failed = 0, indeterminate = false, hasRows = false;
+    for (const [key, { row, status, bar }] of this.loadRows) {
+      const counts = loads[key];
+      const done = counts ? counts.ready + counts.partial + counts.failed : 0;
+      const size = done + (counts?.pending || 0);
+      row.hidden = !(size || counts?.deferred || counts?.indeterminate || counts?.note);
+      if (row.hidden) continue;
+      hasRows = true; indeterminate ||= !!counts.indeterminate;
+      if (!counts.indeterminate) { total += size; finished += done; }
+      failed += counts.failed;
+      const parts = [
+        counts.indeterminate ? (counts.ready ? counts.ready + ' ready' : '') : size ? counts.ready + '/' + size + ' ready' : '',
+        counts.pending ? counts.pending + ' pending' : '',
+        counts.partial ? counts.partial + ' partial' : '',
+        counts.failed ? counts.failed + ' failed' : '',
+        counts.deferred ? counts.deferred + ' deferred' : '',
+        counts.indeterminate ? 'Loading…' : counts.note
+      ];
+      status.textContent = parts.filter(Boolean).join(' · ');
+      bar.hidden = !(size || counts.indeterminate);
+      bar.max = size || 1;
+      if (counts.indeterminate) bar.removeAttribute('value'); else bar.value = done;
+    }
+    this.loadProgress.hidden = !this.settings.progressBar;
+    this.loadIdle.hidden = hasRows;
+    const percent = total && !indeterminate ? Math.floor(finished * 100 / total) + '%' : '';
+    this.loadGauge.textContent = percent || (indeterminate ? '…' : '—');
+    this.loadGauge.style.setProperty('--epc-load-fill', percent || '0%');
+    this.loadGauge.setAttribute('aria-label', 'Load progress, ' +
+      (percent ? percent + ' processed' : indeterminate ? 'loading, total unknown' : 'nothing queued') +
+      (failed ? ', ' + failed + ' failed' : ''));
+    this.health.hidden = !failedImages && !this.settings.diagnostics;
+    this.health.textContent = failedImages ? failedImages + (failedImages === 1 ? ' image unavailable' : ' images unavailable') : '';
   }
   scheduleHealth() {
     if (this.healthFrame || this.disposed) return;
@@ -1358,7 +1443,7 @@ export class CompanionApp {
     this.customStyle?.remove();
     for (const cleanup of this.cleanups) cleanup();
     this.searchEdits.clear();
-    this.root?.remove(); this.progress?.remove(); this.savedDrawer?.remove(); this.searchFeedback?.remove();
+    this.root?.remove(); this.savedDrawer?.remove(); this.searchFeedback?.remove();
     this.doc.getElementById('nseRCMBox')?.remove();
   }
 }
@@ -1370,6 +1455,10 @@ export class PageMedia {
     this.app = app; this.win = app.win; this.doc = app.doc;
     this.definitions = new Map(); this.scriptText = new WeakMap(); this.knownVariants = new Map();
     this.records = new Map(); this.thumbnails = new Map(); this.thumbnailsByOriginal = new Map(); this.near = new Map();
+    this.gridGifs = new Map();
+    this.reducedMotion = this.win.matchMedia?.('(prefers-reduced-motion: reduce)');
+    this.motionListener = () => this.prepareThumbnails();
+    this.reducedMotion?.addEventListener('change', this.motionListener);
     this.layoutVersion = 0;
     this.viewportTop = this.win.scrollY; this.viewportHeight = this.win.innerHeight;
     this.nativeTimers = new Set(); this.disposed = false;
@@ -1385,7 +1474,7 @@ export class PageMedia {
     }, app.settings);
     this.pool.listeners.add(entry => {
       app.record(entry, 'scheduled'); app.scheduleHealth();
-      if (entry.status === 'ready') for (const record of this.thumbnailsByOriginal.get(canonicalImageURL(entry.actualURL)) || []) {
+      if (entry.status === 'ready' && !entry.gridAutoplay) for (const record of this.thumbnailsByOriginal.get(entry.actualKey) || []) {
         this.useLoadedOriginal(record, entry);
       }
       if (['ready','streaming','partial'].includes(entry.status)) app.preview?.acceptRecovered(entry);
@@ -1440,10 +1529,13 @@ export class PageMedia {
     this.invalidateLayout();
     this.syncCoverGate();
     this.pool.settings = settings; this.pool.budget.maxRetries = settings.maxRetries;
-    for (const [element, record] of this.records) if (record.kind === 'background' &&
-        (!settings.recoverBackgrounds || record.coverArt && settings.thumbnailMode !== previous.thumbnailMode)) {
-      this.clearRecord(record); this.clearCover(record); this.intersection?.unobserve(element); this.near.delete(element);
-      this.records.delete(element); this.pool.abandon(record.lastEntry);
+    for (const [element, record] of this.records) if (record.kind === 'background') {
+      const playbackChanged = record.coverArt && settings.gridAutoplayGifs !== previous.gridAutoplayGifs;
+      if (!settings.recoverBackgrounds || record.coverArt && (settings.thumbnailMode !== previous.thumbnailMode ||
+          playbackChanged && record.state !== 'ready')) {
+        this.clearRecord(record); this.clearCover(record); this.intersection?.unobserve(element); this.near.delete(element);
+        this.records.delete(element); this.pool.abandon(record.lastEntry);
+      } else if (!settings.gridAutoplayGifs) this.stopGridGif(record);
     }
     for (const [row, record] of this.thumbnails) {
       if (!this.thumbnailsEnabled(row)) {
@@ -1463,6 +1555,7 @@ export class PageMedia {
         if (row.classList.contains(name) !== wanted) row.classList.toggle(name, wanted);
       }
       const grid = row.closest('table')?.classList.contains('epc-result-grid');
+      if (!grid || !settings.gridAutoplayGifs) this.stopGridGif(record);
       const entry = record.lastEntry, usable = ['ready', 'partial'].includes(record.state);
       const changedLayout = settings.resultsView !== previous.resultsView;
       const layoutNeedsReload = changedLayout && (!usable || grid && (!entry ||
@@ -1477,10 +1570,11 @@ export class PageMedia {
           entry.target = null;
         }
         record.image.removeAttribute('src'); delete record.image.dataset.epImageSource;
+        record.gifPoster?.remove(); record.gifPoster = null;
         record.lastEntry = null; record.state = 'deferred'; record.element.dataset.state = 'deferred';
         record.failedAt = null; record.autoRecoveryAttempted = false;
         record.status.textContent = 'Waiting'; record.status.hidden = false;
-      }
+      } else if (grid && changedLayout && entry) this.drawGridGifPoster(record, entry);
     }
     if (settings.preloadScreens !== previous.preloadScreens) this.makeObserver();
     this.pool.trim(); this.pool.pump();
@@ -1562,7 +1656,15 @@ export class PageMedia {
     return distance <= this.app.settings.preloadScreens ? 40 - distance : 10 / (1 + distance);
   }
   prepareThumbnails(rows, cards) {
-    if (this.disposed || !this.app.filtersReady || this.doc.hidden) return;
+    if (this.disposed || !this.app.filtersReady) return;
+    const playGifs = this.app.settings.gridAutoplayGifs && !this.reducedMotion?.matches;
+    if (!playGifs && this.gridGifs.size) this.pool.batch(() => {
+      for (const record of this.gridGifs.keys()) this.stopGridGif(record);
+    });
+    if (this.doc.hidden) {
+      for (const record of this.gridGifs.keys()) this.syncGridGif(record);
+      return;
+    }
     // Scroll and resize already request this pass. Reading the viewport from
     // the scheduler would force layout again after each image updates its DOM.
     this.viewportTop = this.win.scrollY; this.viewportHeight = this.win.innerHeight;
@@ -1583,6 +1685,7 @@ export class PageMedia {
       for (const record of records) {
         if (record.coverArt) this.loadBackground(record);
         else this.loadThumbnail(record);
+        if (playGifs) this.syncGridGif(record);
       }
       this.pool.pump();
     });
@@ -1813,21 +1916,29 @@ export class PageMedia {
     const categoryClass = 'epc-category-' + this.app.settings.categoryDisplay;
     if (!row.classList.contains(categoryClass)) row.classList.add(categoryClass);
     const original = fullSizeURL(canonicalImageURL(definition.src));
+    host.toggleAttribute('data-ep-grid-gif', coverMayAnimate(definition.src));
     const record = { element: host, row, image, status, link, source: definition.src, original, state: 'deferred', unsubscribe: null };
     this.thumbnails.set(row, record);
-    if (!this.thumbnailsByOriginal.has(original)) this.thumbnailsByOriginal.set(original, new Set());
-    this.thumbnailsByOriginal.get(original).add(record);
+    this.indexThumbnail(record);
     this.invalidateLayout();
     // Hover offers a temporary enlargement; clicking either image opens controls.
     this.app.preview.bind(button, { ...definition, title: this.app.preview.titleOf(link), href: link.href });
   }
   removeThumbnail(record) {
+    this.stopGridGif(record);
     this.thumbnails.delete(record.row);
+    this.unindexThumbnail(record);
+    record.unsubscribe?.(); this.intersection?.unobserve(record.element); this.near.delete(record.element);
+    record.element.remove(); this.pool.abandon(record.lastEntry);
+  }
+  indexThumbnail(record) {
+    if (!this.thumbnailsByOriginal.has(record.original)) this.thumbnailsByOriginal.set(record.original, new Set());
+    this.thumbnailsByOriginal.get(record.original).add(record);
+  }
+  unindexThumbnail(record) {
     const matching = this.thumbnailsByOriginal.get(record.original);
     matching.delete(record);
     if (!matching.size) this.thumbnailsByOriginal.delete(record.original);
-    record.unsubscribe?.(); this.intersection?.unobserve(record.element); this.near.delete(record.element);
-    record.element.remove(); this.pool.abandon(record.lastEntry);
   }
   thumbnailOptions(source, rescueEntry, mode = this.app.settings.thumbnailMode, preferred) {
     const grid = mode === 'grid', original = fullSizeURL(canonicalImageURL(source));
@@ -1866,12 +1977,146 @@ export class PageMedia {
     if (record.image.getAttribute('src') !== displayURL) record.image.src = displayURL;
     record.image.dataset.epImageSource = entry.actualURL;
     record.status.hidden = true;
+    if (record.coverArt || record.row.closest('.epc-result-grid')) this.drawGridGifPoster(record, entry);
   }
-  useLoadedOriginal(record, entry) {
-    if (entry?.cancelled || !entry?.image?.naturalWidth || !this.app.filtersReady || this.disposed ||
-        (record.status.hidden && ['ready', 'partial', 'streaming'].includes(record.state)) || this.doc.hidden ||
-        !this.thumbnailsEnabled(record.row) || !this.displayed(record.element, record)) return false;
+  drawGridGifPoster(record, entry) {
+    const animatedThumbnail = coverMayAnimate(entry.actualURL) ||
+      this.app.settings.gridAutoplayGifs && entry.actualKey === (record.original || record.source);
+    record.element.toggleAttribute('data-ep-grid-gif', animatedThumbnail);
+    if (!animatedThumbnail) {
+      record.gifPoster?.remove(); record.gifPoster = null;
+      return;
+    }
+    const image = entry.image;
+    if (entry.status !== 'ready' || !(image instanceof this.win.HTMLImageElement) ||
+        !image.naturalWidth || !image.naturalHeight) return;
+    if (record.gifPoster?.dataset.source === entry.actualURL) return;
+    const poster = record.gifPoster || this.app.node('canvas', null, 'epc-grid-gif-poster');
+    const scale = Math.min(1, 256 / Math.max(image.naturalWidth, image.naturalHeight));
+    poster.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    poster.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    // Drawing an animated image uses its default frame, even for cross-origin images.
+    poster.getContext('2d')?.drawImage(image, 0, 0, poster.width, poster.height);
+    poster.dataset.source = entry.actualURL;
+    poster.setAttribute('aria-hidden', 'true');
+    if (!record.gifPoster) record.image.before(poster);
+    record.gifPoster = poster;
+  }
+  gridGifEligible(record) {
+    return !this.disposed && !this.reducedMotion?.matches && this.app.settings.gridAutoplayGifs &&
+      (record.coverArt ? this.app.settings.recoverBackgrounds : !!record.row.closest('.epc-result-grid')) &&
+      this.displayed(record.element, record);
+  }
+  gridGifVisible(record) {
+    if (this.doc.hidden || !this.gridGifEligible(record)) return false;
+    const { top, bottom, left, right } = record.element.getBoundingClientRect();
+    return bottom > 0 && top < this.win.innerHeight && right > 0 && left < this.win.innerWidth;
+  }
+  syncGridGif(record) {
+    if (!this.gridGifEligible(record)) { this.stopGridGif(record); return; }
+    const previous = this.gridGifs.get(record);
+    if (previous?.entry) {
+      this.updateGridGif(record, previous, this.pool.entries.get(previous.entry.key) || previous.entry);
+      return;
+    }
+    const visible = this.gridGifVisible(record);
+    if (this.doc.hidden || previous && !visible) return;
+    // Match the enlarged preview. A supplied resize can be a still image.
+    const original = record.original || record.source;
+    const supplied = canonicalImageURL(record.originalSource || record.source);
+    const visiblePriority = coverMayAnimate(original) ? 65 : 45;
+    const ready = this.pool.readyImages.get(original);
+    if (previous?.state === 'failed' && !ready) return;
+    const entry = ready || this.pool.request(original, {
+      lane: 'large', cacheMode: 'network', candidates: [original, supplied], gridAutoplay: true,
+      eligible: () => this.gridGifEligible(record),
+      priorityFor: () => {
+        const distance = this.thumbnailDistance(record);
+        return distance ? 20 / (1 + distance) : visiblePriority;
+      }
+    });
+    if (!entry) return;
+    if (ready) this.pool.recordMemoryHit(ready);
+    const playback = { entry, state: entry.status };
+    this.gridGifs.set(record, playback);
+    this.app.scheduleHealth();
+    playback.unsubscribe = this.pool.subscribe(entry, item => this.updateGridGif(record, playback, item));
+    if (!visible && !pendingLoadStates.includes(playback.state)) this.releaseGridGif(playback);
+  }
+  updateGridGif(record, playback, item) {
+    playback.entry = item;
+    playback.state = item.status;
+    if (!this.gridGifVisible(record)) {
+      this.hideGridGif(record, playback);
+      if (!pendingLoadStates.includes(item.status)) this.releaseGridGif(playback);
+      return;
+    }
+    if (!['streaming', 'partial', 'ready'].includes(item.status) || !item.image?.naturalWidth) {
+      this.hideGridGif(record, playback);
+      return;
+    }
+    if (playback.image) return;
+    const native = item.image instanceof this.win.HTMLImageElement;
+    const movable = native && !item.target && !item.image.isConnected;
+    if (native && !movable && item.status !== 'ready') return;
+    const image = playback.image = movable ? item.image : this.app.node('img');
+    const show = () => {
+      if (this.gridGifs.get(record) !== playback || !this.gridGifVisible(record)) return;
+      image.classList.add('epc-grid-gif-playback'); image.alt = ''; image.draggable = false;
+      record.image.after(image);
+      record.element.setAttribute('data-ep-grid-playing', '');
+    };
+    if (movable) {
+      // Keep the loaded node in the card without letting a popup move it.
+      item.target = image; playback.owner = item;
+      show();
+    } else {
+      if (native) {
+        image.onload = () => { image.onload = image.onerror = null; show(); };
+        image.onerror = () => this.stopGridGif(record);
+      }
+      image.src = item.displayURL || item.actualURL;
+      if (!native) show();
+    }
+  }
+  releaseGridGif(playback) {
+    const { unsubscribe } = playback;
+    if (!unsubscribe) return;
+    playback.unsubscribe = playback.entry = null;
+    unsubscribe();
+  }
+  hideGridGif(record, playback) {
+    const { image, owner } = playback;
+    if (!image) return;
+    record.element.removeAttribute('data-ep-grid-playing');
+    image.classList.remove('epc-grid-gif-playback');
+    image.remove();
+    if (owner) {
+      if (owner.target === image) owner.target = null;
+    } else {
+      image.onload = image.onerror = null;
+      image.removeAttribute('src');
+    }
+    playback.image = playback.owner = null;
+  }
+  stopGridGif(record) {
+    const playback = this.gridGifs.get(record);
+    if (!playback) return;
+    this.gridGifs.delete(record);
+    const { entry } = playback;
+    this.hideGridGif(record, playback);
+    this.releaseGridGif(playback);
+    const live = entry && this.pool.entries.get(entry.key);
+    if (!live?.keepAlive) this.pool.abandon(live);
+    this.app.scheduleHealth();
+  }
+  useLoadedOriginal(record, entry = this.pool.readyImages.get(record.original)) {
     const previous = record.lastEntry;
+    if (entry?.status !== 'ready' || entry.cancelled || entry.gridAutoplay || !entry.image?.naturalWidth ||
+        record.state === 'ready' && previous?.actualKey === record.original ||
+        !this.app.filtersReady || this.disposed || this.doc.hidden ||
+        !(record.coverArt ? this.app.settings.recoverBackgrounds : this.thumbnailsEnabled(record.row)) ||
+        !this.displayed(record.element, record)) return false;
     record.state = record.element.dataset.state = 'ready';
     record.lastEntry = entry;
     record.unsubscribe?.(); record.unsubscribe = null;
@@ -1884,17 +2129,13 @@ export class PageMedia {
     }
     this.showThumbnail(record, entry);
     record.status.textContent = '';
+    this.removeRetry(record);
     this.app.scheduleHealth();
     return true;
   }
   loadThumbnail(record, force = false, rescue = false) {
-    const original = this.pool.readyImages.get(record.original);
-    if (!force && record.state !== 'deferred') {
-      if (original) this.useLoadedOriginal(record, original);
-      return;
-    }
+    if (this.useLoadedOriginal(record) || !force && record.state !== 'deferred') return;
     if (!this.app.filtersReady || this.disposed || !this.thumbnailsEnabled(record.row) || this.doc.hidden || !this.displayed(record.element, record)) return;
-    if (this.useLoadedOriginal(record, original)) return;
     const grid = !!record.row.closest('.epc-result-grid');
     const options = this.thumbnailOptions(record.source, rescue ? record.lastEntry : null, grid ? 'grid' : this.app.settings.thumbnailMode);
     if (!options) {
@@ -1921,7 +2162,7 @@ export class PageMedia {
     const update = item => {
       if (this.disposed || !record.element.isConnected) return;
       record.state = item.status;
-      if (item.status === 'failed' && this.useLoadedOriginal(record, this.pool.readyImages.get(record.original))) return;
+      if (item.status === 'failed' && this.useLoadedOriginal(record)) return;
       this.trackRecovery(record, item);
       record.status.textContent = ({ queued: 'Waiting', loading: 'Loading', retrying: 'Retrying',
         stalled: 'Slow load', failed: grid ? 'Thumbnail unavailable' : record.autoRecoveryAttempted || !this.app.settings.maxRetries ? 'Unavailable' : 'Retrying soon',
@@ -1955,7 +2196,10 @@ export class PageMedia {
   }
   clearCover(record) {
     if (!record.coverArt) return;
+    this.stopGridGif(record);
+    this.unindexThumbnail(record);
     this.app.preview?.unbind(record.link);
+    record.gifPoster?.remove(); delete record.element.dataset.epGridGif;
     record.image?.remove(); record.status?.remove(); record.element.classList.remove('epc-managed-cover', 'epc-cover-positioned');
   }
   addBackground(element) {
@@ -1975,6 +2219,9 @@ export class PageMedia {
     const record = { kind: 'background', element, source, originalSource: supplied, coverArt, state: 'deferred' };
     this.records.set(element, record);
     if (coverArt) {
+      record.original = canonicalImageURL(source);
+      this.indexThumbnail(record);
+      element.toggleAttribute('data-ep-grid-gif', coverMayAnimate(supplied));
       const thumb = safeImageURL(element.getAttribute('data-thumbnail'), this.win.location.href);
       const resized = smallLegacyResize(supplied) ? supplied : null;
       record.preferredThumbnail = thumb || resized;
@@ -1988,11 +2235,20 @@ export class PageMedia {
     } else this.watchNear(element, () => this.loadBackground(record));
   }
   loadBackground(record, force = false, rescue = false) {
+    if (record.coverArt && this.useLoadedOriginal(record)) return;
     if (!force && record.state !== 'deferred') return;
     if (!this.app.filtersReady || this.disposed || !this.app.settings.recoverBackgrounds ||
         !(record.coverArt ? this.displayed(record.element, record) : this.visible(record.element, true)) || this.doc.hidden) return;
-    const entry = this.pool.request(record.source, {
-      ...(record.coverArt ? this.thumbnailOptions(record.originalSource, rescue ? record.lastEntry : null, undefined, record.preferredThumbnail) : { lane: 'large' }),
+    const viewportPlayback = record.coverArt && this.app.settings.gridAutoplayGifs;
+    const options = record.coverArt ? this.thumbnailOptions(record.originalSource, rescue ? record.lastEntry : null,
+      viewportPlayback ? 'grid' : undefined, record.preferredThumbnail) : { lane: 'large' };
+    if (!options) {
+      record.state = 'failed'; record.status.textContent = 'Thumbnail unavailable'; record.status.hidden = false;
+      this.app.scheduleHealth(); return;
+    }
+    const source = viewportPlayback ? (rescue ? record.lastEntry.url : options.candidates[0]) : record.source;
+    const entry = this.pool.request(source, {
+      ...options,
       priority: record.coverArt ? this.thumbnailPriority(record) : this.visible(record.element) ? 30 : 5,
       ...(record.coverArt ? { priorityFor: () => this.thumbnailPriority(record), target: this.app.options.Image ? null : record.image } : {}), force,
       eligible: () => !this.disposed && this.app.settings.recoverBackgrounds && !this.doc.hidden &&
@@ -2002,6 +2258,7 @@ export class PageMedia {
     const update = item => {
       if (this.disposed || !record.element.isConnected) return;
       record.state = item.status;
+      if (record.coverArt && item.status === 'failed' && this.useLoadedOriginal(record)) return;
       this.trackRecovery(record, item);
       if (record.coverArt) {
         if(item.status==='ready')this.rememberThumbnail(record,item);
@@ -2010,7 +2267,7 @@ export class PageMedia {
       }
       if (item.image?.naturalWidth && ['streaming', 'partial', 'ready'].includes(item.status)) {
         record.appliedURL = item.actualURL;
-        if (record.coverArt) { const displayURL=item.displayURL||item.actualURL;if(record.image.getAttribute('src')!==displayURL)record.image.src=displayURL;record.image.dataset.epImageSource=item.actualURL; }
+        if (record.coverArt) this.showThumbnail(record, item);
         else {
           const value = 'url("' + item.actualURL.replace(/\\/g, '%5C').replace(/"/g, '%22').replace(/\n/g, '%0A') + '")';
           if (record.element.style.backgroundImage !== value) record.element.style.backgroundImage = value;
@@ -2032,13 +2289,32 @@ export class PageMedia {
     record.unsubscribe = this.pool.subscribe(entry, update);
     if (['ready', 'failed', 'partial'].includes(entry.status)) { record.unsubscribe(); record.unsubscribe = null; }
   }
-  counts() {
-    const counts = { failed: 0, waiting: 0, deferred: 0 };
+  loadCounts() {
+    const counts = Object.fromEntries(Object.keys(loadLabels).map(key => [key, emptyLoadCounts()]));
     for (const record of [...this.records.values(), ...this.thumbnails.values()]) {
-      if (!record.element.isConnected) continue;
-      if (record.state === 'failed' && this.visible(record.element)) counts.failed++;
-      else if (record.state === 'deferred') counts.deferred++;
-      else if (['queued', 'loading', 'streaming', 'retrying', 'stalled'].includes(record.state)) counts.waiting++;
+      if (!record.element.isConnected || record.element.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden')) continue;
+      const key = record.coverArt ? 'cover' : record.kind || 'thumbnail';
+      const lazy = record.kind === 'image' && record.state === 'loading' && record.element.loading === 'lazy' && !this.visible(record.element);
+      countLoad(counts[key], lazy ? 'deferred' : record.state);
+    }
+    const animationEntries = new Set();
+    let animationLoads = 0;
+    for (const [record, playback] of this.gridGifs) {
+      if (!record.element.isConnected || record.element.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden')) continue;
+      animationLoads++;
+      if (playback.entry) animationEntries.add(playback.entry);
+      countLoad(counts.animation, playback.state);
+    }
+    if (!animationLoads && (this.app.settings.resultsView === 'grid' || counts.cover.ready || counts.cover.pending)) {
+      counts.animation.note = !this.app.settings.enabled || !this.app.settings.gridAutoplayGifs ? 'Off' :
+        this.reducedMotion?.matches ? 'Reduced motion' : 'No covers to load';
+    }
+    const preview = this.app.preview;
+    if (preview.open) countLoad(counts.preview, preview.element.dataset.state || 'loading');
+    for (const entry of this.pool.entries.values()) {
+      if (entry.keepAlive && entry !== preview.progressEntry && !animationEntries.has(entry) && pendingLoadStates.includes(entry.status)) {
+        countLoad(counts.preview, entry.status);
+      }
     }
     return counts;
   }
@@ -2068,7 +2344,10 @@ export class PageMedia {
     }
   }
   dispose() {
-    this.disposed = true; this.intersection?.disconnect(); this.layoutObserver?.disconnect(); this.pool.dispose();
+    this.disposed = true; this.intersection?.disconnect(); this.layoutObserver?.disconnect();
+    this.reducedMotion?.removeEventListener('change', this.motionListener);
+    for (const record of this.gridGifs.keys()) this.stopGridGif(record);
+    this.pool.dispose();
     this.doc.documentElement?.classList.remove('epc-cover-art');
     this.pool.env.clearTimeout(this.recoveryTimer);
     this.win.removeEventListener('resize', this.resizeListener);
@@ -2376,14 +2655,17 @@ export class PreviewController {
       this.app.media.pool.request(gridTitle ? requestOptions.candidates[0] : source, {
       ...requestOptions, priority: 100, force: !!options.force,
       eligible: () => this.open && version === this.version,
+      priorityFor: () => this.open && version === this.version ? 100 : 0,
       fresh: !!options.force });
     if (!entry) {
       previousUnsubscribe?.();
+      this.progressEntry = null; this.element.dataset.state = 'failed'; this.app.scheduleHealth();
       this.clearLoadStats(); this.setStatusText(requestOptions ? 'Retry limit reached. Try again after a short pause.' : 'Thumbnail unavailable');
       this.position(); return;
     }
     const update = current => {
       if (!this.open || version !== this.version) return;
+      this.progressEntry = current;
       const visible = !this.image.hidden && this.image.hasAttribute('src');
       // A first frame may be useful when no image exists. It must not replace
       // a working thumbnail until the larger request has actually succeeded.
@@ -2410,7 +2692,7 @@ export class PreviewController {
       })[current.status] || '';
       if (pendingView) message = thumbnailVisible ? 'Loading larger image…' : 'Loading image…';
       this.setStatusText(message); this.updateLoadStats(current, version, pendingView);
-      this.element.dataset.state = pendingView ? 'loading' : current.status; this.position();
+      this.element.dataset.state = pendingView ? 'loading' : current.status; this.position(); this.app.scheduleHealth();
     };
     this.unsubscribe = this.app.media.pool.subscribe(entry, update);
     this.renderEntry = update;
@@ -2444,6 +2726,7 @@ export class PreviewController {
     const restoreFocus = force && this.element?.contains(this.doc.activeElement);
     this.clearImage();
     this.unsubscribe?.(); this.unsubscribe = null; this.renderEntry = null; this.version++;
+    this.progressEntry = null; this.app.scheduleHealth();
     this.open = false; this.pinned = false; this.inside = false; this.zoom = false; this.titleHover = false;
     if (this.element) this.element.hidden = true;
     if (restoreFocus) this.anchor?.focus({ preventScroll: true });

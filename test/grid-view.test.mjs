@@ -23,6 +23,11 @@ async function setup(settings = {}, options = {}) {
   }
   const storage = memoryStorage({ 'ep.settings': { resultsView: 'grid', ...settings } });
   if (options.hidden) Object.defineProperty(f.doc, 'hidden', { configurable: true, get: options.hidden });
+  if (options.motion) {
+    const motion = new f.win.EventTarget();
+    Object.defineProperty(motion, 'matches', { get: options.motion });
+    f.win.matchMedia = () => motion;
+  }
   const app = createApp(f.win, storage, { Image: clock.env.Image, ...options.app }).start();
   await until(() => app.root?.dataset.epReady === 'true');
   return { ...f, app, clock, storage, close() { app.dispose(); f.close(); } };
@@ -35,10 +40,167 @@ const completedSmall = async f => {
 test('grid settings validate, retain list by default and use a separate larger card width', () => {
   const defaults = validateSettings();
   assert.equal(defaults.gridShowTags, false);
+  assert.equal(defaults.gridSpacing, 'standard'); assert.equal(defaults.gridAutoplayGifs, false);
   assert.equal(defaults.resultsView, 'list'); assert.equal(defaults.gridCardWidth, 320); assert.equal(defaults.gridShowDetails, false);
   const checked = validateSettings({ resultsView: 'invalid', gridCardWidth: 900, gridLargeImages: true, thumbnailSize: 72 });
   assert.equal(checked.resultsView, 'list'); assert.equal(checked.gridCardWidth, 600); assert.equal(checked.thumbnailSize, 72);
   assert.equal(Object.hasOwn(checked, 'gridLargeImages'), false);
+});
+
+test('Grid warms off-screen covers, plays only visible cards, and follows reduced motion', async () => {
+  let reduced = false, hidden = false;
+  const originals = [1, 2].map(id => 'https://hamsterimg.net/images/cover-' + id + '.GIF?v=1');
+  const definitions = originals.map((url, index) => overlayHTML(index + 1, url, url.replace('.GIF', '.th.jpg'))).join('');
+  const f = await setup({ maxRetries: 0 }, { definitions, positions: [10, 1500], motion: () => reduced, hidden: () => hidden });
+  const playback = row => f.doc.querySelector('[data-fixture-id="' + row + '"] .epc-grid-gif-playback');
+  const scrollTo = top => {
+    Object.defineProperty(f.win, 'scrollY', { value: top, configurable: true });
+    f.win.dispatchEvent(new f.win.Event('scroll'));
+  };
+  try {
+    await completedSmall(f);
+    assert.ok(f.clock.images.every(image => image.src.includes('.th.jpg')));
+    await field(f, '[data-setting=gridAutoplayGifs]', true);
+    await until(() => originals.every(url => f.clock.images.some(image => image.src === url)));
+    assert.equal(f.app.media.loadCounts().animation.pending, 2);
+    scrollTo(1450);
+    await until(() => f.app.media.viewportTop === 1450);
+    f.clock.images.find(image => image.src === originals[0]).succeed();
+    assert.equal(playback(1), null);
+    assert.equal(f.app.media.pool.readyImages.get(originals[0]).listeners.size, 0);
+    f.clock.images.find(image => image.src === originals[1]).succeed();
+    assert.equal(playback(2)?.src, originals[1]);
+    assert.equal(f.app.media.loadCounts().animation.ready, 2);
+    scrollTo(0);
+    await until(() => !!playback(1) && !playback(2));
+    assert.equal(playback(1).src, originals[0]);
+    assert.equal(f.clock.images.filter(image => originals.includes(image.src)).length, 2);
+    reduced = true;
+    f.app.media.reducedMotion.dispatchEvent(new f.win.Event('change'));
+    assert.equal(playback(1), null);
+    reduced = false;
+    f.app.media.reducedMotion.dispatchEvent(new f.win.Event('change'));
+    assert.equal(playback(1)?.src, originals[0]);
+
+    hidden = true; f.doc.dispatchEvent(new f.win.Event('visibilitychange'));
+    await until(() => !playback(1));
+    hidden = false; f.doc.dispatchEvent(new f.win.Event('visibilitychange'));
+    await until(() => !!playback(1));
+    await field(f, '[data-setting=gridAutoplayGifs]', false);
+    assert.equal(playback(1), null);
+  } finally { f.close(); }
+});
+
+test('header load progress separates thumbnails, visible animation, and failures', async () => {
+  const original = 'https://hamsterimg.net/images/progress.gif';
+  const f = await setup({ gridAutoplayGifs: true, maxRetries: 0 }, {
+    rows: rowHTML(1), definitions: overlayHTML(1, original, original.replace('.gif', '.th.jpg'))
+  });
+  try {
+    const gauge = f.doc.querySelector('.epc-toolbar-main .epc-load-gauge');
+    const panel = f.doc.getElementById('epc-load-detail');
+    const status = key => panel.querySelector('[data-load-kind=' + key + '] .epc-load-count').textContent;
+    await until(() => gauge.textContent === '0%');
+    assert.equal(panel.hidden, true);
+    gauge.focus();
+    assert.equal(panel.hidden, false);
+    assert.match(status('thumbnail'), /0\/1 ready.*1 pending/);
+    assert.match(status('animation'), /0\/1 ready.*1 pending/);
+    await completedSmall(f);
+    assert.equal(gauge.textContent, '50%');
+    assert.match(status('thumbnail'), /1\/1 ready/);
+    f.clock.images.find(image => image.src === original).fail();
+    await until(() => gauge.textContent === '100%');
+    assert.match(status('animation'), /0\/1 ready.*1 failed/);
+    assert.match(gauge.getAttribute('aria-label'), /1 failed/);
+    gauge.dispatchEvent(new f.win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(panel.hidden, true);
+  } finally { f.close(); }
+});
+
+test('autoplay saves GIF covers as previews and reuses them after navigation', async () => {
+  const indexedDB = new IDBFactory(), original = 'https://hamsterimg.net/images/autoplay.gif';
+  const requests = [], definitions = overlayHTML(1, original, original.replace('.gif', '.th.jpg'));
+  for (const reopened of [false, true]) {
+    const imageCache = new PersistentImageCache({
+      indexedDB, origin: 'https://www.empornium.sx', now: Date.now, setTimeout, clearTimeout,
+      request: ({ url, onload }) => {
+        requests.push(url);
+        onload({ status: 200, response: new Blob(['fixture'], { type: url === original ? 'image/gif' : 'image/jpeg' }) });
+      },
+      encode: async blob => 'data:' + blob.type + ';base64,' + Buffer.from(await blob.arrayBuffer()).toString('base64')
+    }, validateSettings);
+    const f = await setup({ gridAutoplayGifs: true }, { rows: rowHTML(1), definitions, app: { imageCache } });
+    try {
+      await until(() => f.clock.images.some(image => image.src.startsWith('data:image/gif')));
+      f.clock.images.find(image => image.src.startsWith('data:image/gif')).succeed();
+      assert.match(f.doc.querySelector('.epc-grid-gif-playback').src, /^data:image\/gif/);
+      const entry = f.app.media.pool.readyImages.get(original);
+      assert.equal(entry.cacheHit, reopened);
+      assert.equal((await f.app.imageCache.summary()).previewCount, 1);
+      assert.equal(requests.filter(url => url === original).length, 1);
+    } finally { f.close(); }
+  }
+});
+
+test('a stalled autoplay download streams the cover directly and restores the thumbnail if it fails', async () => {
+  const original = 'https://hamsterimg.net/images/slow.gif';
+  const thumbnail = 'https://hamsterimg.net/images/slow.th.jpg';
+  let managedRequest, aborted = false;
+  const imageCache = new PersistentImageCache({
+    indexedDB: new IDBFactory(), origin: 'https://www.empornium.sx', now: Date.now, setTimeout, clearTimeout,
+    request: request => {
+      if (request.url === original) {
+        managedRequest = request;
+        return { abort() { aborted = true; } };
+      }
+      request.onload({ status: 200, response: new Blob(['fixture'], { type: 'image/jpeg' }) });
+    },
+    encode: async blob => 'data:' + blob.type + ';base64,' + Buffer.from(await blob.arrayBuffer()).toString('base64')
+  }, validateSettings);
+  const f = await setup({ gridAutoplayGifs: true, stallMs: 1000, maxRetries: 0 }, {
+    rows: rowHTML(1), definitions: overlayHTML(1, original, thumbnail), app: { imageCache }
+  });
+  try {
+    const playback = () => f.doc.querySelector('.epc-grid-gif-playback');
+    const poster = f.doc.querySelector('.epc-thumb-button img');
+    await until(() => !!managedRequest && f.clock.images.some(image => image.src.startsWith('data:image/jpeg')));
+    f.clock.images.find(image => image.src.startsWith('data:image/jpeg')).succeed();
+    assert.equal(playback(), null);
+    await until(() => aborted && f.clock.images.some(image => image.src === original));
+    const cover = f.clock.images.find(image => image.src === original);
+    cover.naturalWidth = 640;
+    cover.naturalHeight = 480;
+    await until(() => playback()?.src === original);
+    assert.equal(f.app.media.pool.entries.get(original + '|normal').status, 'streaming');
+    managedRequest.onload({ status: 200, response: new Blob(['late'], { type: 'image/gif' }) });
+    await settle();
+    assert.equal(playback()?.src, original);
+    cover.fail();
+    assert.equal(playback(), null);
+    assert.match(poster.src, /^data:image\/jpeg/);
+  } finally { f.close(); }
+});
+
+test('Grid loads the same full cover as hover and admits covers regardless of filename extension', async () => {
+  const supplied = ['https://hamsterimg.net/images/animation.md.webp?v=1', 'https://hamsterimg.net/images/animation', 'https://hamsterimg.net/images/animation.jpg'];
+  const original = supplied[0].replace('.md.webp', '.webp');
+  const definitions = supplied.map((url, index) => overlayHTML(index + 1, url,
+    'https://hamsterimg.net/images/poster-' + index + '.th.jpg')).join('');
+  const f = await setup({ gridAutoplayGifs: true }, { definitions, count: 3 });
+  try {
+    const animated = [original, supplied[1]];
+    await until(() => animated.every(url => f.clock.images.some(image => image.src === url)));
+    assert.ok(!f.clock.images.some(image => image.src === supplied[0] || image.src === supplied[2]));
+    for (const image of f.clock.images.filter(image => animated.includes(image.src))) image.succeed();
+    await until(() => f.clock.images.some(image => image.src === supplied[2]));
+    f.clock.images.find(image => image.src === supplied[2]).succeed();
+    assert.deepEqual([...f.doc.querySelectorAll('[data-ep-grid-playing] .epc-grid-gif-playback')].map(image => image.src), [...animated, supplied[2]]);
+    const first = f.doc.querySelector('[data-fixture-id="1"] .epc-thumb-button');
+    first.dispatchEvent(new f.win.MouseEvent('pointerenter'));
+    await until(() => f.app.preview.image?.src === original);
+    assert.equal(f.clock.images.filter(image => image.src === original).length, 1);
+  } finally { f.close(); }
 });
 
 test('grid preserves native result identity and controls, labels metadata and reversibly toggles with persistence', async () => {
@@ -108,9 +270,12 @@ test('grid warms all 50 thumbnails and only requests an original when a preview 
 
     last.element.querySelector('button').click();
     assert.match(f.clock.images[50]?.src, /grid-50\.jpg$/);
+    assert.match(last.image.src, /grid-50\.th\.jpg$/);
     f.clock.images[50].succeed(1200, 800);
     assert.equal(f.app.preview.element.dataset.state, 'ready');
-    assert.match(last.image.src, /grid-50\.th\.jpg$/);
+    assert.match(last.image.src, /grid-50\.jpg$/);
+    assert.equal(last.status.hidden, true);
+    assert.equal(f.clock.images.length, 51);
   } finally { f.close(); }
 });
 
@@ -242,20 +407,29 @@ test('grid skips collapsed versions, warms new rows, and waits while the tab is 
   } finally { f.close(); }
 });
 
-test('setup and Settings share the grid layout and card width', async () => {
+test('setup and Settings share the grid layout, width, spacing and GIF opt-in', async () => {
   const store = strictStorage({ 'ep.onboardingDone': false }), f = await boot({}, { store });
   try {
     const dialog = f.doc.querySelector('.epc-onboarding');
     dialog.querySelector('[name=welcome-backfill][value=off]').checked = true;
     dialog.querySelector('[data-welcome-setting=resultsView]').value = 'grid';
     dialog.querySelector('[data-welcome-setting=gridCardWidth]').value = 420;
+    dialog.querySelector('[data-welcome-setting=gridSpacing]').value = 'compact';
+    const autoplay = dialog.querySelector('[data-welcome-setting=gridAutoplayGifs]');
+    assert.equal(autoplay.checked, false); autoplay.checked = true;
     clickText(dialog, 'Start browsing'); await settle();
     assert.equal(store.get('ep.settings').resultsView, 'grid'); assert.equal(store.get('ep.settings').gridCardWidth, 420);
+    assert.equal(store.get('ep.settings').gridSpacing, 'compact'); assert.equal(store.get('ep.settings').gridAutoplayGifs, true);
+    assert.equal(f.doc.querySelector('.epc-result-grid').dataset.epGridSpacing, 'compact');
     pane(f, 'settings'); await field(f, '[data-setting=gridCardWidth]', 540);
+    await field(f, '[data-setting=gridSpacing]', 'standard');
+    assert.equal(f.doc.querySelector('.epc-result-grid').dataset.epGridSpacing, 'standard');
     clickText(f.doc.querySelector('[data-pane=settings].epc-pane'), 'Getting started');
     const replay = f.doc.querySelector('.epc-onboarding');
     assert.equal(replay.querySelector('[data-welcome-setting=resultsView]').value, 'grid');
     assert.equal(replay.querySelector('[data-welcome-setting=gridCardWidth]').value, '540');
+    assert.equal(replay.querySelector('[data-welcome-setting=gridSpacing]').value, 'standard');
+    assert.equal(replay.querySelector('[data-welcome-setting=gridAutoplayGifs]').checked, true);
     assert.equal(f.errors.length, 0, f.errors.join('\n'));
   } finally { f.close(); }
 });
@@ -288,6 +462,19 @@ test('a failed layout write preserves the current grid and can be retried', asyn
     assert.equal(toggle.getAttribute('aria-pressed'), 'false');
     toggle.click(); assert.equal(store.get('ep.settings').resultsView, 'list');
     assert.equal(f.doc.querySelector('table.torrent_table').classList.contains('epc-result-grid'), false);
+  } finally { f.close(); }
+});
+
+test('Appearance can apply saved Grid options to results currently shown as List', async () => {
+  const f = await boot({ 'ep.settings': { resultsView: 'list', gridSpacing: 'compact', gridAutoplayGifs: true } });
+  try {
+    pane(f, 'settings');
+    const settings = f.doc.querySelector('.epc-pane[data-pane=settings]');
+    assert.equal(f.doc.querySelector('.epc-result-grid'), null);
+    const button = clickText(settings, 'Switch to Grid');
+    assert.equal(f.store.get('ep.settings').resultsView, 'grid');
+    assert.equal(f.doc.querySelector('.epc-result-grid').dataset.epGridSpacing, 'compact');
+    assert.equal(button.hidden, true);
   } finally { f.close(); }
 });
 

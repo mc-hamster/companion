@@ -180,7 +180,7 @@ test('[PREF-02] numeric preference validation preserves other values and safely 
   }finally{f.close();}
 });
 
-test('[HOV-02] returning after original-cache eviction still displays the usable thumbnail',async()=>{
+test('[HOV-02] returning after original-cache eviction still displays the upgraded image',async()=>{
   const f=domFixture(),clock=fakeClock(),store=memoryStorage({'ep.settings':{inlineThumbnails:true}});
   f.doc.querySelector('#content').insertAdjacentHTML('beforeend',overlayHTML(1,'https://hamsterimg.net/images/evict.jpg'));
   const app=createApp(f.win,store,{Image:clock.env.Image}).start();await settle(90);
@@ -193,7 +193,8 @@ test('[HOV-02] returning after original-cache eviction still displays the usable
     const other=app.media.pool.request('https://x.test/other.jpg',{lane:'large',keepAlive:true});clock.images.at(-1).succeed();app.media.pool.trim();
     assert.equal(app.media.pool.entries.has('https://hamsterimg.net/images/evict.jpg|normal'),false);
     button.dispatchEvent(new f.win.MouseEvent('pointerenter',{clientX:40,clientY:40}));await settle(10);
-    assert.equal(app.preview.image.hidden,false);assert.match(app.preview.image.src,/evict\.th\.jpg$/);
+    assert.equal(app.preview.image.hidden,false);assert.match(app.preview.image.src,/evict\.jpg$/);
+    assert.equal(app.preview.image.src,record.image.src);
     assert.equal(app.preview.element.dataset.state,'loading');
   }finally{app.dispose();f.close();}
 });

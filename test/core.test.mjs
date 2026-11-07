@@ -105,6 +105,19 @@ test('two slow originals cannot block independently paced small thumbnails or co
   assert.equal(c.images.length, 12); assert.ok(p.active <= 4);
   assert.equal(c.images[0].naturalWidth, 0); p.dispose();
 });
+test('a constrained host can load one visible cover alongside a thumbnail', () => {
+  const c = fakeClock(), pool = new MediaPool(c.env, { ...DEFAULTS, concurrency: 1 });
+  const thumbnail = pool.request('https://x.test/slow.th.jpg');
+  pool.hostFor(thumbnail).constrained = true;
+  const options = { lane: 'large', gridAutoplay: true, priority: 65 };
+  const visible = pool.request('https://x.test/visible.gif', options);
+  const next = pool.request('https://x.test/next.gif', options);
+  assert.equal(thumbnail.status, 'loading');
+  assert.equal(visible.status, 'loading');
+  assert.equal(next.status, 'queued');
+  assert.equal(c.images.length, 2);
+  pool.dispose();
+});
 test('a failed small candidate falls back after brief host cooldown in the large-image lane', () => {
   const c = fakeClock(), p = new MediaPool(c.env);
   const url = 'https://hamsterimg.net/images/a.jpg';

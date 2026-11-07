@@ -11,11 +11,13 @@ Version 2.12.1 limits grid title links to two visible lines without changing the
 
 Tags are hidden by default in Grid. **Settings → Appearance → Show tags in grid cards** independently restores the native tag links. This only changes their presentation: tag filters, highlights and saved rules still apply. The preference persists across pages and sessions and participates in backup/restore. List tags retain their native display.
 
-Cards fit their visible content: grid rows and cells ignore inherited fixed/minimum heights, direct table-layout line breaks are suppressed, and title padding does not reserve space for hidden details. Normal outer card padding remains.
+**Settings → Appearance → Grid spacing → Compact** makes covers flush with the card edges and sets the gap to 10 px in Companion’s Grid. It also reduces the borders and gaps in Empornium’s native Cover Art grid. When results are in List view, **Switch to Grid** in Appearance applies the grid settings to those results.
 
-Grid cards warm thumbnails throughout the loaded results, including backfilled rows. When the larger image has already loaded, it can fill a card whose thumbnail is missing or still loading. Cards with neither image available show **Thumbnail unavailable** if the thumbnail fails. A confirmed missing thumbnail leaves other requests on the same host eligible. Hidden or grouped rows wait, and background tabs pause new requests.
+Grid cards warm thumbnails throughout the loaded results, including backfilled rows. List thumbnails, Grid cards, and native Cover Art cards use the original once it has finished loading. Cards with neither image available show **Thumbnail unavailable** if the thumbnail fails. A confirmed missing thumbnail leaves other requests on the same host eligible. Hidden or grouped rows wait, and background tabs pause new requests.
 
 Larger images load when you open an image preview. The preview can show the thumbnail while its larger image loads, and supported larger images can be reused from the cache the next time you request them. Scrolling or resizing preserves loaded thumbnails.
+
+**Play animated covers in Grid** is off by default and is also available in Getting started. With it enabled, Companion queues full-size covers across the current results, including additional pages you load. Cards in view get priority, and **Cover playback** in the header gauge includes off-screen downloads. The browser determines whether an image animates. Full-size downloads can use more data even for still covers. Cards play when visible and return to their thumbnails off-screen. Preloaded covers are subject to the same cache limits as previews. New downloads pause in background tabs, and automatic loading and playback stay off while the system requests reduced motion.
 
 Layout changes do not fetch additional result pages, detail pages, galleries or torrent files. Existing image-host permissions and storage/cache limits apply. All preferences participate in backup, restore and preference Undo.
 

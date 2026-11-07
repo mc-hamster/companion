@@ -179,6 +179,7 @@ export class CollageQuickAdd {
     const { id, title } = pin;
     const controller = new this.app.win.AbortController();
     this.operation = controller;
+    this.app.scheduleHealth();
     const { signal } = controller;
     const timeout = this.app.win.setTimeout(() => controller.abort(), 20000);
     this.renderAdd();
@@ -219,6 +220,7 @@ export class CollageQuickAdd {
     } finally {
       this.app.win.clearTimeout(timeout);
       this.operation = null;
+      this.app.scheduleHealth();
       if (!this.app.disposed) this.refresh();
     }
   }

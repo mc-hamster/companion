@@ -38,10 +38,23 @@ export class ResultGrid {
   }
   syncControls() {
     for (const [value, button] of this.layoutButtons) button.setAttribute('aria-pressed', String(this.app.settings.resultsView === value));
+    if (this.settingsSwitch) this.settingsSwitch.hidden = this.layout.hidden || this.app.settings.resultsView === 'grid';
+  }
+  settingsHelp() {
+    const { app } = this;
+    const help = app.node('div', null, 'epc-caption');
+    this.settingsSwitch = app.button('Switch to Grid', () => {
+      this.layoutButtons.get('grid').click();
+      if (this.settingsSwitch.hidden) app.controls.get('resultsView').focus();
+    });
+    help.append(app.node('p', 'Grid spacing and cover playback apply to Grid results and the site’s Cover Art grid.'), this.settingsSwitch);
+    this.syncControls();
+    return help;
   }
   refresh() {
     const app = this.app, grid = app.settings.resultsView === 'grid';
     app.batchDOM(() => {
+      app.doc.documentElement.toggleAttribute('data-ep-compact-cover-grid', app.settings.gridSpacing === 'compact');
       for (const table of this.tables.keys()) if (!table.isConnected || !grid) this.release(table);
       const candidates = new Set(this.tables.keys());
       // Retain managed tables when Hard Pass temporarily removes every row.
@@ -52,6 +65,7 @@ export class ResultGrid {
         table.classList.add('epc-result-grid');
         table.dataset.epGridDetails = String(app.settings.gridShowDetails);
         table.dataset.epGridTags = String(app.settings.gridShowTags);
+        table.dataset.epGridSpacing = app.settings.gridSpacing;
         table.style.setProperty('--epc-grid-width', app.settings.gridCardWidth + 'px');
         const headings = [...table.querySelectorAll('tr')].find(row => row.querySelector('th') || row.matches('.colhead_dark'));
         if (headings) {
@@ -88,6 +102,7 @@ export class ResultGrid {
     }
     if (this.layout?.hidden && (rows.some(row => row.closest('#content')) || this.app.detachedFilterRows.size)) {
       this.layout.hidden = false;
+      this.syncControls();
     }
   }
   decorateRows(rows, labels) {
@@ -109,6 +124,7 @@ export class ResultGrid {
     table.classList.remove('epc-result-grid'); table.style.removeProperty('--epc-grid-width'); this.tables.delete(table);
     delete table.dataset.epGridDetails;
     delete table.dataset.epGridTags;
+    delete table.dataset.epGridSpacing;
     for (const row of this.headings) if (!row.isConnected || row.closest('table') === table) {
       delete row.dataset.epGridHeader; this.headings.delete(row);
     }
@@ -117,5 +133,9 @@ export class ResultGrid {
       delete cell.dataset.epGridCell; delete cell.dataset.epGridLabel; this.cells.delete(cell);
     }
   }
-  dispose() { for (const table of this.tables.keys()) this.release(table); this.layout?.remove(); }
+  dispose() {
+    for (const table of this.tables.keys()) this.release(table);
+    this.app.doc.documentElement.removeAttribute('data-ep-compact-cover-grid');
+    this.layout?.remove();
+  }
 }

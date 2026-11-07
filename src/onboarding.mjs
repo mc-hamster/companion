@@ -67,7 +67,15 @@ export class OnboardingController {
     this.gridSize = app.node('select'); gridCardSizeChoices(this.gridSize, app.settings.gridCardWidth);
     this.gridSize.dataset.welcomeSetting = 'gridCardWidth';
     field(form, 'Grid card size', this.gridSize);
-    form.append(app.node('p', 'Grid cards show thumbnails. Open an image preview to see the larger version. Grid card width is separate from list thumbnail width.', 'epc-caption'));
+    this.gridSpacing = app.controls.get('gridSpacing').cloneNode(true);
+    this.gridSpacing.removeAttribute('data-setting'); this.gridSpacing.dataset.welcomeSetting = 'gridSpacing';
+    this.gridSpacing.value = app.settings.gridSpacing;
+    field(form, 'Grid spacing', this.gridSpacing);
+    this.gridAutoplayGifs = app.node('input'); this.gridAutoplayGifs.type = 'checkbox';
+    this.gridAutoplayGifs.checked = app.settings.gridAutoplayGifs;
+    this.gridAutoplayGifs.dataset.welcomeSetting = 'gridAutoplayGifs';
+    field(form, 'Play animated covers in Grid', this.gridAutoplayGifs);
+    form.append(app.node('p', 'Preload full-size covers, including off-screen cards. Animations play in view. This can use more data. Covers stay still when your system requests reduced motion.', 'epc-caption'));
     this.shortcuts = app.node('input'); this.shortcuts.type = 'checkbox'; this.shortcuts.checked = app.settings.keyboardShortcuts;
     this.shortcuts.dataset.welcomeSetting = 'keyboardShortcuts';
     this.shortcuts.setAttribute('aria-controls', 'epc-welcome-shortcuts');
@@ -104,6 +112,7 @@ export class OnboardingController {
         backfillPages: mode === 'pages' ? Number(this.pages.value) : app.settings.backfillPages,
         thumbnailSize: Number(this.size.value), previews: this.hover.checked, groupVersions: this.group.checked,
         resultsView: this.view.value, gridCardWidth: Number(this.gridSize.value),
+        gridSpacing: this.gridSpacing.value, gridAutoplayGifs: this.gridAutoplayGifs.checked,
         keyboardShortcuts: this.shortcuts.checked,
         favoriteTags: this.tags.get('favoriteTags').value, cautionTags: this.tags.get('cautionTags').value };
       app.importData(JSON.stringify({ ...current, settings,
@@ -123,7 +132,7 @@ export class OnboardingController {
     this.element?.remove(); this.element = null;
     if (this.returnFocus?.isConnected) this.returnFocus.focus({ preventScroll: true });
     this.form = this.tags = this.pages = this.size = this.hover = this.group = this.status = this.save = this.returnFocus = null;
-    this.view = this.gridSize = this.gridLarge = this.shortcuts = null;
+    this.view = this.gridSize = this.gridSpacing = this.gridAutoplayGifs = this.shortcuts = null;
   }
   dispose() { this.close(); }
 }

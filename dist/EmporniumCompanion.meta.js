@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Empornium Companion
 // @namespace    empornium-companion.local
-// @version      2.13.3
+// @version      2.14.0-alpha.6
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion

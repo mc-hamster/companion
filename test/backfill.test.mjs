@@ -62,13 +62,22 @@ test('numbered pager fallback moves forward in order and skips already loaded pa
 });
 
 test('one click backfills five pages, deduplicates results and continues at the next unread page', async () => {
+  let releaseFirstPage;
+  const firstPage = new Promise(resolve => { releaseFirstPage = resolve; });
   const f = await setup({ numbered: 8, fetch: async url => {
     const page = Number(new URL(url).searchParams.get('page'));
+    if (page === 2) await firstPage;
     return response(url, pageHTML([page - 1, page], page, page < 8 ? page + 1 : null));
   } });
   try {
     assert.equal(f.calls.length, 0, 'no result pages are fetched before a click');
-    await f.app.backfill.run();
+    const loading = f.app.backfill.run();
+    const pages = f.doc.querySelector('[data-load-kind=backfill]');
+    await until(() => pages.textContent.includes('0/5 ready'));
+    assert.equal(pages.querySelector('progress').max, 5);
+    releaseFirstPage();
+    await loading;
+    await until(() => pages.textContent.includes('5/5 ready'));
     assert.deepEqual(f.calls.map(c => Number(new URL(c.url).searchParams.get('page'))), [2, 3, 4, 5, 6]);
     assert.equal(f.doc.querySelectorAll('tr.torrent').length, 6);
     assert.equal(f.app.backfill.nextURL, pageURL(7));
@@ -80,7 +89,7 @@ test('one click backfills five pages, deduplicates results and continues at the 
     assert.equal(f.app.backfill.nextURL, null); assert.equal(f.app.backfill.button.disabled, true);
     assert.match(f.app.backfill.status.textContent, /No more pages/);
     assert.equal(f.doc.querySelector('.pager_next').hasAttribute('href'), false);
-  } finally { f.close(); }
+  } finally { releaseFirstPage(); f.close(); }
 });
 
 test('backfill uses original pager fallback and continues beyond a duplicate-only page', async () => {
@@ -292,6 +301,11 @@ test('[BFL-08] automatic loading waits in a hidden tab, resumes between pages an
   let hidden=true;const f=await setup({hidden:()=>hidden,settings:{backfillMode:'all'},fetch:async url=>{hidden=true;const n=Number(new URL(url).searchParams.get('page'));return response(url,pageHTML([n],n,n+1,{numbered:0}));}});
   try{assert.equal(f.calls.length,0);hidden=false;f.doc.dispatchEvent(new f.win.Event('visibilitychange'));
     await until(()=>f.calls.length===1&&!!f.app.backfill.cancelForeground,'pause between pages');assert.match(f.app.backfill.message,/paused/);
+    f.app.updateHealth();
+    const pages = f.doc.querySelector('[data-load-kind=backfill]');
+    assert.equal(f.app.loadGauge.textContent, '…');
+    assert.match(pages.textContent, /1 ready.*Loading/);
+    assert.equal(pages.querySelector('progress').hasAttribute('value'), false);
     hidden=false;f.doc.dispatchEvent(new f.win.Event('visibilitychange'));await until(()=>f.calls.length===2&&!!f.app.backfill.cancelForeground);
     f.app.backfill.stop();hidden=false;f.doc.dispatchEvent(new f.win.Event('visibilitychange'));await settle();assert.equal(f.calls.length,2);assert.equal(f.app.backfill.busy,false);assert.equal(f.app.backfill.cancelForeground,null);
   }finally{f.close();}

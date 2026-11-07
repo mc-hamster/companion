@@ -4,7 +4,8 @@ export const DEFAULTS = Object.freeze({
   enabled: true, previews: true, inlineThumbnails: true,
   thumbnailPlacement: 'title', categoryDisplay: 'keep', thumbnailMode: 'auto',
   thumbnailSize: 100, previewWidth: 440, hoverDelay: 140, hideDelay: 240,
-  resultsView: 'list', gridCardWidth: 320, gridShowDetails: false, gridShowTags: false,
+  resultsView: 'list', gridCardWidth: 320, gridSpacing: 'standard', gridAutoplayGifs: false,
+  gridShowDetails: false, gridShowTags: false,
   concurrency: 8, maxRetries: 2, stallMs: 8000, timeoutMs: 24000, thumbnailTimeoutMs: 4500,
   cacheEntries: 24, cacheMegapixels: 48, preloadScreens: 0.8,
   persistentImages: true, persistentCacheMB: 512,
@@ -47,7 +48,7 @@ export function validateSettings(input = {}) {
   for (const [key, options] of Object.entries({
     thumbnailPlacement: ['title', 'category'], categoryDisplay: ['keep', 'overlay', 'hide'],
     thumbnailMode: ['auto', 'small', 'supplied', 'original'], navigationScope: ['off', 'results', 'site'],
-    backfillMode: ['off', 'pages', 'all'], resultsView: ['list', 'grid'],
+    backfillMode: ['off', 'pages', 'all'], resultsView: ['list', 'grid'], gridSpacing: ['standard', 'compact'],
     seenMode: ['show', 'dim', 'hide'], freeleechView: ['all', 'freeleech', 'sitewide'],
     bookmarkFreeleechView: ['all', 'freeleech', 'sitewide']
   })) if (options.includes(input[key])) result[key] = input[key];
@@ -315,6 +316,7 @@ export class MediaPool {
     entry.lane = options.lane || 'thumbnail';
     entry.keepAlive = !!options.keepAlive;
     entry.cacheMode = options.cacheMode || null;
+    entry.gridAutoplay = options.gridAutoplay === true;
     entry.cacheFresh = !!options.force;
     entry.target = options.target || null;
     entry.eligible = options.eligible;
@@ -424,10 +426,10 @@ export class MediaPool {
     if (this.env.now() < host.until) return false;
     if (this.activeLanes[lane] >= (lane === 'thumbnail' ? this.settings.concurrency : entry.priority >= 90 ? 3 : 2)) return false;
     const hostLimit = Math.min(host.limit, this.settings.concurrency);
-    // When the host is down to one slot, an in-flight original can take tens
-    // of seconds. Keep one thumbnail moving alongside it after cooldown.
+    // Keep thumbnails and visible playback moving alongside each other after cooldown.
     const thumbnailReserve = lane === 'thumbnail' && hostLimit === 1 && host.large === 1 && !host.thumbnail;
-    if (host.constrained && host.thumbnail + host.large >= hostLimit && !thumbnailReserve) return false;
+    const playbackReserve = entry.gridAutoplay && lane === 'large' && hostLimit === 1 && host.thumbnail === 1 && !host.large;
+    if (host.constrained && host.thumbnail + host.large >= hostLimit && !thumbnailReserve && !playbackReserve) return false;
     // Ordinary large images have their own bounded lane. A hover can use one
     // extra host slot without displacing active thumbnail pixels.
     return lane === 'thumbnail' ? host.thumbnail < hostLimit :
@@ -635,8 +637,16 @@ export class MediaPool {
       }
       failed('The image request failed.');
     };
+    let usingNativePlayback = false;
     if (!cacheOnly) entry.timers.push(this.env.setTimeout(() => {
       if (!current() || entry.status !== 'loading') return;
+      if (entry.gridAutoplay && !entry.displayURL && entry.abortTransfer) {
+        // A buffered download cannot show frames until the full response arrives.
+        usingNativePlayback = entry.preferNativePlayback = true;
+        entry.abortTransfer(); entry.abortTransfer = null;
+        assign(url, true);
+        return;
+      }
       if (image.naturalWidth) {
         entry.dimensions = { width: image.naturalWidth, height: image.naturalHeight };
         entry.status = 'streaming'; entry.reason = 'The full image is still loading.';
@@ -674,12 +684,12 @@ export class MediaPool {
       }
       const abort = cache.load(url, {
         kind: entry.cacheMode === 'thumbnail' ? 'thumbnail' : 'preview',
-        network: !cacheOnly && (entry.cacheMode === 'network' || entry.cacheMode === 'thumbnail' &&
+        network: !cacheOnly && !entry.preferNativePlayback && (entry.cacheMode === 'network' || entry.cacheMode === 'thumbnail' &&
           (lane === 'thumbnail' || !/\.gif(?:\?|$)/i.test(url))),
         candidates: entry.cacheMode === 'thumbnail' && entry.smallFirst ? entry.candidates.slice(entry.candidateIndex + 1) : [],
         fresh: cacheFresh, diagnostic
       }, result => {
-        if (!current()) return;
+        if (!current() || usingNativePlayback) return;
         if (cacheOnly && !result?.hit) { queueTransfer(); return; }
         if (!result) { assign(url, true); return; }
         if (result.failure) {
