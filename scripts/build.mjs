@@ -67,12 +67,38 @@ section('if(torrents) {', '// +-----------------------------------------+\n// | 
   const precedence = '            // If forcing through individual filtering, ignore results';
   if (!block.includes(flags) || !block.includes(precedence)) throw new Error('Missing conditional filter anchors.');
   block = block.replace(flags,
-    '            const conditional = matchConditional?.(tagElement, titleElement, uploaderElement);\n' + flags);
+    '            const conditional = matchConditional?.(tagElement, titleElement, uploaderElement);\n' +
+    '            let hideReason, passReason;\n' + flags);
+  const reasons = [
+    ['currentBLIndex > -1', 'passReason', '"Hidden individually"'],
+    ['titleElement.querySelector("span.reported") !== null', 'hideReason', '"Reported result"'],
+    ['torrents[i].classList.contains("redbar")', 'hideReason', '"Warned result"'],
+    ['seeders.classList.contains("r00")', 'hideReason', '"No seeders"'],
+    ...['snatched', 'seeding', 'grabbed', 'leeching'].map(status =>
+      ['torrentIconElement.classList.contains("' + status + '")', 'hideReason', JSON.stringify('Activity filter · ' + status)]),
+    ['bmElement', 'hideReason', '"Bookmarked result"'],
+    ['anonName && anonName.innerHTML == "anon"', 'hideReason', '"Anonymous uploader"'],
+    ['uploader == nseBlacklistUploaders[l].trim().toLowerCase()', 'hideReason', '"Blocked uploader · " + uploaderElement.textContent.trim()'],
+    ['nseHardPassTags.includes(tagList[k].innerHTML) === true', 'passReason', '"Hard Pass tag · " + tagList[k].textContent.trim()'],
+    ['nseBlacklistTags.includes(tagList[k].innerHTML) === true', 'hideReason', '"Blocked tag · " + tagList[k].textContent.trim()']
+  ];
+  for (const [condition, reason, label] of reasons) {
+    const anchor = 'if(' + condition + ') {';
+    if (!block.includes(anchor)) throw new Error('Missing filter reason anchor: ' + condition);
+    block = block.replace(anchor, anchor + '\n                    ' + reason + ' ??= ' + label + ';');
+  }
+  block = block.replace(/(if\(torrentTitle.includes\(currentTBLPhrase\)\) \{)(\s+currentHidden = true;)(\s+currentForceHide = true;)?/g,
+    (_, start, hide, pass) => start + hide + (pass || '') + '\n                        ' +
+      (pass ? 'passReason ??= "Hard Pass title · "' : 'hideReason ??= "Blocked title · "') + ' + currentTBLPhrase;');
   block = block.replace(precedence, [
-    '            if (conditional?.has("HIDE")) currentHidden = true;',
+    '            if (conditional?.has("HIDE")) {',
+    '                currentHidden = true;',
+    '                hideReason ??= "Conditional rule " + (conditional.get("HIDE").line + 1);',
+    '            }',
     '            if (conditional?.has("SHOW") && !currentBypassWhitelist) currentWhitelisted = true;',
     '            if (conditional?.has("PASS")) {',
     '                currentForceHide = true;',
+    '                passReason ??= "Hard Pass · conditional rule " + (conditional.get("PASS").line + 1);',
     '                if (!currentForceShow && nseHardPassEnabled && nseRemoveHardPassResults) {',
     '                    torrents[i].classList.add("nseHardPassRemove");',
     '                    countMe = 0;',
@@ -81,6 +107,9 @@ section('if(torrents) {', '// +-----------------------------------------+\n// | 
     '',
     precedence
   ].join('\n'));
+  block = block.replace('            if(currentWhitelisted === true) {',
+    '            app.resultFilters.setEngineReason(torrents[i], !currentWhitelisted && currentHidden ? passReason || hideReason : null);\n' +
+    '            if(currentWhitelisted === true) {\n                torrents[i].classList.remove("nseHardPassRemove");');
   return 'let epIconSequence = 0;\nfunction epFilterRows(torrents, appended) {\napp.captureFilterBaseline(appended);\n' +
     'const matchConditional = app.resultFilters.conditionalMatcher();\n' + block + '\n}\nepFilterRows(torrents);\n\n';
 });
@@ -123,6 +152,8 @@ replace('storedList = [...new Set(storedList)];', 'storedList = [...new Set(stor
 nse = nse.replace(/document\.getElementById\("nseOuter"\)\.scrollIntoView\(\);/g, 'app.root?.scrollIntoView({block:"start"});');
 nse = nse.replace(/a\.nseTitleElement/g, "a[href*='torrents.php?id=']");
 nse = nse.replaceAll('"Filter this torrent with NSE"', '"Change result visibility"');
+nse = nse.replace(/^( +)(GM_setValue\("nseIndividualUploadHidingBlacklist"[^\n]+\n +GM_setValue\("nseIndividualUploadHidingWhitelist"[^\n]+)$/gm,
+  (_, indent, writes) => indent + 'app.beforeFilterWrite();\n' + indent + writes + '\n' + indent + 'app.afterFilterWrite();');
 nse = nse.replaceAll('<i class="font_icon torrent_icons clickable">', '<i class="font_icon torrent_icons clickable nseToggleIcon">');
 replace('Are you sure you want to reset all blacklists, all whitelists, and all preferences in NSE? This cannot be undone!',
   'Reset all filter lists, individual visibility overrides, and filter preferences? Saved searches and image preferences will be kept.');
@@ -170,6 +201,7 @@ const onboarding = stripExports((await read('src/onboarding.mjs')).replace(/impo
 const imageCache = stripExports((await read('src/image-cache.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const searchEditor = stripExports((await read('src/search-editor.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const resultTools = stripExports(await read('src/result-tools.mjs'));
+const luminanceImport = stripExports(await read('src/luminance-import.mjs'));
 const conditionalRules = stripExports(await read('src/conditional-rules.mjs'));
 const conditionalRuleEditor = stripExports((await read('src/conditional-rule-editor.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const resultFilters = stripExports((await read('src/result-filters.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
@@ -203,7 +235,7 @@ const bootstrap = (await read('src/bootstrap.inc.js'))
   .replace('/*COMPANION_CSS*/', JSON.stringify(css))
   .replace('/*NSE_BODY*/', nse);
 await mkdir(new URL('dist/', root), { recursive: true });
-const artifact = header + '\n\n(function () {\n"use strict";\n' + core + '\n' + imageCache + '\n' + preferences + '\n' + backfill + '\n' + collageQuickAdd + '\n' + onboarding + '\n' + searchEditor + '\n' + resultTools + '\n' + gridView + '\n' + scheduling + '\n' + workspace + '\n' + conditionalRules + '\n' + conditionalRuleEditor + '\n' + resultFilters + '\n' + app + '\n' + settings + '\n' + bootstrap + '\n})();\n';
+const artifact = header + '\n\n(function () {\n"use strict";\n' + core + '\n' + imageCache + '\n' + preferences + '\n' + backfill + '\n' + collageQuickAdd + '\n' + onboarding + '\n' + searchEditor + '\n' + resultTools + '\n' + gridView + '\n' + scheduling + '\n' + workspace + '\n' + conditionalRules + '\n' + conditionalRuleEditor + '\n' + resultFilters + '\n' + luminanceImport + '\n' + app + '\n' + settings + '\n' + bootstrap + '\n})();\n';
 await writeFile(new URL('dist/EmporniumCompanion.meta.js', root), header + '\n');
 await writeFile(new URL('dist/EmporniumCompanion.user.js', root), artifact);
 await writeFile(new URL('dist/EmporniumCompanion-' + releaseVersion + '.user.js', root), artifact);

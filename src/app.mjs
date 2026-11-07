@@ -13,6 +13,7 @@ import { VersionGroups, TagHighlights } from './result-tools.mjs';
 import { ResultGrid, gridCardSizeChoices } from './grid-view.mjs';
 import { ResultFilters } from './result-filters.mjs';
 import { compileConditionalRules } from './conditional-rules.mjs';
+import { mountLuminanceImport } from './luminance-import.mjs';
 import { coalesceScanRoots, presentationMutation, mutationChangesResults } from './scheduling.mjs';
 
 const SETTINGS_KEY = 'ep.settings';
@@ -347,9 +348,9 @@ export class CompanionApp {
     this.toggleFiltered = this.button('', () => {
       this.revealingFiltered = !this.revealingFiltered;
       this.toggleFiltered.setAttribute('aria-pressed', String(this.revealingFiltered));
-      filteredLabel.textContent = this.revealingFiltered ? 'Hide filtered' : 'Show filtered';
       this.syncGridFilters(); this.media.demandListener?.();
     });
+    this.filteredLabel = filteredLabel;
     this.toggleFiltered.dataset.epReveal = '';
     this.toggleFiltered.hidden = true;
     this.toggleFiltered.setAttribute('aria-pressed', 'false');
@@ -455,6 +456,8 @@ export class CompanionApp {
       ['listAutoplayGifs', 'Play animated covers in List', 'checkbox'],
       ['gridShowDetails', 'Show details in grid cards', 'checkbox'],
       ['gridShowTags', 'Show tags in grid cards', 'checkbox'],
+      ['gridTagCues', 'Show Favorite and Caution cues in Grid', 'checkbox'],
+      ['adaptiveDetailTags', 'Use a responsive layout for detail tags', 'checkbox'],
       ['previewWidth', 'Preview width', 'number', 240, 800],
       ['hoverDelay', 'Title hover delay (ms)', 'number', 0, 1500],
       ['hideDelay', 'Popup grace period (ms)', 'number', 100, 1500],
@@ -510,6 +513,7 @@ export class CompanionApp {
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
       const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridSpacing','gridAutoplayGifs','listAutoplayGifs','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
+        ['gridTagCues', 'adaptiveDetailTags'].includes(key) ? this.optionGroups.appearance :
         key === 'diagnostics' ? this.optionGroups.diagnostics : ['keyboardShortcuts', 'navigationScope'].includes(key) ? this.optionGroups.interaction :
         imageKeys.has(key) ? this.optionGroups.images : this.optionGroups.loading;
       parent.append(row);
@@ -556,6 +560,7 @@ export class CompanionApp {
       })
     );
     for(const item of backup.querySelectorAll('button,input'))item.dataset.optionItem='';
+    mountLuminanceImport(this, backup);
     const setupHelp=this.button('Getting started',()=>this.onboarding.show());setupHelp.classList.add('epc-settings-help');this.panes.settings.append(setupHelp);
     const diagnostics = this.optionGroups.diagnostics;
     this.diagnosticList = this.node('pre', '', 'epc-log');
@@ -810,11 +815,13 @@ export class CompanionApp {
         previous[this.resultFilters.freeleechKey] !== this.settings[this.resultFilters.freeleechKey]) {
       this.resultFilters.refreshView();
     }
-    if (previous.favoriteTags !== this.settings.favoriteTags || previous.cautionTags !== this.settings.cautionTags) this.tags.refresh();
+    if (['favoriteTags', 'cautionTags', 'collapsedDetailTags', 'adaptiveDetailTags', 'resultsView', 'gridShowTags', 'gridTagCues']
+      .some(key => previous[key] !== this.settings[key])) this.tags.refresh();
     if (previous.keyboardShortcuts !== this.settings.keyboardShortcuts) this.preview.syncShortcutLabels();
     const other = new Set(['groupVersions', 'favoriteTags', 'cautionTags', 'backfillEnabled', 'backfillPages', 'backfillMode',
       'keyboardShortcuts', 'navigationScope', 'globalArrowNavigation', 'diagnostics', 'persistentImages', 'persistentCacheMB',
-      'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView']);
+      'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView', 'collapsedDetailTags',
+      'adaptiveDetailTags', 'gridTagCues', 'listHiddenColumns']);
     if (!Object.keys(this.settings).some(key => !other.has(key) && previous[key] !== this.settings[key])) return;
     if (previous.enabled !== this.settings.enabled) {
       this.restartMedia(); return;
@@ -868,7 +875,7 @@ export class CompanionApp {
     return { format: 'empornium-companion', version: 1, createdAt: new Date().toISOString(),
       settings: this.settings, searches: this.searches, searchDrawerOpen: this.activePane === 'searches', nse };
   }
-  importData(text, keepUndo = true, { completeOnboarding = false } = {}) {
+  importData(text, keepUndo = true, { completeOnboarding = false, mergePreferences = false } = {}) {
     let parsed;
     try { parsed = JSON.parse(text); }
     catch { throw new SyntaxError('The backup file is not valid JSON.'); }
@@ -882,9 +889,9 @@ export class CompanionApp {
       for (const key of ['keyboardShortcuts', 'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView']) {
         if (!Object.hasOwn(parsed.settings ?? {}, key)) settings[key] = this.settings[key];
       }
-      searches = validateSearches(parsed.searches);
+      if (!mergePreferences) searches = validateSearches(parsed.searches);
       nse = this.options.validateNSE?.(parsed.nse || {}) || parsed.nse;
-      drawer = !!parsed.searchDrawerOpen;
+      if (!mergePreferences) drawer = !!parsed.searchDrawerOpen;
     } else if ('empSavedSearches' in parsed) {
       let legacy = parsed.empSavedSearches;
       if (typeof legacy === 'string') {
@@ -915,13 +922,17 @@ export class CompanionApp {
     if (searches) changes.set(SEARCH_KEY, searches);
     if (drawer !== undefined) changes.set('ep.searchDrawerOpen', drawer);
     if (nse) {
-      for (const key of this.storage.list()) if (/^nse/.test(key)) changes.set(key, undefined);
+      if (!mergePreferences) for (const key of this.storage.list()) if (/^nse/.test(key)) changes.set(key, undefined);
       for (const [key, value] of Object.entries(nse)) changes.set(key, value);
     }
     if (!changes.size) throw new Error('No compatible settings were found.');
     this.preferences.cancel();
-    const old = new Map(Array.from(changes.keys(), key => [key, this.storage.get(key, undefined)]));
     const previous = this.exportData();
+    if (mergePreferences) {
+      const stored = this.storage.get(SETTINGS_KEY, {});
+      changes.set('ep.preferenceUndo', { time: Date.now(), settings: { ...previous.settings, ...stored }, nse: previous.nse });
+    }
+    const old = new Map(Array.from(changes.keys(), key => [key, this.storage.get(key, undefined)]));
     try {
       if (keepUndo) this.storage.set('ep.previousImport', previous);
       for (const [key, value] of changes) value === undefined ? this.storage.delete(key) : this.storage.set(key, value);
@@ -942,6 +953,10 @@ export class CompanionApp {
     }
     if ((nse || conditionalChanged) && this.mounted) { this.refreshFilters(true); this.applyAppearance(); }
     if (searches) { this.searches = searches; this.renderSavedSearches(); }
+    if (mergePreferences) {
+      this.preferences.checkpoint = changes.get('ep.preferenceUndo');
+      if (this.undoPreferences) this.undoPreferences.hidden = false;
+    }
     // Legacy drawer state only restores management. Saved shortcuts are always visible.
     // Old drawer flags do not reopen management or hide the primary shortcuts.
     if (this.saveStatus) this.saveStatus.textContent = 'Backup restored';
@@ -1224,6 +1239,7 @@ export class CompanionApp {
   syncGridFilters(refreshTags = true, appended) {
     const previous = appended && !this.resultsDirty ? this.resultCounts : null;
     const newRows = previous ? appended : null;
+    let revealable = previous?.revealable || 0;
     const seenFiltered = new Set();
     let rows;
     this.batchDOM(() => {
@@ -1244,7 +1260,15 @@ export class CompanionApp {
         const hidden = filtered && !revealed;
         if ((filtered || wasRevealed) && row.classList.contains('hidden') !== hidden) row.classList.toggle('hidden', hidden);
         if (wasRevealed !== revealed) row.classList.toggle('epc-revealed', revealed);
-        if (this.resultFilters.applyRow(row)) seenFiltered.add(row);
+        const { seenFiltered: seen, outsideView } = this.resultFilters.applyRow(row);
+        if (seen) seenFiltered.add(row);
+        if (!outsideView && (filtered || seen)) revealable++;
+        let reason;
+        if (this.revealingFiltered && !outsideView) {
+          if (filtered) reason = this.resultFilters.engineReasons.get(row) || 'Hidden by a filter';
+          else if (seen) reason = 'Already seen';
+        }
+        this.resultFilters.renderReason(row, reason);
       }
     });
     const cards = this.doc.querySelectorAll('.torrent_grid__torrent'), affectedCards = [];
@@ -1278,6 +1302,7 @@ export class CompanionApp {
     if (this.filterSummary) {
       const archived = newRows ? newRows.filter(row => this.detachedFilterRows.has(row)) : [...this.detachedFilterRows.keys()];
       const removed = (previous?.removed || 0) + archived.filter(row => !row.isConnected).length;
+      revealable += archived.filter(row => !row.isConnected && !this.resultFilters.outsideView(row)).length;
       const filtered = (previous?.filtered || 0) + rows.filter(row => row.getAttribute('isNSEHidden') === '1' || seenFiltered.has(row)).length;
       const grouped = this.versions?.collapsed || 0;
       const eligible = rows.filter(row => !row.hidden && !row.classList.contains('epc-filter-hidden') &&
@@ -1285,10 +1310,12 @@ export class CompanionApp {
         (row.classList.contains('epc-revealed') || !row.classList.contains('nseHardPassRemove') && !row.classList.contains('hidden'))).length;
       // A new version can also collapse existing rows that had no group before.
       const shown = previous ? previous.shown + eligible - (grouped - previous.grouped) : eligible;
-      this.resultCounts = { total: (previous?.total || 0) + rows.length, shown, grouped, filtered, removed }; this.renderResultSummary();
-      this.toggleFiltered.disabled = !filtered && !removed;
-      this.toggleFiltered.hidden = !filtered && !removed || !this.storage.get('nseFloatingToggleButtonEnabled', true);
-      this.filteredCount.textContent = (filtered + removed).toLocaleString();
+      this.resultCounts = { total: (previous?.total || 0) + rows.length, shown, grouped, filtered, removed, revealable }; this.renderResultSummary();
+      this.toggleFiltered.disabled = !revealable;
+      this.toggleFiltered.hidden = !revealable || !this.storage.get('nseFloatingToggleButtonEnabled', true);
+      this.filteredCount.textContent = revealable.toLocaleString();
+      this.filteredLabel.textContent = this.revealingFiltered ? 'Hide filtered' : 'Show filtered';
+      this.toggleFiltered.setAttribute('aria-label', this.filteredLabel.textContent + ' (' + this.filteredCount.textContent + ')');
       styleRowControls(this, newRows ? rows : undefined);
     }
     this.backfill?.sync();
@@ -1305,9 +1332,11 @@ export class CompanionApp {
   }
   renderResultSummary() {
     if (!this.resultCounts || !this.filterSummary) return;
-    const { total, shown, grouped, filtered, removed } = this.resultCounts;
+    const { total, shown, grouped, filtered, removed, revealable } = this.resultCounts;
+    const revealed = this.revealingFiltered ? revealable : 0;
     const caption = total || removed ? shown + ' shown' + (grouped ? ' · ' + grouped + ' grouped' : '') +
-      ' · ' + filtered + ' filtered' + (removed ? ' · ' + removed + ' removed' : '') : '';
+      (revealed ? ' · ' + revealed + ' revealed' : ' · ' + filtered + ' filtered') +
+      (removed ? ' · ' + removed + ' removed' : '') : '';
     if (this.filterSummary.textContent !== caption) this.filterSummary.textContent = caption;
   }
   rememberRemovedFilters(root) {

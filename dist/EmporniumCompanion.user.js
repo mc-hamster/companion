@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Empornium Companion
 // @namespace    empornium-companion.local
-// @version      2.14.0-alpha.8
+// @version      2.14.0-alpha.9
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion
@@ -47,7 +47,8 @@ const DEFAULTS = Object.freeze({
   thumbnailPlacement: 'title', categoryDisplay: 'keep', thumbnailMode: 'auto',
   thumbnailSize: 100, previewWidth: 440, hoverDelay: 140, hideDelay: 240,
   resultsView: 'list', gridCardWidth: 320, gridSpacing: 'standard', gridAutoplayGifs: false, listAutoplayGifs: false,
-  gridShowDetails: false, gridShowTags: false,
+  gridShowDetails: false, gridShowTags: false, gridTagCues: true, adaptiveDetailTags: false,
+  listHiddenColumns: '', collapsedDetailTags: '',
   concurrency: 8, maxRetries: 2, stallMs: 8000, timeoutMs: 24000, thumbnailTimeoutMs: 4500,
   cacheEntries: 24, cacheMegapixels: 48, preloadScreens: 0.8,
   persistentImages: true, persistentCacheMB: 512,
@@ -96,11 +97,15 @@ function validateSettings(input = {}) {
   })) if (options.includes(input[key])) result[key] = input[key];
   if (typeof input.conditionalRules === 'string') result.conditionalRules = input.conditionalRules;
   if (result.thumbnailMode === 'small') result.thumbnailMode = 'auto';
-  for (const key of ['favoriteTags', 'cautionTags']) {
+  for (const key of ['favoriteTags', 'cautionTags', 'collapsedDetailTags']) {
     if (typeof input[key] === 'string') {
       if (input[key].length > 50000) throw new Error('Tag highlight list exceeds 50,000 characters.');
       result[key] = [...new Set(input[key].trim().toLocaleLowerCase().split(/\s+/).filter(Boolean))].join(' ');
     }
+  }
+  if (typeof input.listHiddenColumns === 'string') {
+    result.listHiddenColumns = [...new Set(input.listHiddenColumns.split(' ').filter(key =>
+      /^(?:files|comments|added|size|snatches|seeds|peers|uploader)$/.test(key)))].join(' ');
   }
   // A caution takes visual precedence if a manually edited list overlaps.
   const caution = new Set(result.cautionTags.split(' '));
@@ -2439,7 +2444,7 @@ class VersionGroups {
   stabilizeLayouts() {
     if (!this.app.settings.groupVersions || this.app.backfill?.busy) return;
     for (const table of this.app.doc.querySelectorAll('table.torrent_table,table#torrent_table')) {
-      if (table.classList.contains('epc-result-grid')) continue;
+      if (table.matches('.epc-result-grid,[data-ep-list-columns]')) continue;
       if (this.layouts.has(table) || table.querySelector(':scope > colgroup') || table.querySelectorAll('tr.torrent').length < 200) continue;
       const row = [...table.querySelectorAll('tr.torrent')].find(row => row.getClientRects().length);
       if (!row) continue;
@@ -2535,7 +2540,10 @@ function matchesTagParts(value, parts) {
 }
 
 class TagHighlights {
-  constructor(app) { this.app = app; this.originals = new Map(); this.index = new Map(); this.values = new WeakMap(); }
+  constructor(app) {
+    this.app = app; this.originals = new Map(); this.index = new Map(); this.values = new WeakMap();
+    this.cues = new Map();
+  }
   refresh(root) {
     if (root?.matches?.('img,source,video,canvas')) return;
     const { app } = this, { doc, settings } = app;
@@ -2561,16 +2569,21 @@ class TagHighlights {
     const { favorites, caution } = this;
     const selector = '#content div.tags>a,#content ul#torrent_tags_list>li>a';
     const tags = new Set();
+    const rows = new Set();
     if (this.initialized && changed && !queryChanged) {
       for (const value of affected) for (const tag of this.index.get(value) || []) tags.add(tag);
     } else if (!root || queryChanged || !this.initialized) root = doc;
     if (root) {
       for (const scope of Array.isArray(root) ? root : [root]) {
+        const row = scope.closest?.('tr.torrent');
+        if (row) rows.add(row);
         for (const tag of scope.matches?.(selector) ? [scope] : scope.querySelectorAll?.(selector) || []) tags.add(tag);
       }
     }
     this.initialized = true;
     for (const tag of tags) {
+      const row = tag.closest('tr.torrent');
+      if (row) rows.add(row);
       const value = tag.textContent.trim().toLocaleLowerCase();
       const previous = this.values.get(tag);
       if (previous !== value) {
@@ -2592,8 +2605,90 @@ class TagHighlights {
         if (tag.title !== title) tag.title = title;
       } else this.restore(tag);
     }
+    if (root === doc) for (const row of this.cues.keys()) rows.add(row);
+    const showCues = settings.resultsView === 'grid' && settings.gridTagCues && !settings.gridShowTags;
+    if (showCues || this.cues.size) for (const row of rows) this.refreshCue(row, showCues);
+    this.refreshDetailTags();
+  }
+  refreshCue(row, enabled) {
+    const { app } = this;
+    const favorites = new Set(), cautions = new Set();
+    if (enabled && row.isConnected) for (const tag of row.querySelectorAll('div.tags > a')) {
+      const value = this.values.get(tag);
+      if (this.caution.has(value)) cautions.add(value);
+      else if (this.favorites.has(value)) favorites.add(value);
+    }
+    let cue = this.cues.get(row);
+    if (!favorites.size && !cautions.size) { cue?.remove(); this.cues.delete(row); return; }
+    if (!cue) {
+      const title = resultTitleLink(row);
+      if (!title) return;
+      cue = app.node('details', null, 'epc-root epc-grid-tag-cue');
+      cue.append(app.node('summary'), app.node('div', null, 'epc-grid-tag-matches'));
+      title.after(cue); this.cues.set(row, cue);
+    }
+    const caption = [
+      cautions.size === 1 ? 'Caution · ' + [...cautions][0] : cautions.size ? cautions.size + ' cautions' : '',
+      favorites.size ? favorites.size + (favorites.size === 1 ? ' favorite' : ' favorites') : ''
+    ].filter(Boolean).join(' · ');
+    if (cue.firstElementChild.textContent !== caption) cue.firstElementChild.textContent = caption;
+    const contents = [
+      cautions.size ? 'Caution · ' + [...cautions].join(', ') : '',
+      favorites.size ? 'Favorite · ' + [...favorites].join(', ') : ''
+    ].filter(Boolean);
+    if (cue.lastElementChild.textContent !== contents.join('')) {
+      cue.lastElementChild.replaceChildren(...contents.map(text => app.node('div', text)));
+    }
+    cue.toggleAttribute('data-caution', !!cautions.size);
+  }
+  refreshDetailTags() {
+    const { app } = this;
+    const list = app.doc.querySelector('ul#torrent_tags_list');
+    if (list !== this.detailList) {
+      this.releaseDetailTags();
+      this.detailList = list;
+      this.detailExpanded = false;
+    }
+    if (!list) return;
+    const { adaptiveDetailTags, collapsedDetailTags } = app.settings;
+    list.toggleAttribute('data-ep-adaptive-tags', adaptiveDetailTags);
+    list.toggleAttribute('data-ep-tags-expanded', this.detailExpanded);
+    const collapsed = new Set(highlightTagList(collapsedDetailTags));
+    let count = 0;
+    for (const item of list.children) {
+      const tag = item.matches('li') && item.querySelector(':scope > a');
+      const low = !!tag && !item.hidden && !item.classList.contains('hidden') && collapsed.has(tag.textContent.trim().toLocaleLowerCase());
+      item.toggleAttribute('data-ep-low-priority-tag', low);
+      if (low) count++;
+    }
+    if (!count) {
+      this.detailControls?.remove(); this.detailControls = this.detailToggle = null; this.detailExpanded = false;
+      return;
+    }
+    if (!this.detailToggle) {
+      const controls = app.node('div', null, 'epc-root epc-detail-tag-actions');
+      this.detailToggle = app.button('', () => {
+        this.detailExpanded = !this.detailExpanded;
+        this.refreshDetailTags();
+      });
+      this.detailToggle.setAttribute('aria-controls', list.id);
+      controls.append(this.detailToggle); list.before(controls);
+      this.detailControls = controls;
+    }
+    const label = (this.detailExpanded ? 'Hide ' : 'Show ') + count + (count === 1 ? ' other tag' : ' other tags');
+    if (this.detailToggle.textContent !== label) this.detailToggle.textContent = label;
+    this.detailToggle.setAttribute('aria-expanded', String(this.detailExpanded));
+  }
+  releaseDetailTags() {
+    this.detailControls?.remove(); this.detailControls = this.detailToggle = null;
+    this.detailList?.removeAttribute('data-ep-adaptive-tags');
+    this.detailList?.removeAttribute('data-ep-tags-expanded');
+    for (const item of this.detailList?.children || []) item.removeAttribute('data-ep-low-priority-tag');
   }
   forget(root) {
+    for (const row of [root, ...root.querySelectorAll('tr.torrent')]) {
+      this.cues.get(row)?.remove(); this.cues.delete(row);
+    }
     for (const tag of [root, ...root.querySelectorAll('div.tags>a,ul#torrent_tags_list>li>a')]) {
       const value = this.values.get(tag), entries = this.index.get(value);
       entries?.delete(tag); if (entries && !entries.size) this.index.delete(value);
@@ -2641,10 +2736,35 @@ class TagHighlights {
     }
     menu.append(group);
   }
-  dispose() { for (const tag of this.originals.keys()) this.restore(tag); this.index.clear(); }
+  dispose() {
+    for (const tag of this.originals.keys()) this.restore(tag);
+    this.index.clear();
+    for (const cue of this.cues.values()) cue.remove();
+    this.cues.clear(); this.releaseDetailTags();
+  }
 }
 
 // SPDX-License-Identifier: GPL-3.0-or-later
+
+const listColumnLabels = new Map([
+  ['files', 'Files'], ['comments', 'Comments'], ['added', 'Added'], ['size', 'Size'],
+  ['snatches', 'Snatches'], ['seeds', 'Seeds'], ['peers', 'Peers'], ['uploader', 'Uploader']
+]);
+const listColumnAliases = new Map([
+  ['files', 'files'], ['file count', 'files'], ['comments', 'comments'], ['added', 'added'], ['time', 'added'], ['date added', 'added'],
+  ['size', 'size'], ['snatches', 'snatches'], ['snatched', 'snatches'], ['seeds', 'seeds'], ['seeders', 'seeds'],
+  ['peers', 'peers'], ['leechers', 'peers'], ['leeches', 'peers'], ['uploader', 'uploader'], ['uploaded by', 'uploader']
+]);
+const columnKey = cell => {
+  const labels = [cell.textContent, cell.title, ...[...cell.querySelectorAll('img[alt],[title],[aria-label]')]
+    .flatMap(node => [node.alt, node.title, node.getAttribute('aria-label')])];
+  for (const label of labels) {
+    const key = listColumnAliases.get((label || '').trim().toLowerCase().replace(/^(?:sort|order) by /, ''));
+    if (key) return key;
+  }
+  const sort = cell.querySelector('a[href*="order_by="]');
+  if (sort) return listColumnAliases.get(new URL(sort.href).searchParams.get('order_by'));
+};
 
 function gridCardSizeChoices(select, width) {
   const choices = new Map([[240, 'Compact · 240px'], [320, 'Balanced · 320px'], [420, 'Large · 420px'], [540, 'Extra large · 540px']]);
@@ -2658,7 +2778,10 @@ function gridCardSizeChoices(select, width) {
 
 // Keep native rows, links and controls: both layouts share filtering and backfill.
 class ResultGrid {
-  constructor(app) { this.app = app; this.tables = new Map(); this.cells = new Set(); this.headings = new Set(); }
+  constructor(app) {
+    this.app = app; this.tables = new Map(); this.cells = new Set(); this.headings = new Set();
+    this.listTables = new Map(); this.hiddenCells = new Set(); this.listSpans = new Map();
+  }
   mount() {
     const app = this.app;
     this.layout = app.node('div', null, 'epc-layout-switch');
@@ -2679,6 +2802,110 @@ class ResultGrid {
     }
     this.syncControls();
     app.toolbarContext.append(this.layout);
+    this.columns = app.node('details', null, 'epc-columns');
+    this.columns.hidden = true;
+    this.columns.append(app.node('summary', 'Columns'));
+    this.columnOptions = app.node('div', null, 'epc-column-options');
+    this.columns.append(this.columnOptions);
+    const control = app.node('input'); control.type = 'hidden'; control.hidden = true;
+    control.value = app.settings.listHiddenColumns; control.dataset.setting = 'listHiddenColumns';
+    app.controls.set('listHiddenColumns', control);
+    app.toolbarContext.append(this.columns, control);
+  }
+  syncListColumns(grid) {
+    const { app } = this;
+    this.clearListColumns();
+    if (!this.columns) return;
+    const hidden = new Set(app.settings.listHiddenColumns.split(' '));
+    const available = new Map(), sorts = new Map();
+    const tables = new Set(grid ? [] : [...app.doc.querySelectorAll('#content table')]
+      .filter(table => table.querySelector(':scope > tbody > tr.torrent, :scope > tr.torrent')));
+    if (!grid) for (const marker of app.detachedFilterRows.values()) {
+      const table = marker.parentElement?.closest('table');
+      if (table) tables.add(table);
+    }
+    if (!grid) for (const table of tables) {
+      const header = [...table.rows].find(row => row.matches('.colhead,.colhead_dark') || row.closest('thead') || row.querySelector('th'));
+      if (!header) continue;
+      const columns = [...header.cells].flatMap(cell => Array(cell.colSpan).fill(cell.colSpan === 1 ? columnKey(cell) : undefined));
+      const keys = new Set(columns.filter(Boolean));
+      if (!keys.size) continue;
+      const duplicates = new Set(columns.filter((key, index) => key && columns.indexOf(key) !== index));
+      for (const key of duplicates) keys.delete(key);
+      if (!keys.size) continue;
+      for (const cell of header.cells) {
+        const key = cell.colSpan === 1 && columnKey(cell);
+        if (!keys.has(key)) continue;
+        available.set(key, listColumnLabels.get(key));
+        const sort = cell.querySelector('a[href]');
+        if (sort && !sorts.has(key)) sorts.set(key, sort);
+        if (hidden.has(key)) this.hideListCell(cell);
+      }
+      const selected = new Set([...keys].filter(key => hidden.has(key)));
+      if (!selected.size) continue;
+      app.versions?.releaseLayout(table);
+      table.setAttribute('data-ep-list-columns', '');
+      this.listTables.set(table, { columns, selected });
+      this.applyListRows(table.querySelectorAll('tr.torrent'), columns, selected);
+      for (const row of table.rows) {
+        const cell = row.cells.length === 1 && row.cells[0];
+        if (cell && cell.colSpan === columns.length) {
+          this.listSpans.set(cell, cell.getAttribute('colspan'));
+          cell.colSpan -= selected.size;
+        }
+      }
+    }
+    this.columns.hidden = !available.size;
+    if (this.columns.hidden) this.columns.open = false;
+    const optionsKey = JSON.stringify([...available].map(([key, label]) => [key, label, hidden.has(key), sorts.get(key)?.href]));
+    if (this.columnOptionsKey === optionsKey) return;
+    this.columnOptionsKey = optionsKey;
+    const focused = app.doc.activeElement?.dataset.columnChoice;
+    this.columnOptions.replaceChildren(app.node('p', 'Show in List', 'epc-caption'));
+    for (const [key, label] of available) {
+      const line = app.node('div', null, 'epc-column-option');
+      const field = app.node('label');
+      const input = app.node('input'); input.type = 'checkbox'; input.checked = !hidden.has(key);
+      input.dataset.columnChoice = key;
+      input.addEventListener('change', () => {
+        const next = new Set(app.settings.listHiddenColumns.split(' ').filter(Boolean));
+        if (input.checked) next.delete(key); else next.add(key);
+        app.controls.get('listHiddenColumns').value = [...next].join(' ');
+        app.dirty = true;
+        if (!app.preferences.flush()) {
+          input.checked = !input.checked;
+          app.controls.get('listHiddenColumns').value = app.settings.listHiddenColumns;
+        }
+      });
+      field.append(input, app.node('span', label)); line.append(field);
+      if (hidden.has(key) && sorts.has(key)) {
+        const link = app.node('a', 'Sort'); link.href = sorts.get(key).href;
+        link.setAttribute('aria-label', 'Sort by ' + label); line.append(link);
+      }
+      this.columnOptions.append(line);
+      if (key === focused) input.focus({ preventScroll: true });
+    }
+  }
+  hideListCell(cell) {
+    cell.setAttribute('data-ep-list-column-hidden', ''); this.hiddenCells.add(cell);
+  }
+  applyListRows(rows, columns, selected) {
+    for (const row of rows) {
+      let index = columns.length;
+      const title = resultTitleLink(row)?.closest('td');
+      for (const cell of [...row.cells].reverse()) {
+        if (cell === title) break;
+        index -= cell.colSpan;
+        if (!title || cell.colSpan !== 1) continue;
+        if (selected.has(columns[index])) this.hideListCell(cell);
+      }
+    }
+  }
+  clearListColumns() {
+    for (const cell of this.hiddenCells) cell.removeAttribute('data-ep-list-column-hidden');
+    for (const table of this.listTables.keys()) table.removeAttribute('data-ep-list-columns');
+    for (const [cell, span] of this.listSpans) cell.setAttribute('colspan', span);
+    this.hiddenCells.clear(); this.listTables.clear(); this.listSpans.clear();
   }
   syncControls() {
     for (const [value, button] of this.layoutButtons) button.setAttribute('aria-pressed', String(this.app.settings.resultsView === value));
@@ -2729,6 +2956,7 @@ class ResultGrid {
         for (const link of cell.querySelectorAll('[data-ep-grid-title]')) delete link.dataset.epGridTitle;
         delete cell.dataset.epGridCell; delete cell.dataset.epGridLabel; this.cells.delete(cell);
       }
+      this.syncListColumns(grid);
     });
     if (this.layout) {
       this.layout.hidden = !(this.tables.size || app.doc.querySelector('#content tr.torrent') || app.detachedFilterRows.size);
@@ -2744,6 +2972,11 @@ class ResultGrid {
         if (!labels) { this.refresh(); return; }
         this.decorateRows(rows, labels);
       }
+    } else {
+      const table = rows[0]?.closest('table');
+      const layout = this.listTables.get(table);
+      if (layout) this.applyListRows(rows, layout.columns, layout.selected);
+      else if (table && this.app.settings.listHiddenColumns) this.refresh();
     }
     if (this.layout?.hidden && (rows.some(row => row.closest('#content')) || this.app.detachedFilterRows.size)) {
       this.layout.hidden = false;
@@ -2779,6 +3012,7 @@ class ResultGrid {
     }
   }
   dispose() {
+    this.clearListColumns(); this.columns?.remove();
     for (const table of this.tables.keys()) this.release(table);
     this.app.doc.documentElement.removeAttribute('data-ep-compact-cover-grid');
     this.app.doc.documentElement.removeAttribute('data-ep-list-autoplay');
@@ -2967,6 +3201,13 @@ function mountFilterControls(app) {
     input.dataset.setting = key; input.setAttribute('aria-label', label);
     row.append(app.node('span', label), input); highlights.append(row); app.controls.set(key, input);
   }
+  const lowPriority = optionGroup(app, app.panes.filters, 'Collapse tags on detail pages', { key: 'collapsed-detail-tags' });
+  const lowPriorityField = app.node('label', null, 'epc-field');
+  const lowPriorityInput = app.node('textarea'); lowPriorityInput.rows = 2; lowPriorityInput.maxLength = 50000;
+  lowPriorityInput.value = app.settings.collapsedDetailTags; lowPriorityInput.dataset.setting = 'collapsedDetailTags';
+  lowPriorityField.append(app.node('span', 'Low-priority tags'), lowPriorityInput);
+  lowPriority.append(app.node('p', 'Matching tags stay available under Show other tags on detail pages.', 'epc-caption'), lowPriorityField);
+  app.controls.set('collapsedDetailTags', lowPriorityInput);
   summarize(highlights, () => {
     const count = key => app.controls.get(key).value.trim().split(/\s+/).filter(Boolean).length;
     const favorite = count('favoriteTags'), caution = count('cautionTags');
@@ -3099,9 +3340,10 @@ function styleRowControls(app, roots = [app.doc]) {
   app.rowKeys ||= new WeakSet();
   for (const root of roots) for (const icon of root.querySelectorAll('.nseToggleIcon')) {
     const row = icon.closest('tr'); const hidden = row?.getAttribute('isNSEHidden') === '1';
-    const label = icon.classList.contains('nseIndividuallyWhitelisted') ? 'Reset visibility override' :
-      hidden ? 'Show this result' : 'Hide this result';
-    icon.setAttribute('role', 'button'); icon.setAttribute('aria-label', label); icon.title = label; icon.tabIndex = 0;
+    const label = hidden ? 'Always show this result' : 'Hide this result';
+    icon.setAttribute('role', 'button'); icon.setAttribute('aria-label', label);
+    icon.title = icon.matches('.nseIndividuallyWhitelisted,.nseIndividuallyBlacklisted') ? label + ' · Right-click to reset the exception' : label;
+    icon.tabIndex = 0;
     if (!app.rowKeys.has(icon)) {
       app.rowKeys.add(icon);
       icon.addEventListener('keydown', e => { if (['Enter', ' '].includes(e.key)) { e.preventDefault(); icon.click(); } });
@@ -3497,6 +3739,8 @@ class ResultFilters {
     this.bookmarks = this.pageURL.pathname === '/bookmarks.php';
     this.freeleechKey = this.bookmarks ? 'bookmarkFreeleechView' : 'freeleechView';
     this.icons = new WeakMap();
+    this.engineReasons = new WeakMap();
+    this.reasonNodes = new WeakMap();
   }
   mountFreeleech() {
     const app = this.app;
@@ -3542,8 +3786,8 @@ class ResultFilters {
         title: title?.textContent.trim().toLocaleLowerCase() || '',
         uploader: uploader?.textContent.trim().toLocaleLowerCase() || ''
       };
-      const actions = new Set();
-      for (const rule of rules) if (!actions.has(rule.action) && rule.test(row)) actions.add(rule.action);
+      const actions = new Map();
+      for (const rule of rules) if (!actions.has(rule.action) && rule.test(row)) actions.set(rule.action, rule);
       return actions;
     } : null;
     return this.matchRules;
@@ -3571,6 +3815,25 @@ class ResultFilters {
       }
     } catch { app.report('Seen history could not be updated.'); }
   }
+  setEngineReason(row, reason) {
+    if (reason) this.engineReasons.set(row, reason);
+    else this.engineReasons.delete(row);
+  }
+  outsideView(row, kind = findFreeleech(row).kind) {
+    const view = this.app.settings[this.freeleechKey];
+    return view === 'sitewide' ? kind !== 'sitewide' : view === 'freeleech' && !kind;
+  }
+  renderReason(row, reason) {
+    let node = this.reasonNodes.get(row);
+    if (!reason) { node?.remove(); this.reasonNodes.delete(row); return; }
+    if (!node) {
+      const title = resultTitleLink(row);
+      if (!title) return;
+      node = this.app.node('span', null, 'epc-root epc-filter-reason');
+      title.after(node); this.reasonNodes.set(row, node);
+    }
+    if (node.textContent !== reason) node.textContent = reason;
+  }
   applyRow(row) {
     const { app } = this;
     const { kind, icon } = findFreeleech(row);
@@ -3578,15 +3841,14 @@ class ResultFilters {
     if (previous && previous !== icon) delete previous.dataset.epFreeleech;
     if (icon) { icon.dataset.epFreeleech = kind; this.icons.set(row, icon); }
     else this.icons.delete(row);
-    const view = app.settings[this.freeleechKey];
-    const outsideView = view === 'sitewide' ? kind !== 'sitewide' : view === 'freeleech' && !kind;
+    const outsideView = this.outsideView(row, kind);
     const mode = app.settings.seenMode;
     const seen = mode !== 'show' && (this.seen ||= this.readSeenIDs()).has(torrentID(row, this.pageURL.href));
     const seenFiltered = seen && mode === 'hide';
     row.classList.toggle('epc-filter-hidden', outsideView || seenFiltered && !app.revealingFiltered);
     row.classList.toggle('epc-seen-revealed', seenFiltered && !!app.revealingFiltered);
     row.classList.toggle('epc-seen-dim', seen && mode === 'dim');
-    return seenFiltered;
+    return { outsideView, seenFiltered };
   }
   refreshSeen() {
     const showingHistory = this.historyVisible();
@@ -3680,6 +3942,186 @@ class ResultFilters {
       this.renderHistory(); this.historyType.focus();
     } catch (error) { app.toast(error.message || 'Could not update history.'); }
   }
+}
+
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+const legacyLuminanceGroups = new Map([
+  ['good', '1a'], ['loved', '1b'], ['performer', '2a'], ['loveperf', '2b'],
+  ['newperf', '3a'], ['amateur', '4a'], ['loveamat', '4b'], ['maleperf', '5a'],
+  ['lovemale', '5b'], ['likesite', '6a'], ['lovesite', '6b'], ['disliked', '7a'],
+  ['hated', '7b'], ['terrible', '7c'], ['useless', '7d']
+]);
+const luminanceNames = new Map([
+  ['1a', 'Liked'], ['1b', 'Loved'], ['2a', 'Performer'], ['2b', 'Loved Performer'],
+  ['3a', 'New Performer'], ['3b', 'Loved New Performer'], ['4a', 'Amateur'],
+  ['4b', 'Loved Amateur'], ['5a', 'Male Performer'], ['5b', 'Loved Male Performer'],
+  ['6a', 'Liked Site'], ['6b', 'Loved Site'], ['7a', 'Disliked'], ['7b', 'Hated'],
+  ['7c', 'Blacklisted'], ['7d', 'Useless']
+]);
+const luminanceWeights = new Map([['verygood', 2], ['good', 1], ['ignore', 0], ['bad', -1], ['verybad', -2]]);
+const luminanceDestinations = { favorite: 'Favorite', caution: 'Caution', block: 'Block', collapse: 'Collapse on details', skip: 'Skip' };
+const importTagSet = value => new Set(String(value || '').toLocaleLowerCase().split(/\s+/).filter(Boolean));
+
+function readLuminanceExport(text) {
+  if (text.length > 8 * 1024 * 1024) throw new Error('The backup is too large (maximum 8 MiB).');
+  let data;
+  try { data = JSON.parse(text); }
+  catch { throw new Error('Paste the JSON from Luminance’s Export Settings box.'); }
+  if (!data?.tags || typeof data.tags !== 'object' || Array.isArray(data.tags)) {
+    throw new Error('This export does not contain Luminance tag groups.');
+  }
+  const groups = [];
+  for (const [key, values] of Object.entries(data.tags)) {
+    const id = /^Tags([1-6][abc]|7[abcd])$/.exec(key)?.[1] || legacyLuminanceGroups.get(key);
+    if (!id) continue;
+    const modernKey = 'Tags' + id;
+    if (!Array.isArray(values) || values.some(value => typeof value !== 'string')) {
+      throw new Error('Invalid tag list in ' + key + '.');
+    }
+    const tags = new Set();
+    for (const value of values) {
+      const tag = value.trim().replace(/^📸+\s*/u, '').toLocaleLowerCase();
+      if (!tag) continue;
+      if (/\s|[\u0000-\u001f\u007f]/u.test(tag)) throw new Error('A tag in ' + key + ' contains spaces or control characters.');
+      tags.add(tag);
+    }
+    if (!tags.size) continue;
+    const legacyFlag = 'use' + key[0].toUpperCase() + key.slice(1) + 'Tags';
+    const enabled = (data['useTag' + id + 'Tags'] ?? data[legacyFlag]) === true;
+    const hiding = id === '7c' && (data.hideTags7cTorrents ?? data.hideTerribleTorrents ?? true) === true;
+    const rawWeight = data.tagValues?.[modernKey] ?? data.tagValues?.[key];
+    const weight = typeof rawWeight === 'number' ? rawWeight : luminanceWeights.get(rawWeight) ??
+      (rawWeight == null ? id[0] === '7' ? -1 : id.endsWith('c') ? 0 : 1 : 0);
+    const destination = !enabled || hiding || id === '7d' ? 'skip' : id === '7c' || weight < 0 ? 'caution' :
+      weight > 0 ? 'favorite' : 'skip';
+    const savedName = data.names?.[key] ?? data.names?.[modernKey];
+    const name = typeof savedName === 'string' && savedName.trim() ? savedName.trim().slice(0, 100) : luminanceNames.get(id) || modernKey;
+    const note = !enabled ? 'Disabled in Luminance' : hiding ? 'Hid results in Luminance. Choose Block to apply result filtering.' :
+      id === '7d' ? 'Collapse on details keeps the tags available under Show other tags on detail pages.' : '';
+    groups.push({ id, name, tags: [...tags], destination, note });
+  }
+  if (!groups.length) throw new Error('No supported Luminance tags were found in this export.');
+  return groups;
+}
+
+function planLuminanceImport(groups, choices, settings, nse) {
+  const current = {
+    favorite: importTagSet(settings.favoriteTags), caution: importTagSet(settings.cautionTags),
+    block: importTagSet(nse.nseTaglist), collapse: importTagSet(settings.collapsedDetailTags)
+  };
+  const allow = importTagSet(nse.nseWhitelist), hardPass = importTagSet(nse.nseHardPassTaglist);
+  const requested = { favorite: new Set(), caution: new Set(), block: new Set(), collapse: new Set() };
+  for (const [index, group] of groups.entries()) {
+    const target = Object.hasOwn(requested, choices[index]) && requested[choices[index]];
+    if (target) for (const tag of group.tags) target.add(tag);
+  }
+  const added = { favorite: [], caution: [], block: [], collapse: [] }, conflicts = new Set();
+  for (const [kind, tags] of Object.entries(requested)) for (const tag of tags) {
+    if (current[kind].has(tag)) continue;
+    const opposite = kind === 'favorite' ? 'caution' : 'favorite';
+    if (kind === 'block' ? allow.has(tag) || hardPass.has(tag) :
+      kind !== 'collapse' && (current[opposite].has(tag) || requested[opposite].has(tag))) {
+      conflicts.add(tag); continue;
+    }
+    added[kind].push(tag);
+  }
+  return { added, conflicts: [...conflicts] };
+}
+
+function mountLuminanceImport(app, parent) {
+  const panel = app.node('details', null, 'epc-luminance-import');
+  panel.dataset.optionItem = '';
+  panel.append(app.node('summary', 'Import from Luminance'));
+  panel.append(app.node('p', 'Copy the JSON from LTH → Import/Export → Export Settings, or choose your saved export.', 'epc-caption'));
+  const input = app.node('textarea'); input.rows = 3;
+  input.setAttribute('aria-label', 'Luminance export JSON');
+  const file = app.node('input'); file.type = 'file'; file.accept = '.json,.txt,application/json,text/plain';
+  file.setAttribute('aria-label', 'Choose Luminance export');
+  const preview = app.node('section', null, 'epc-luminance-preview');
+  const status = app.node('p', '', 'epc-caption'); status.setAttribute('role', 'status');
+  let groups = [], choices = [], plan, apply;
+  const current = () => ({
+    settings: { ...app.settings, ...app.storage.get('ep.settings', {}) },
+    nse: app.exportData().nse
+  });
+  const render = () => {
+    const { settings, nse } = current();
+    plan = planLuminanceImport(groups, choices, settings, nse);
+    const { added, conflicts } = plan;
+    const counts = Object.entries(added).filter(([, tags]) => tags.length).map(([kind, tags]) => {
+      if (kind === 'collapse') return tags.length + (tags.length === 1 ? ' tag' : ' tags') + ' to collapse on details';
+      return tags.length + ' ' + luminanceDestinations[kind].toLowerCase() + (tags.length === 1 ? '' : 's');
+    });
+    status.textContent = (counts.length ? 'To add · ' + counts.join(' · ') : 'No new tags to add') +
+      (conflicts.length ? ' · ' + conflicts.length + (conflicts.length === 1 ? ' conflict skipped' : ' conflicts skipped') : '');
+    apply.disabled = !Object.values(added).some(tags => tags.length);
+    const conflictList = preview.querySelector('.epc-luminance-conflicts');
+    conflictList.textContent = conflicts.length ? 'Conflicts kept as-is · ' + conflicts.join(', ') : '';
+    preview.querySelector('.epc-luminance-block-note').hidden = !added.block.length;
+  };
+  const analyze = () => {
+    preview.replaceChildren();
+    try {
+      groups = readLuminanceExport(input.value); choices = groups.map(group => group.destination);
+      preview.append(app.node('h3', 'Review tag groups'));
+      for (const [index, group] of groups.entries()) {
+        const row = app.node('div', null, 'epc-luminance-group');
+        const tags = app.node('details');
+        tags.append(app.node('summary', group.name + ' · ' + group.tags.length),
+          app.node('p', group.tags.join(' '), 'epc-luminance-tags'));
+        if (group.note) tags.append(app.node('p', group.note, 'epc-caption'));
+        const select = app.node('select');
+        select.setAttribute('aria-label', 'Destination for ' + group.name);
+        for (const [value, label] of Object.entries(luminanceDestinations)) {
+          if (value === 'collapse' && group.id !== '7d') continue;
+          const option = app.node('option', label); option.value = value; select.append(option);
+        }
+        select.value = choices[index];
+        select.addEventListener('change', () => { choices[index] = select.value; render(); });
+        row.append(tags, select); preview.append(row);
+      }
+      preview.append(app.node('p', 'Skipped settings include styles, scores, size indicators, and layout.', 'epc-caption'),
+        app.node('p', '', 'epc-caption epc-luminance-conflicts'),
+        app.node('p', 'Block hides matching results under Companion’s regular rules and page coverage.', 'epc-caption epc-luminance-block-note'));
+      apply = app.button('Import selected tags', () => {
+        if (!app.preferences.flush()) return;
+        const reviewed = JSON.stringify(plan);
+        render();
+        if (reviewed !== JSON.stringify(plan)) {
+          status.textContent += ' · Preferences changed. Review these counts and click Import again.';
+          return;
+        }
+        const { settings, nse } = current(), { added } = plan;
+        const merge = (old, tags) => [String(old || '').trim(), ...tags].filter(Boolean).join(' ');
+        const snapshot = {
+          format: 'empornium-companion', version: 1,
+          settings: { ...settings, favoriteTags: merge(settings.favoriteTags, added.favorite),
+            cautionTags: merge(settings.cautionTags, added.caution),
+            collapsedDetailTags: merge(settings.collapsedDetailTags, added.collapse) },
+          nse: added.block.length ? { nseTaglist: merge(nse.nseTaglist, added.block) } : {}
+        };
+        try {
+          app.importData(JSON.stringify(snapshot), false, { mergePreferences: true });
+          status.textContent = 'Tags imported. You can use Undo changes to reverse the import. Disable Luminance and reload after reviewing your tags.';
+          preview.replaceChildren();
+        } catch (error) { status.textContent = 'Nothing imported · ' + error.message; }
+      });
+      preview.append(apply); render();
+    } catch (error) { status.textContent = error.message; }
+  };
+  input.addEventListener('input', () => { preview.replaceChildren(); status.textContent = ''; });
+  file.addEventListener('change', async () => {
+    const picked = file.files?.[0];
+    if (!picked) return;
+    try {
+      if (picked.size > 8 * 1024 * 1024) throw new Error('The backup is too large (maximum 8 MiB).');
+      input.value = await app.readFile(picked); analyze();
+    } catch (error) { status.textContent = error.message; }
+    finally { file.value = ''; }
+  });
+  panel.append(input, app.button('Preview import', analyze), file, status, preview);
+  parent.append(panel);
 }
 
 // SPDX-License-Identifier: GPL-3.0-or-later
@@ -4016,9 +4458,9 @@ class CompanionApp {
     this.toggleFiltered = this.button('', () => {
       this.revealingFiltered = !this.revealingFiltered;
       this.toggleFiltered.setAttribute('aria-pressed', String(this.revealingFiltered));
-      filteredLabel.textContent = this.revealingFiltered ? 'Hide filtered' : 'Show filtered';
       this.syncGridFilters(); this.media.demandListener?.();
     });
+    this.filteredLabel = filteredLabel;
     this.toggleFiltered.dataset.epReveal = '';
     this.toggleFiltered.hidden = true;
     this.toggleFiltered.setAttribute('aria-pressed', 'false');
@@ -4124,6 +4566,8 @@ class CompanionApp {
       ['listAutoplayGifs', 'Play animated covers in List', 'checkbox'],
       ['gridShowDetails', 'Show details in grid cards', 'checkbox'],
       ['gridShowTags', 'Show tags in grid cards', 'checkbox'],
+      ['gridTagCues', 'Show Favorite and Caution cues in Grid', 'checkbox'],
+      ['adaptiveDetailTags', 'Use a responsive layout for detail tags', 'checkbox'],
       ['previewWidth', 'Preview width', 'number', 240, 800],
       ['hoverDelay', 'Title hover delay (ms)', 'number', 0, 1500],
       ['hideDelay', 'Popup grace period (ms)', 'number', 100, 1500],
@@ -4179,6 +4623,7 @@ class CompanionApp {
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
       const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridSpacing','gridAutoplayGifs','listAutoplayGifs','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
+        ['gridTagCues', 'adaptiveDetailTags'].includes(key) ? this.optionGroups.appearance :
         key === 'diagnostics' ? this.optionGroups.diagnostics : ['keyboardShortcuts', 'navigationScope'].includes(key) ? this.optionGroups.interaction :
         imageKeys.has(key) ? this.optionGroups.images : this.optionGroups.loading;
       parent.append(row);
@@ -4225,6 +4670,7 @@ class CompanionApp {
       })
     );
     for(const item of backup.querySelectorAll('button,input'))item.dataset.optionItem='';
+    mountLuminanceImport(this, backup);
     const setupHelp=this.button('Getting started',()=>this.onboarding.show());setupHelp.classList.add('epc-settings-help');this.panes.settings.append(setupHelp);
     const diagnostics = this.optionGroups.diagnostics;
     this.diagnosticList = this.node('pre', '', 'epc-log');
@@ -4479,11 +4925,13 @@ class CompanionApp {
         previous[this.resultFilters.freeleechKey] !== this.settings[this.resultFilters.freeleechKey]) {
       this.resultFilters.refreshView();
     }
-    if (previous.favoriteTags !== this.settings.favoriteTags || previous.cautionTags !== this.settings.cautionTags) this.tags.refresh();
+    if (['favoriteTags', 'cautionTags', 'collapsedDetailTags', 'adaptiveDetailTags', 'resultsView', 'gridShowTags', 'gridTagCues']
+      .some(key => previous[key] !== this.settings[key])) this.tags.refresh();
     if (previous.keyboardShortcuts !== this.settings.keyboardShortcuts) this.preview.syncShortcutLabels();
     const other = new Set(['groupVersions', 'favoriteTags', 'cautionTags', 'backfillEnabled', 'backfillPages', 'backfillMode',
       'keyboardShortcuts', 'navigationScope', 'globalArrowNavigation', 'diagnostics', 'persistentImages', 'persistentCacheMB',
-      'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView']);
+      'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView', 'collapsedDetailTags',
+      'adaptiveDetailTags', 'gridTagCues', 'listHiddenColumns']);
     if (!Object.keys(this.settings).some(key => !other.has(key) && previous[key] !== this.settings[key])) return;
     if (previous.enabled !== this.settings.enabled) {
       this.restartMedia(); return;
@@ -4537,7 +4985,7 @@ class CompanionApp {
     return { format: 'empornium-companion', version: 1, createdAt: new Date().toISOString(),
       settings: this.settings, searches: this.searches, searchDrawerOpen: this.activePane === 'searches', nse };
   }
-  importData(text, keepUndo = true, { completeOnboarding = false } = {}) {
+  importData(text, keepUndo = true, { completeOnboarding = false, mergePreferences = false } = {}) {
     let parsed;
     try { parsed = JSON.parse(text); }
     catch { throw new SyntaxError('The backup file is not valid JSON.'); }
@@ -4551,9 +4999,9 @@ class CompanionApp {
       for (const key of ['keyboardShortcuts', 'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView']) {
         if (!Object.hasOwn(parsed.settings ?? {}, key)) settings[key] = this.settings[key];
       }
-      searches = validateSearches(parsed.searches);
+      if (!mergePreferences) searches = validateSearches(parsed.searches);
       nse = this.options.validateNSE?.(parsed.nse || {}) || parsed.nse;
-      drawer = !!parsed.searchDrawerOpen;
+      if (!mergePreferences) drawer = !!parsed.searchDrawerOpen;
     } else if ('empSavedSearches' in parsed) {
       let legacy = parsed.empSavedSearches;
       if (typeof legacy === 'string') {
@@ -4584,13 +5032,17 @@ class CompanionApp {
     if (searches) changes.set(SEARCH_KEY, searches);
     if (drawer !== undefined) changes.set('ep.searchDrawerOpen', drawer);
     if (nse) {
-      for (const key of this.storage.list()) if (/^nse/.test(key)) changes.set(key, undefined);
+      if (!mergePreferences) for (const key of this.storage.list()) if (/^nse/.test(key)) changes.set(key, undefined);
       for (const [key, value] of Object.entries(nse)) changes.set(key, value);
     }
     if (!changes.size) throw new Error('No compatible settings were found.');
     this.preferences.cancel();
-    const old = new Map(Array.from(changes.keys(), key => [key, this.storage.get(key, undefined)]));
     const previous = this.exportData();
+    if (mergePreferences) {
+      const stored = this.storage.get(SETTINGS_KEY, {});
+      changes.set('ep.preferenceUndo', { time: Date.now(), settings: { ...previous.settings, ...stored }, nse: previous.nse });
+    }
+    const old = new Map(Array.from(changes.keys(), key => [key, this.storage.get(key, undefined)]));
     try {
       if (keepUndo) this.storage.set('ep.previousImport', previous);
       for (const [key, value] of changes) value === undefined ? this.storage.delete(key) : this.storage.set(key, value);
@@ -4611,6 +5063,10 @@ class CompanionApp {
     }
     if ((nse || conditionalChanged) && this.mounted) { this.refreshFilters(true); this.applyAppearance(); }
     if (searches) { this.searches = searches; this.renderSavedSearches(); }
+    if (mergePreferences) {
+      this.preferences.checkpoint = changes.get('ep.preferenceUndo');
+      if (this.undoPreferences) this.undoPreferences.hidden = false;
+    }
     // Legacy drawer state only restores management. Saved shortcuts are always visible.
     // Old drawer flags do not reopen management or hide the primary shortcuts.
     if (this.saveStatus) this.saveStatus.textContent = 'Backup restored';
@@ -4893,6 +5349,7 @@ class CompanionApp {
   syncGridFilters(refreshTags = true, appended) {
     const previous = appended && !this.resultsDirty ? this.resultCounts : null;
     const newRows = previous ? appended : null;
+    let revealable = previous?.revealable || 0;
     const seenFiltered = new Set();
     let rows;
     this.batchDOM(() => {
@@ -4913,7 +5370,15 @@ class CompanionApp {
         const hidden = filtered && !revealed;
         if ((filtered || wasRevealed) && row.classList.contains('hidden') !== hidden) row.classList.toggle('hidden', hidden);
         if (wasRevealed !== revealed) row.classList.toggle('epc-revealed', revealed);
-        if (this.resultFilters.applyRow(row)) seenFiltered.add(row);
+        const { seenFiltered: seen, outsideView } = this.resultFilters.applyRow(row);
+        if (seen) seenFiltered.add(row);
+        if (!outsideView && (filtered || seen)) revealable++;
+        let reason;
+        if (this.revealingFiltered && !outsideView) {
+          if (filtered) reason = this.resultFilters.engineReasons.get(row) || 'Hidden by a filter';
+          else if (seen) reason = 'Already seen';
+        }
+        this.resultFilters.renderReason(row, reason);
       }
     });
     const cards = this.doc.querySelectorAll('.torrent_grid__torrent'), affectedCards = [];
@@ -4947,6 +5412,7 @@ class CompanionApp {
     if (this.filterSummary) {
       const archived = newRows ? newRows.filter(row => this.detachedFilterRows.has(row)) : [...this.detachedFilterRows.keys()];
       const removed = (previous?.removed || 0) + archived.filter(row => !row.isConnected).length;
+      revealable += archived.filter(row => !row.isConnected && !this.resultFilters.outsideView(row)).length;
       const filtered = (previous?.filtered || 0) + rows.filter(row => row.getAttribute('isNSEHidden') === '1' || seenFiltered.has(row)).length;
       const grouped = this.versions?.collapsed || 0;
       const eligible = rows.filter(row => !row.hidden && !row.classList.contains('epc-filter-hidden') &&
@@ -4954,10 +5420,12 @@ class CompanionApp {
         (row.classList.contains('epc-revealed') || !row.classList.contains('nseHardPassRemove') && !row.classList.contains('hidden'))).length;
       // A new version can also collapse existing rows that had no group before.
       const shown = previous ? previous.shown + eligible - (grouped - previous.grouped) : eligible;
-      this.resultCounts = { total: (previous?.total || 0) + rows.length, shown, grouped, filtered, removed }; this.renderResultSummary();
-      this.toggleFiltered.disabled = !filtered && !removed;
-      this.toggleFiltered.hidden = !filtered && !removed || !this.storage.get('nseFloatingToggleButtonEnabled', true);
-      this.filteredCount.textContent = (filtered + removed).toLocaleString();
+      this.resultCounts = { total: (previous?.total || 0) + rows.length, shown, grouped, filtered, removed, revealable }; this.renderResultSummary();
+      this.toggleFiltered.disabled = !revealable;
+      this.toggleFiltered.hidden = !revealable || !this.storage.get('nseFloatingToggleButtonEnabled', true);
+      this.filteredCount.textContent = revealable.toLocaleString();
+      this.filteredLabel.textContent = this.revealingFiltered ? 'Hide filtered' : 'Show filtered';
+      this.toggleFiltered.setAttribute('aria-label', this.filteredLabel.textContent + ' (' + this.filteredCount.textContent + ')');
       styleRowControls(this, newRows ? rows : undefined);
     }
     this.backfill?.sync();
@@ -4974,9 +5442,11 @@ class CompanionApp {
   }
   renderResultSummary() {
     if (!this.resultCounts || !this.filterSummary) return;
-    const { total, shown, grouped, filtered, removed } = this.resultCounts;
+    const { total, shown, grouped, filtered, removed, revealable } = this.resultCounts;
+    const revealed = this.revealingFiltered ? revealable : 0;
     const caption = total || removed ? shown + ' shown' + (grouped ? ' · ' + grouped + ' grouped' : '') +
-      ' · ' + filtered + ' filtered' + (removed ? ' · ' + removed + ' removed' : '') : '';
+      (revealed ? ' · ' + revealed + ' revealed' : ' · ' + filtered + ' filtered') +
+      (removed ? ' · ' + removed + ' removed' : '') : '';
     if (this.filterSummary.textContent !== caption) this.filterSummary.textContent = caption;
   }
   rememberRemovedFilters(root) {
@@ -6564,7 +7034,7 @@ const epStorage = {
   list: () => GM_listValues(),
   delete: key => GM_deleteValue(key)
 };
-GM_addStyle("/* SPDX-License-Identifier: GPL-3.0-or-later */\n.epc-root,.epc-thumbnail{\n  --epc-bg:#fbfcfe;--epc-fg:#18243a;--epc-line:#dbe2ee;--epc-accent:#274f9d;\n  --epc-muted:color-mix(in srgb,var(--epc-fg) 77%,var(--epc-bg));\n  --epc-subtle:color-mix(in srgb,var(--epc-bg) 95%,var(--epc-fg));\n  --epc-soft:color-mix(in srgb,var(--epc-bg) 88%,var(--epc-accent));\n  --epc-radius:12px;--epc-control-radius:7px;--epc-shadow:0 8px 24px #12234124;\n  box-sizing:border-box;font:13px/1.45 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:var(--epc-fg);color-scheme:light dark\n}\n.epc-root *,.epc-thumbnail *{box-sizing:border-box}\n.epc-root [hidden],.epc-root[hidden],.epc-filter-hidden{display:none!important}\n.epc-root :is(button,input,select),button.epc-root.epc-media-retry{\n  font:inherit;color:inherit;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);\n  background:var(--epc-bg);padding:5px 8px;margin:2px;max-width:100%;box-shadow:none!important;text-shadow:none\n}\n.epc-root button,button.epc-root.epc-media-retry{appearance:none;cursor:pointer;min-height:32px}\n.epc-root button:hover,button.epc-root.epc-media-retry:hover{background:var(--epc-subtle)}\n.epc-root :is(button,a,input,select,textarea,summary):focus-visible,button.epc-root.epc-media-retry:focus-visible{outline:2px solid var(--epc-accent);outline-offset:2px}\n.epc-root :is(input[type=radio],input[type=checkbox]){accent-color:var(--epc-accent)}\n.epc-root a{color:var(--epc-accent);text-decoration:underline}\n.epc-root p{margin:8px 0}\n.epc-root summary{cursor:pointer;font-weight:650;padding:7px 0}\n.epc-tools{position:fixed;right:16px;bottom:16px;z-index:2147483000}\n.epc-launcher{border-radius:999px!important;background:var(--epc-accent)!important;color:white!important;font-weight:750!important;padding:9px 13px!important;box-shadow:0 2px 12px #0003}\n.epc-panel{position:absolute;right:0;bottom:50px;width:min(460px,calc(100vw - 32px));max-height:calc(100vh - 100px);overflow:auto;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:10px;box-shadow:0 12px 40px #0004;padding:14px}\n.epc-panel-heading,.epc-preview-heading{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:7px}\n.epc-panel-heading strong{font-size:16px}\n.epc-panel details{border-top:1px solid var(--epc-line);margin-top:8px}\n.epc-setting{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0}\n.epc-setting input[type=number],.epc-setting select{width:100px;flex-shrink:0}\n.epc-setting select[data-setting=gridCardWidth]{width:180px}\n.epc-setting input[type=checkbox]{width:18px;height:18px}\n.epc-actions{display:flex;flex-wrap:wrap;gap:4px;align-items:center}\n.epc-notice{white-space:pre-wrap;font-size:12px;color:var(--epc-accent)}\n.epc-health{font-variant-numeric:tabular-nums}\n.epc-log{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;font:11px/1.4 ui-monospace,monospace}\n.epc-saved{background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:7px;padding:6px 12px;margin:10px 0}\n.epc-saved-list{display:grid;gap:6px;margin-top:8px}\n.epc-saved-row{display:flex;gap:3px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--epc-line);padding-top:5px}\n.epc-search-name{flex:1;min-width:130px;text-align:left}\n.epc-thumbnail{display:inline-flex;float:left;position:relative;margin:0 8px 5px 0;vertical-align:top}\n.epc-thumb-button{display:flex;position:relative;justify-content:center;align-items:center;width:var(--epc-thumb-size);height:var(--epc-thumb-size);padding:0;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle);overflow:hidden;cursor:zoom-in}\n.epc-thumb-button>img{display:block;width:100%;height:100%;object-fit:contain;border:0;margin:0}\n.epc-thumb-status{position:absolute;inset:auto 2px 2px;background:#17213ae8;color:#fff;font:11px/1.3 system-ui,sans-serif;text-align:center;padding:2px;border-radius:3px}\n.epc-thumb-button>img:not([src]){visibility:hidden}\n.epc-thumbnail [hidden]{display:none!important}\nhtml.epc-cover-art .torrent_grid__torrent .torrent__cover[style*=\"background\"]:not(.epc-native-cover),.torrent__cover.epc-managed-cover{background-image:none!important}\n.torrent__cover.epc-cover-positioned{position:relative}\n.epc-cover-image{position:absolute!important;inset:0;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover;object-position:center;pointer-events:none}\n.epc-cover-image:not([src]){visibility:hidden}\n.epc-cover-status{position:absolute;bottom:5px;left:5px;right:5px;text-align:center;font:11px system-ui;color:#fff;background:#17213abf;border-radius:3px;padding:2px;pointer-events:none}\n.epc-cover-status[hidden]{display:none!important}\n.epc-category-overlay .cats_col,.epc-category-overlay .cats_cols{position:relative}\n.epc-category-overlay .cats_col>div[title],.epc-category-overlay .cats_cols>div[title]{position:absolute;top:2px;left:2px;z-index:1;width:24px;overflow:hidden}\n.epc-category-hide .cats_col>div[title],.epc-category-hide .cats_cols>div[title]{display:none!important}\n.epc-preview{position:fixed;z-index:2147482999;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:var(--epc-radius);box-shadow:var(--epc-shadow);padding:12px;overflow:auto;max-width:calc(100vw - 24px)}\n.epc-preview-heading strong{font-size:13px;overflow-wrap:anywhere}\n.epc-preview-heading button{flex-shrink:0}\n.epc-preview-frame{display:flex;align-items:center;justify-content:center;min-height:90px;overflow:hidden;background:var(--epc-subtle);border-radius:var(--epc-control-radius)}\n.epc-preview-frame>img{display:block;max-width:100%;max-height:inherit;width:auto;height:auto;object-fit:contain;margin:auto}\n.epc-preview-status{font-size:12px;min-height:18px}\n.epc-preview-stats{color:var(--epc-fg);opacity:.65;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}\n.epc-preview-summary{font-size:11px;max-height:65px;overflow:auto;overflow-wrap:anywhere}\n.epc-thumb-button,.epc-preview-frame{user-select:none}\n.epc-preview[data-mode=zoom]{padding:6px;overflow:hidden;cursor:zoom-in}\n.epc-preview[data-mode=zoom] .epc-preview-frame>img{width:100%;height:auto}\n.epc-preview[data-mode=zoom] .epc-preview-status:empty{display:none}\n.epc-preview[data-mode=tooltip]{padding:8px;overflow:hidden}\n.epc-preview[data-mode=tooltip] .epc-preview-frame{min-height:0;background:none}\n.epc-preview[data-mode=tooltip] .epc-preview-status:empty{display:none}\n.epc-preview[data-state=failed] .epc-preview-status,.epc-preview[data-state=stalled] .epc-preview-status{color:#a3391a}\n.epc-media-retry{display:inline-block;background:var(--epc-bg);padding:3px 7px;vertical-align:middle}\n#content img.epc-page-image{max-width:min(100%,calc(100vw - 48px))!important;height:auto}\n#content img.epc-page-image.epc-compact{max-height:75vh!important;object-fit:contain}\n@media(prefers-color-scheme:dark){.epc-root,.epc-thumbnail{--epc-bg:#1e2532;--epc-fg:#edf2fd;--epc-line:#3c495e;--epc-accent:#a8c0ff;--epc-shadow:0 8px 24px #0006}.epc-preview[data-state=failed] .epc-preview-status,.epc-preview[data-state=stalled] .epc-preview-status{color:#ffb194}}\n\n/* One in-page workspace. Engine DOM is private behavior infrastructure. */\n.epc-engine,#nseOuter,#nseFloatyBoi,#nseUpdateToast{display:none!important}\n.epc-workspace{display:block;margin:16px 0 20px;padding:0;border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);color:var(--epc-fg);clear:both;max-width:100%;text-align:left}\n.epc-toolbar{position:relative}\n.epc-toolbar-main,.epc-toolbar-context,.epc-toolbar-footer{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;padding:10px 14px;min-width:0}\n.epc-toolbar-main{position:relative;gap:6px 12px;padding-block:11px}\n.epc-toolbar-brand{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}\n.epc-brand-mark{display:grid;place-items:center;width:31px;height:31px;border-radius:8px;background:var(--epc-soft);color:var(--epc-accent)}\n.epc-root .epc-brand{font-weight:680;letter-spacing:-.025em;font-size:15px;margin:0}\n.epc-page-name{font-size:12px;color:var(--epc-muted)}\n.epc-icon{display:inline-block;width:15px;height:15px;flex:none;vertical-align:middle}\n.epc-toolbar :is(button,summary){display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:0}\n.epc-toolbar .epc-load-gauge{width:34px;min-height:34px;padding:0;border:0;border-radius:50%;color:var(--epc-accent);font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;\n  background:radial-gradient(circle closest-side,var(--epc-bg) 79%,transparent 83%),conic-gradient(var(--epc-accent) var(--epc-load-fill,0%),var(--epc-line) 0)}\n.epc-toolbar .epc-load-gauge:hover{background:radial-gradient(circle closest-side,var(--epc-soft) 79%,transparent 83%),conic-gradient(var(--epc-accent) var(--epc-load-fill,0%),var(--epc-line) 0)}\n.epc-load-detail{position:absolute;inset-inline-start:10px;z-index:6;width:min(305px,calc(100% - 20px));padding:10px 12px;\n  border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);box-shadow:var(--epc-shadow);font-size:12px}\n.epc-load-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.65fr);gap:3px 8px;align-items:baseline;margin-top:7px}\n.epc-load-count{color:var(--epc-muted);text-align:end;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}\n.epc-load-row progress{appearance:none;grid-column:1/-1;width:100%;height:3px;border:0;border-radius:2px;overflow:hidden;background:var(--epc-line)}\n.epc-load-row progress::-webkit-progress-bar{background:var(--epc-line)}\n.epc-load-row progress::-webkit-progress-value{background:var(--epc-accent)}\n.epc-load-row progress::-moz-progress-bar{background:var(--epc-accent)}\n.epc-load-row progress:indeterminate{background:linear-gradient(90deg,var(--epc-line),var(--epc-accent),var(--epc-line))}\n.epc-toolbar-context{justify-content:flex-start;column-gap:8px;border-top:1px solid var(--epc-line);background:var(--epc-subtle);padding-block:8px}\n.epc-toolbar-context:not(:has(> :not([hidden],.epc-context-actions),.epc-context-actions> :not([hidden]))){display:none}\n.epc-context-actions,.epc-toolbar-utilities,.epc-toolbar-status,.epc-collage-tools{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap;min-width:0}\n.epc-context-actions{justify-content:flex-end;margin-inline-start:auto;max-width:100%}\n.epc-context-actions:not(:has(> :not([hidden]))){display:none}\n.epc-layout-switch{display:inline-flex;padding:2px;border-radius:9px;border:1px solid var(--epc-line);gap:2px}\n.epc-root .epc-layout-switch button{min-height:27px;padding:3px 8px;border-radius:5px;background:transparent;border-color:transparent;color:var(--epc-muted)}\n.epc-root .epc-layout-switch button[aria-pressed=true]{background:var(--epc-bg);color:var(--epc-accent);border-color:var(--epc-line);font-weight:650}\n.epc-filtered-count{font-size:11px;border-radius:4px;padding:0 5px;color:var(--epc-accent);background:var(--epc-soft);font-variant-numeric:tabular-nums}\n.epc-toolbar .epc-stop-icon,.epc-toolbar [aria-busy=true]>.epc-load-icon{display:none}\n.epc-toolbar [aria-busy=true]>.epc-stop-icon{display:inline-block}\n.epc-toolbar-footer{border-top:1px solid var(--epc-line);padding-block:8px}\n.epc-toolbar-footer:not(:has(.epc-toolbar-utilities> :not([hidden]),.epc-toolbar-status>span:not([hidden]):not(:empty))){display:none}\n.epc-toolbar-utilities:not(:has(> :not([hidden]))),.epc-toolbar-status:not(:has(>span:not([hidden]):not(:empty))){display:none}\n.epc-toolbar-status>span:empty{display:none}\n.epc-toolbar-status{margin-inline-start:auto;color:var(--epc-muted);font-size:12px;font-variant-numeric:tabular-nums}\n.epc-toolbar-status :is(.epc-backfill-status,.epc-collage-status){color:var(--epc-accent);overflow-wrap:anywhere}\n.epc-collage-tools select{margin:0}\n.epc-collage-tools button,.epc-collage-status{overflow-wrap:anywhere}\n.epc-toolbar .epc-collage-tools button{white-space:normal;text-align:start}\n.epc-root button:disabled{cursor:default;opacity:.6}\na.epc-backfilled-page{text-decoration:line-through!important;opacity:.65}\na.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;pointer-events:none}\n.epc-navigation{display:flex;align-items:center;gap:2px;flex-wrap:wrap}\n.epc-root :is(.epc-navigation button,.epc-quiet){background:transparent;border-color:transparent;color:var(--epc-muted)}\n.epc-root .epc-navigation button[aria-expanded=true],.epc-root [data-ep-reveal][aria-pressed=true]{color:var(--epc-accent);background:var(--epc-soft)}\n.epc-workspace>.epc-panel{display:block;position:static;width:auto;max-height:none;border:0;border-top:1px solid var(--epc-line);border-radius:0 0 var(--epc-radius) var(--epc-radius);box-shadow:none;overflow:visible;padding:16px}\n.epc-panel-heading{margin-bottom:8px}\n.epc-panel-heading strong{font-size:17px;letter-spacing:-.025em}\n.epc-root .epc-caption{font-size:12px;color:var(--epc-muted);line-height:1.5;margin:4px 0 12px}\n.epc-root .epc-shortcut-list{padding-inline-start:20px;list-style:disc}\n.epc-root .epc-notice{margin:0 12px 8px;padding:8px 10px;border-radius:5px;background:color-mix(in srgb,var(--epc-accent) 10%,transparent)}\n.epc-root .epc-notice:empty{display:none}\n.epc-rule-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}\n.epc-root .epc-group{display:block!important;margin:12px 0;padding:0;border:0}\n.epc-root .epc-option-group[hidden]{display:none!important}\n.epc-root .epc-option-group{border-top:1px solid var(--epc-line);padding:5px 0;margin:8px 0}\n.epc-option-group>summary{display:flex;align-items:center;gap:10px;list-style:none}\n.epc-option-group>summary::-webkit-details-marker{display:none}\n.epc-option-group>summary:before{content:\"›\";font-size:18px;line-height:1;transition:transform .1s}\n.epc-option-group[open]>summary:before{transform:rotate(90deg)}\n.epc-option-count{font-size:11px;font-weight:400;opacity:.65;margin-left:auto}\n.epc-basic-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;max-width:700px;margin:12px 0 18px}\n.epc-basic-settings .epc-field,.epc-basic-settings .epc-setting{margin:0}\n.epc-basic-settings .epc-setting{font-size:12px;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:5px}\n.epc-basic-settings .epc-setting input,.epc-basic-settings .epc-setting select{width:100%;margin:0}\n.epc-settings-section{margin:10px 0 18px;max-width:700px}\n.epc-settings-section>h3{font-size:13px;margin:0 0 10px;font-weight:650}\n.epc-settings-section .epc-basic-settings{margin:0;gap:12px 20px}\n.epc-basic-settings .epc-setting-toggle{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px}\n.epc-basic-settings .epc-setting-toggle input{width:16px;height:16px;margin:0}\n.epc-settings-help{font-size:12px;margin-top:10px}\n.epc-cache-usage .epc-option-group{margin-bottom:0}\n.epc-settings-section[hidden]{display:none!important}\n.epc-settings-search{display:block;width:min(100%,480px);margin:8px 0 12px!important}\n.epc-search-more{margin:0!important;border:0!important}\n.epc-search-more>summary{font-size:12px;font-weight:400;padding:4px 8px}\n.epc-search-more[open]{flex-basis:100%}\n.epc-is-editing>.epc-search-more>button{display:none}\n.epc-search-editor{padding:12px;margin:6px 0;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle)}\n.epc-search-editor>strong{display:block;margin-bottom:8px}\n.epc-search-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}\n.epc-search-editor .epc-field input:not([type=checkbox]),.epc-search-editor .epc-field select{width:100%}\n.epc-search-editor-extra{margin:8px 0}\n.epc-search-editor-status:empty{display:none}\n.epc-root h3{font:650 13px/1.5 system-ui,sans-serif;color:var(--epc-fg);margin:0 0 8px}\n.epc-root .epc-field{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:500;margin:10px 0}\n.epc-root textarea{width:100%;resize:vertical;min-height:65px;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle);color:var(--epc-fg);font:12px/1.5 ui-monospace,monospace;padding:8px;box-sizing:border-box}\n.epc-root textarea{font-family:var(--epc-list-font,ui-monospace,monospace)}\n.epc-root .epc-field input,.epc-root .epc-field select{margin:0}\n.epc-check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 20px}\n.epc-root .epc-check{display:flex;flex-direction:row;align-items:center;margin:3px 0;gap:8px;font-weight:400}\n.epc-check input{accent-color:var(--epc-accent)}\n.epc-root .epc-check input[type=checkbox]{flex:0 0 16px;width:16px;height:16px}\n.epc-root .epc-savebar{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--epc-line);margin-top:14px;padding-top:12px}\n.epc-root .epc-savebar .epc-caption{margin:0}\n.epc-root .epc-primary{background:var(--epc-accent);border-color:var(--epc-accent);color:var(--epc-bg);font-weight:650}\n.epc-root .epc-primary:hover{background:var(--epc-accent);filter:brightness(1.1)}\n.epc-root button:disabled{cursor:default;opacity:.5}\n.epc-saved{border:0;padding:0;margin:0}\n.epc-statistics{display:grid;grid-template-columns:1fr auto;gap:5px 16px;font-size:12px;max-width:500px}\n.epc-statistics dd{margin:0;font-variant-numeric:tabular-nums}\n.epc-setting{max-width:650px}\n.epc-setting:nth-child(n+12){font-size:12px}\n.epc-revealed{opacity:.75}\n.epc-seen-dim{opacity:.6}\n.epc-freeleech-view{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--epc-muted)}\n.epc-root .epc-freeleech-view select{min-height:32px;margin:0;color:var(--epc-fg)}\n.epc-conditional-list{list-style:none;padding:0;margin:0}\n.epc-conditional-list li{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 12px;padding:6px 0;border-bottom:1px solid var(--epc-line)}\n.epc-conditional-list li>span{min-width:0;overflow-wrap:anywhere}\n.epc-conditional-list:not(:empty)+button{margin-top:8px}\n.epc-conditional-advanced{margin-top:12px}\n.epc-conditional-advanced code{overflow-wrap:anywhere}\n.epc-conditional-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;align-items:end;gap:8px;margin-bottom:8px}\n.epc-root .epc-conditional-row .epc-field{min-width:0;margin:0}\n.epc-conditional-row input,.epc-conditional-row select{width:100%;min-width:0}\n.epc-conditional-builder>label{max-width:320px}\n@media(max-width:480px){.epc-conditional-row{grid-template-columns:minmax(0,1fr)}.epc-conditional-row>button{justify-self:start}}\n[data-ep-freeleech=sitewide]{outline:2px solid #db9e27;outline-offset:1px}\n[data-ep-freeleech=unlimited]{outline:1px dashed currentColor;outline-offset:1px}\n.epc-history-list{list-style:none;padding:0;margin:0}\n.epc-history-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0}\n.epc-history-list a{min-width:0;overflow-wrap:anywhere}\n.epc-history-list button{flex-shrink:0}\n.nseToggleIcon{display:inline-flex!important;width:22px;height:22px;align-items:center;justify-content:center;cursor:pointer;border:1px solid #8a98ad!important;border-radius:5px!important;background:transparent!important;font:14px/1 system-ui,sans-serif!important;color:inherit}\n.nseToggleIcon>img{display:none!important}\n.nseToggleIcon:before{content:\"−\";font:14px/1 system-ui,sans-serif!important}\n.nseToggleIcon.nseIndividuallyBlacklisted:before{content:\"+\"}\n.nseToggleIcon.nseIndividuallyWhitelisted:before{content:\"↺\"}\n.nseToggleIcon:focus-visible{outline:2px solid var(--epc-accent,#4289dd);outline-offset:2px}\n#nseRCMBox.epc-root{position:fixed!important;z-index:2147483001!important;width:min(340px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;padding:14px;border-radius:var(--epc-radius);background:var(--epc-bg)!important;color:var(--epc-fg)!important;border:1px solid var(--epc-line)!important;box-shadow:var(--epc-shadow)}\n#nseRCMBox .nseRCMButton{display:inline-block;background:var(--epc-bg)!important;color:var(--epc-fg)!important;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);font:12px/1.5 system-ui,sans-serif;padding:5px 8px;margin:3px 0;cursor:pointer}\n#nseRCMBox .nseRCMButton:hover{background:var(--epc-soft)!important}\n#nseRCMBox #nseRCMClose{font:12px/1.5 system-ui,sans-serif;cursor:pointer}\n.epc-rule-import{display:inline-block;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-bg);padding:5px 8px;cursor:pointer}\n.epc-rule-import:focus-visible{outline:2px solid var(--epc-accent);outline-offset:2px}\n.epc-saved-shortcuts{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}\n.epc-saved-shortcuts>strong{font-size:12px;font-weight:500;color:var(--epc-muted)}\n.epc-root a.epc-saved-shortcut{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:3px 7px;border-radius:var(--epc-control-radius);color:var(--epc-accent)!important;background:var(--epc-soft);text-decoration:none;overflow-wrap:anywhere}\n.epc-root a.epc-saved-shortcut:hover{background:var(--epc-subtle)}\n.epc-saved-shortcut .epc-icon{width:12px;height:12px}\n.epc-toolbar .epc-quick-search{min-height:27px;padding:3px 5px}\n.epc-search-name{overflow-wrap:anywhere}\n.epc-search-feedback{display:flex;align-items:center;flex-wrap:wrap;gap:8px;grid-column:1/-1;margin:8px 0;padding:9px 12px;border:1px solid var(--epc-line);border-radius:5px;background:var(--epc-bg)}\n.epc-savebar [role=status]{font-size:12px;opacity:.72}\n.epc-root [aria-invalid=true]{border-color:#bf493e!important;outline:1px solid #bf493e}\n#content .nseHiddenTag,#content .nseHiddenTitle,#content .nseHiddenUploader,#content .nseBlacklistIdentifier{color:var(--epc-blocked,#f00)!important}\n#content .nseWhitelistedTag,#content .nseWhitelistedTitle,#content .nseWhitelistedUploader{color:var(--epc-allowed,#0f0)!important}\n#content .nseHardPassTag,#content .nseHardPassTitle{color:var(--epc-hard-pass,#a00)!important}\n/* Result tools share the existing list and rule menu. No extra toolbar. */\n#content tr.epc-version-hidden{display:none!important}\n#content tr.epc-version-member>td:nth-child(2){border-inline-start:2px solid #7a8ba780}\n#content .epc-version-control{display:inline-block;margin:3px 0 3px 8px;padding:2px 7px;border:1px solid #7a8ba780;border-radius:4px;background:transparent;color:inherit;font:11px/1.6 system-ui,sans-serif;cursor:pointer;vertical-align:middle}\n#content .epc-version-control:before{content:\"▸\";margin-inline-end:4px}\n#content .epc-version-control[aria-expanded=true]:before{content:\"▾\"}\n#content .epc-version-control:hover{background:#7a8ba720}\n#content .epc-version-control:focus-visible{outline:2px solid #4289dd;outline-offset:2px}\n#content a[data-ep-tag-tone=favorite]:not(.nseHiddenTag):not(.nseHardPassTag){background:#ccefe0;color:#154f39!important;box-shadow:inset 0 -2px #298661;border-radius:3px}\n#content a[data-ep-tag-tone=caution]:not(.nseHiddenTag):not(.nseHardPassTag){background:#ffe2a8;color:#68420b!important;box-shadow:inset 0 -2px #b67816;border-radius:3px}\n#content table.epc-stable-columns{table-layout:fixed;width:100%;min-width:var(--epc-table-min-width,0px)}\n#content table.epc-stable-columns td[width],#content table.epc-stable-columns th[width]{width:auto}\n#content table.epc-stable-columns td.user,#content table.epc-stable-columns .tags{overflow-wrap:anywhere}\n#content a.epc-tag-match{text-decoration:underline!important;text-decoration-thickness:2px!important;text-underline-offset:3px;font-weight:700}\n#nseRCMBox .epc-highlight-actions{margin-top:10px;padding-top:8px;border-top:1px solid var(--epc-line)}\n#nseRCMBox .epc-highlight-actions p{margin:0 0 5px}\n#nseRCMBox .epc-highlight-actions button{padding:4px 7px;margin:0 5px 4px 0}\n#nseRCMBox .epc-highlight-actions button[aria-pressed=true]{box-shadow:inset 0 0 0 2px var(--epc-accent)}\n#nseRCMBox .epc-menu-caption{display:block;margin-top:8px}\n#nseRCMBox[data-ep-rule-kind=tag] #nseRCMBoxChoices{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}\n#nseRCMBox[data-ep-rule-kind=tag] #nseRCMBoxChoices br{display:none}\n@media(max-width:700px){.epc-rule-grid,.epc-basic-settings,.epc-search-editor-fields,.epc-check-grid{grid-template-columns:1fr}.epc-savebar{flex-wrap:wrap}}\n@media(max-width:530px){\n  .epc-toolbar :is(.epc-toolbar-main,.epc-toolbar-context,.epc-toolbar-footer){padding-inline:10px}\n  .epc-navigation{width:100%;justify-content:space-between}.epc-navigation button{flex:1}\n  .epc-toolbar-status{margin-inline-start:0}\n}\n@media(pointer:coarse){\n  .epc-root .epc-toolbar :is(button,select,summary),.epc-root a.epc-saved-shortcut{min-height:44px}\n  .epc-root .epc-layout-switch button{min-height:40px}\n  .epc-toolbar .epc-load-gauge{width:44px}\n}\n\n/* First-use setup reuses the workspace's visual language and settings. */\n.epc-onboarding{width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 32px);overflow:auto;margin:auto;padding:22px;border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);color:var(--epc-fg);text-align:left;box-shadow:var(--epc-shadow)}\n.epc-onboarding::backdrop{background:#1017239c}\n.epc-onboarding h2{margin:0 0 10px;font-size:21px;line-height:1.25;color:inherit}\n.epc-welcome-heading{display:flex;align-items:center;gap:10px;margin-block-end:10px}\n.epc-welcome-heading .epc-brand-mark{flex:none}\n.epc-onboarding .epc-welcome-heading h2{margin:0}\n.epc-onboarding fieldset{margin:16px 0 12px;padding:12px;border:1px solid var(--epc-line);border-radius:8px;min-width:0}\n.epc-onboarding legend{padding:0 5px;font-weight:650}\n.epc-welcome-choice{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer}\n.epc-welcome-field{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}\n.epc-welcome-field input[type=number]{width:70px}\n.epc-onboarding textarea{width:100%;font:inherit;color:inherit;background:var(--epc-subtle);border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);padding:7px;resize:vertical}\n.epc-onboarding details{border-top:1px solid var(--epc-line);margin-top:16px;padding-top:4px}\n.epc-onboarding details .epc-welcome-field{display:block}\n.epc-welcome-sample{width:var(--epc-sample-width);max-width:100%;height:64px;border-radius:var(--epc-control-radius);margin:8px 0 12px;display:grid;place-items:center;color:var(--epc-accent);background:var(--epc-soft);font-size:11px}\n.epc-onboarding .epc-actions{justify-content:flex-end;margin-top:16px}\n@media(max-width:420px){.epc-onboarding{padding:16px}.epc-welcome-field{flex-wrap:wrap}.epc-onboarding h2{font-size:19px}}\n.epc-onboarding{padding:18px}\n.epc-onboarding p{margin:6px 0}\n.epc-onboarding fieldset{margin:12px 0 10px;padding:10px}\n.epc-welcome-choice{padding:2px 0}\n.epc-welcome-sample{height:40px}\n.epc-onboarding .epc-actions{position:sticky;bottom:-18px;padding:10px 0 4px;background:var(--epc-bg);box-shadow:0 -8px 8px var(--epc-bg)}\n@media(max-width:420px){.epc-onboarding .epc-actions{bottom:-16px}}\n.epc-cache-usage,.epc-cache-pinned{margin:12px 0;padding:12px;border:1px solid var(--epc-line);border-radius:7px;max-width:560px}\n.epc-cache-pinned{margin-inline:14px}\n#epc-cache-statistics dl{margin:6px 0}\n#epc-cache-statistics dl>div{display:flex;justify-content:space-between;gap:16px;padding:2px 0}\n#epc-cache-statistics dt,#epc-cache-statistics dd{margin:0}\n#epc-cache-statistics dd{font-variant-numeric:tabular-nums;text-align:right}\n:is(.epc-cache-usage,.epc-cache-pinned) p{margin:4px 0 0}\n.epc-cache-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}\n.epc-cache-heading strong{font-size:13px}\n.epc-cache-heading button{font-size:11px;min-height:25px;padding:3px 7px}\n.epc-cache-activity{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;table-layout:auto}\n.epc-cache-activity th,.epc-cache-activity td{padding:4px 3px;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}\n.epc-cache-activity th{font-size:11px;font-weight:600}\n.epc-cache-activity th:first-child{text-align:left;width:18%}\n.epc-cache-activity thead th{border-bottom:1px solid var(--epc-line);cursor:help;text-decoration:underline dotted;text-underline-offset:2px}\n.epc-cache-activity tbody th{font-weight:400}\n.epc-cache-activity tbody tr:last-child>*{border-top:1px solid var(--epc-line)}\n@media(max-width:420px){.epc-cache-usage,.epc-cache-pinned{padding:10px 8px}.epc-cache-activity{font-size:11px}.epc-cache-activity th{font-size:10px}.epc-cache-activity th,.epc-cache-activity td{padding:4px 2px}}\n\n/* Grid presentation of the native result rows. */\n#content table.epc-result-grid{display:block!important;width:100%!important;min-width:0!important;table-layout:auto!important;border:0;border-spacing:0}\n#content .epc-result-grid>colgroup{display:none!important}\n#content .epc-result-grid>tbody{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--epc-grid-width,320px)),1fr));gap:16px;align-items:start;width:100%}\n#content .epc-result-grid>thead,#content .epc-result-grid>tfoot{display:block;width:100%;margin-bottom:12px}\n#content .epc-result-grid tr:not(.torrent){display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}\n#content .epc-result-grid tr[data-ep-grid-header=static]{display:none!important}\n#content .epc-result-grid tr[data-ep-grid-header=sortable]:before{content:\"Sort by\";align-self:center;font:11px system-ui,sans-serif;opacity:.65}\n#content .epc-result-grid tr:not(.torrent)>th,#content .epc-result-grid tr:not(.torrent)>td{display:block;width:auto!important;padding:5px;border:0}\n#content .epc-result-grid tr[data-ep-grid-header=sortable]>:is(th,td):not(:has(a,button,input,select)){display:none!important}\n#content .epc-result-grid tr:not(.torrent)>th:empty{display:none}\n#content .epc-result-grid tr.torrent{display:flex;flex-wrap:wrap;align-content:start;gap:0;min-width:0;max-width:100%;height:auto!important;min-height:0!important;margin:0;padding:12px;border:1px solid #7a8ba760;border-radius:10px;box-sizing:border-box;overflow:hidden;box-shadow:0 2px 7px #0000000a}\n#content .epc-result-grid tr.torrent[hidden],#content .epc-result-grid tr.torrent.hidden:not(.epc-revealed),#content .epc-result-grid tr.epc-version-hidden,#content tr.torrent.epc-filter-hidden{display:none!important}\n#content .epc-result-grid tr.torrent>td{display:block!important;box-sizing:border-box;min-width:0!important;width:auto!important;max-width:100%;height:auto!important;min-height:0!important;border:0!important;padding:6px 10px 6px 0;text-align:left;vertical-align:top;overflow-wrap:anywhere}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category-hidden],#content .epc-result-grid tr.torrent>td[hidden],#content .epc-result-grid tr.torrent>td.hidden{display:none!important}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=title]{order:0;flex:0 0 100%;padding:0 0 10px;font-size:14px;line-height:1.5}\n#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=title]{padding-bottom:0}\n#content .epc-result-grid [data-ep-grid-cell=title]>br{display:none}\n#content .epc-result-grid [data-ep-grid-cell=title]>a{font-weight:650}\n#content .epc-result-grid [data-ep-grid-title]{display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;max-height:3em;line-height:1.5;overflow-wrap:anywhere}\n#content .epc-result-grid [data-ep-grid-cell=title] .tags{margin-top:8px;font-size:12px;line-height:1.7}\n#content .epc-result-grid:not([data-ep-grid-tags=true]) tr.torrent .tags{display:none!important}\n#content .epc-result-grid [data-ep-grid-cell=title] .tags>a{display:inline-block;margin-inline-end:5px;max-width:100%;overflow-wrap:anywhere}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category]{order:2;flex:0 0 100%;font-size:11px;opacity:.8}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=meta]{order:1;flex:1 0 30%;font-size:12px;border-top:1px solid #7a8ba730!important}\n#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=meta],#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=category]{display:none!important}\n#content .epc-result-grid [data-ep-grid-cell=meta]:before{content:attr(data-ep-grid-label);display:block;font:10px/1.5 system-ui,sans-serif;opacity:.65}\n#content .epc-result-grid .epc-thumbnail{display:block;float:none;width:100%;margin:0 0 12px}\n#content .epc-result-grid .epc-thumb-button{width:100%;height:auto;aspect-ratio:4/3;min-height:120px;max-height:none;border:0;border-radius:6px}\n#content .epc-result-grid .epc-thumb-button>:is(img,canvas){position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain}\n.epc-grid-gif-poster{display:none}\n.epc-root .epc-cover-motion-note{grid-column:1/-1;margin:0}\n.epc-root label:has(>input:disabled[aria-describedby^=\"epc-cover-motion-\"]){opacity:.65;cursor:not-allowed}\n.epc-thumb-button>:is(.epc-grid-gif-poster,.epc-grid-gif-playback){position:absolute;inset:0;width:100%;height:100%;object-fit:contain}\n#content :is(.epc-result-grid,.epc-managed-cover) .epc-grid-gif-poster,\nhtml[data-ep-list-autoplay] #content tr.torrent .epc-grid-gif-poster{display:block}\n#content .epc-managed-cover>:is(.epc-grid-gif-poster,.epc-grid-gif-playback){position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;pointer-events:none}\n#content .epc-result-grid [data-ep-grid-gif] img:not(.epc-grid-gif-playback),\nhtml[data-ep-list-autoplay] #content tr.torrent [data-ep-grid-gif] img:not(.epc-grid-gif-playback){visibility:hidden}\n#content .epc-managed-cover[data-ep-grid-gif]>.epc-cover-image{visibility:hidden}\n#content :is(.epc-thumbnail[data-ep-grid-playing] .epc-thumb-button,.epc-managed-cover[data-ep-grid-playing])>:not(.epc-grid-gif-playback){visibility:hidden!important}\n@media(prefers-reduced-motion:reduce){\n  #content .epc-grid-gif-playback{display:none}\n}\n#content .epc-result-grid .epc-version-control{display:none!important}\n#content .epc-result-grid .cats_col>div[title],#content .epc-result-grid .cats_cols>div[title]{position:static}\n@media(max-width:520px){#content .epc-result-grid>tbody{gap:12px}#content .epc-result-grid tr.torrent{padding:10px}}\n#content .epc-result-grid[data-ep-grid-spacing=compact]>tbody{gap:10px}\n#content .epc-result-grid[data-ep-grid-spacing=compact] tr.torrent{padding:0}\n#content .epc-result-grid[data-ep-grid-spacing=compact] tr.torrent>td[data-ep-grid-cell=title]{padding:0 8px 8px}\n#content .epc-result-grid[data-ep-grid-spacing=compact] .epc-thumbnail{width:calc(100% + 16px);margin:0 -8px 6px}\n#content .epc-result-grid[data-ep-grid-spacing=compact] .epc-thumb-button{border-radius:0}\n#content .epc-result-grid[data-ep-grid-spacing=compact] tr.torrent>td:is([data-ep-grid-cell=meta],[data-ep-grid-cell=category]){padding-inline:8px}\n\nhtml[data-ep-compact-cover-grid] #content .torrent_grid{gap:4px;padding:0}\nhtml[data-ep-compact-cover-grid] #content .torrent_grid>.torrent_grid__torrent{padding:0;border-width:1px}\nhtml[data-ep-compact-cover-grid] #content .torrent_grid .torrent_grid__torrent__info{padding:6px}\n");
+GM_addStyle("/* SPDX-License-Identifier: GPL-3.0-or-later */\n.epc-root,.epc-thumbnail{\n  --epc-bg:#fbfcfe;--epc-fg:#18243a;--epc-line:#dbe2ee;--epc-accent:#274f9d;\n  --epc-muted:color-mix(in srgb,var(--epc-fg) 77%,var(--epc-bg));\n  --epc-subtle:color-mix(in srgb,var(--epc-bg) 95%,var(--epc-fg));\n  --epc-soft:color-mix(in srgb,var(--epc-bg) 88%,var(--epc-accent));\n  --epc-radius:12px;--epc-control-radius:7px;--epc-shadow:0 8px 24px #12234124;\n  box-sizing:border-box;font:13px/1.45 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:var(--epc-fg);color-scheme:light dark\n}\n.epc-root *,.epc-thumbnail *{box-sizing:border-box}\n.epc-root [hidden],.epc-root[hidden],.epc-filter-hidden{display:none!important}\n.epc-root :is(button,input,select),button.epc-root.epc-media-retry{\n  font:inherit;color:inherit;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);\n  background:var(--epc-bg);padding:5px 8px;margin:2px;max-width:100%;box-shadow:none!important;text-shadow:none\n}\n.epc-root button,button.epc-root.epc-media-retry{appearance:none;cursor:pointer;min-height:32px}\n.epc-root button:hover,button.epc-root.epc-media-retry:hover{background:var(--epc-subtle)}\n.epc-root :is(button,a,input,select,textarea,summary):focus-visible,button.epc-root.epc-media-retry:focus-visible{outline:2px solid var(--epc-accent);outline-offset:2px}\n.epc-root :is(input[type=radio],input[type=checkbox]){accent-color:var(--epc-accent)}\n.epc-root a{color:var(--epc-accent);text-decoration:underline}\n.epc-root p{margin:8px 0}\n.epc-root summary{cursor:pointer;font-weight:650;padding:7px 0}\n.epc-tools{position:fixed;right:16px;bottom:16px;z-index:2147483000}\n.epc-launcher{border-radius:999px!important;background:var(--epc-accent)!important;color:white!important;font-weight:750!important;padding:9px 13px!important;box-shadow:0 2px 12px #0003}\n.epc-panel{position:absolute;right:0;bottom:50px;width:min(460px,calc(100vw - 32px));max-height:calc(100vh - 100px);overflow:auto;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:10px;box-shadow:0 12px 40px #0004;padding:14px}\n.epc-panel-heading,.epc-preview-heading{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:7px}\n.epc-panel-heading strong{font-size:16px}\n.epc-panel details{border-top:1px solid var(--epc-line);margin-top:8px}\n.epc-setting{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0}\n.epc-setting input[type=number],.epc-setting select{width:100px;flex-shrink:0}\n.epc-setting select[data-setting=gridCardWidth]{width:180px}\n.epc-setting input[type=checkbox]{width:18px;height:18px}\n.epc-actions{display:flex;flex-wrap:wrap;gap:4px;align-items:center}\n.epc-notice{white-space:pre-wrap;font-size:12px;color:var(--epc-accent)}\n.epc-health{font-variant-numeric:tabular-nums}\n.epc-log{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;font:11px/1.4 ui-monospace,monospace}\n.epc-saved{background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:7px;padding:6px 12px;margin:10px 0}\n.epc-saved-list{display:grid;gap:6px;margin-top:8px}\n.epc-saved-row{display:flex;gap:3px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--epc-line);padding-top:5px}\n.epc-search-name{flex:1;min-width:130px;text-align:left}\n.epc-thumbnail{display:inline-flex;float:left;position:relative;margin:0 8px 5px 0;vertical-align:top}\n.epc-thumb-button{display:flex;position:relative;justify-content:center;align-items:center;width:var(--epc-thumb-size);height:var(--epc-thumb-size);padding:0;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle);overflow:hidden;cursor:zoom-in}\n.epc-thumb-button>img{display:block;width:100%;height:100%;object-fit:contain;border:0;margin:0}\n.epc-thumb-status{position:absolute;inset:auto 2px 2px;background:#17213ae8;color:#fff;font:11px/1.3 system-ui,sans-serif;text-align:center;padding:2px;border-radius:3px}\n.epc-thumb-button>img:not([src]){visibility:hidden}\n.epc-thumbnail [hidden]{display:none!important}\nhtml.epc-cover-art .torrent_grid__torrent .torrent__cover[style*=\"background\"]:not(.epc-native-cover),.torrent__cover.epc-managed-cover{background-image:none!important}\n.torrent__cover.epc-cover-positioned{position:relative}\n.epc-cover-image{position:absolute!important;inset:0;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover;object-position:center;pointer-events:none}\n.epc-cover-image:not([src]){visibility:hidden}\n.epc-cover-status{position:absolute;bottom:5px;left:5px;right:5px;text-align:center;font:11px system-ui;color:#fff;background:#17213abf;border-radius:3px;padding:2px;pointer-events:none}\n.epc-cover-status[hidden]{display:none!important}\n.epc-category-overlay .cats_col,.epc-category-overlay .cats_cols{position:relative}\n.epc-category-overlay .cats_col>div[title],.epc-category-overlay .cats_cols>div[title]{position:absolute;top:2px;left:2px;z-index:1;width:24px;overflow:hidden}\n.epc-category-hide .cats_col>div[title],.epc-category-hide .cats_cols>div[title]{display:none!important}\n.epc-preview{position:fixed;z-index:2147482999;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:var(--epc-radius);box-shadow:var(--epc-shadow);padding:12px;overflow:auto;max-width:calc(100vw - 24px)}\n.epc-preview-heading strong{font-size:13px;overflow-wrap:anywhere}\n.epc-preview-heading button{flex-shrink:0}\n.epc-preview-frame{display:flex;align-items:center;justify-content:center;min-height:90px;overflow:hidden;background:var(--epc-subtle);border-radius:var(--epc-control-radius)}\n.epc-preview-frame>img{display:block;max-width:100%;max-height:inherit;width:auto;height:auto;object-fit:contain;margin:auto}\n.epc-preview-status{font-size:12px;min-height:18px}\n.epc-preview-stats{color:var(--epc-fg);opacity:.65;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}\n.epc-preview-summary{font-size:11px;max-height:65px;overflow:auto;overflow-wrap:anywhere}\n.epc-thumb-button,.epc-preview-frame{user-select:none}\n.epc-preview[data-mode=zoom]{padding:6px;overflow:hidden;cursor:zoom-in}\n.epc-preview[data-mode=zoom] .epc-preview-frame>img{width:100%;height:auto}\n.epc-preview[data-mode=zoom] .epc-preview-status:empty{display:none}\n.epc-preview[data-mode=tooltip]{padding:8px;overflow:hidden}\n.epc-preview[data-mode=tooltip] .epc-preview-frame{min-height:0;background:none}\n.epc-preview[data-mode=tooltip] .epc-preview-status:empty{display:none}\n.epc-preview[data-state=failed] .epc-preview-status,.epc-preview[data-state=stalled] .epc-preview-status{color:#a3391a}\n.epc-media-retry{display:inline-block;background:var(--epc-bg);padding:3px 7px;vertical-align:middle}\n#content img.epc-page-image{max-width:min(100%,calc(100vw - 48px))!important;height:auto}\n#content img.epc-page-image.epc-compact{max-height:75vh!important;object-fit:contain}\n@media(prefers-color-scheme:dark){.epc-root,.epc-thumbnail{--epc-bg:#1e2532;--epc-fg:#edf2fd;--epc-line:#3c495e;--epc-accent:#a8c0ff;--epc-shadow:0 8px 24px #0006}.epc-preview[data-state=failed] .epc-preview-status,.epc-preview[data-state=stalled] .epc-preview-status{color:#ffb194}}\n\n/* One in-page workspace. Engine DOM is private behavior infrastructure. */\n.epc-engine,#nseOuter,#nseFloatyBoi,#nseUpdateToast{display:none!important}\n.epc-workspace{display:block;margin:16px 0 20px;padding:0;border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);color:var(--epc-fg);clear:both;max-width:100%;text-align:left}\n.epc-toolbar{position:relative}\n.epc-toolbar-main,.epc-toolbar-context,.epc-toolbar-footer{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;padding:10px 14px;min-width:0}\n.epc-toolbar-main{position:relative;gap:6px 12px;padding-block:11px}\n.epc-toolbar-brand{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}\n.epc-brand-mark{display:grid;place-items:center;width:31px;height:31px;border-radius:8px;background:var(--epc-soft);color:var(--epc-accent)}\n.epc-root .epc-brand{font-weight:680;letter-spacing:-.025em;font-size:15px;margin:0}\n.epc-page-name{font-size:12px;color:var(--epc-muted)}\n.epc-icon{display:inline-block;width:15px;height:15px;flex:none;vertical-align:middle}\n.epc-toolbar :is(button,summary){display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:0}\n.epc-toolbar .epc-load-gauge{width:34px;min-height:34px;padding:0;border:0;border-radius:50%;color:var(--epc-accent);font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;\n  background:radial-gradient(circle closest-side,var(--epc-bg) 79%,transparent 83%),conic-gradient(var(--epc-accent) var(--epc-load-fill,0%),var(--epc-line) 0)}\n.epc-toolbar .epc-load-gauge:hover{background:radial-gradient(circle closest-side,var(--epc-soft) 79%,transparent 83%),conic-gradient(var(--epc-accent) var(--epc-load-fill,0%),var(--epc-line) 0)}\n.epc-load-detail{position:absolute;inset-inline-start:10px;z-index:6;width:min(305px,calc(100% - 20px));padding:10px 12px;\n  border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);box-shadow:var(--epc-shadow);font-size:12px}\n.epc-load-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.65fr);gap:3px 8px;align-items:baseline;margin-top:7px}\n.epc-load-count{color:var(--epc-muted);text-align:end;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}\n.epc-load-row progress{appearance:none;grid-column:1/-1;width:100%;height:3px;border:0;border-radius:2px;overflow:hidden;background:var(--epc-line)}\n.epc-load-row progress::-webkit-progress-bar{background:var(--epc-line)}\n.epc-load-row progress::-webkit-progress-value{background:var(--epc-accent)}\n.epc-load-row progress::-moz-progress-bar{background:var(--epc-accent)}\n.epc-load-row progress:indeterminate{background:linear-gradient(90deg,var(--epc-line),var(--epc-accent),var(--epc-line))}\n.epc-toolbar-context{justify-content:flex-start;column-gap:8px;border-top:1px solid var(--epc-line);background:var(--epc-subtle);padding-block:8px}\n.epc-toolbar-context:not(:has(> :not([hidden],.epc-context-actions),.epc-context-actions> :not([hidden]))){display:none}\n.epc-context-actions,.epc-toolbar-utilities,.epc-toolbar-status,.epc-collage-tools{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap;min-width:0}\n.epc-context-actions{justify-content:flex-end;margin-inline-start:auto;max-width:100%}\n.epc-context-actions:not(:has(> :not([hidden]))){display:none}\n.epc-layout-switch{display:inline-flex;padding:2px;border-radius:9px;border:1px solid var(--epc-line);gap:2px}\n.epc-root .epc-layout-switch button{min-height:27px;padding:3px 8px;border-radius:5px;background:transparent;border-color:transparent;color:var(--epc-muted)}\n.epc-root .epc-layout-switch button[aria-pressed=true]{background:var(--epc-bg);color:var(--epc-accent);border-color:var(--epc-line);font-weight:650}\n.epc-filtered-count{font-size:11px;border-radius:4px;padding:0 5px;color:var(--epc-accent);background:var(--epc-soft);font-variant-numeric:tabular-nums}\n.epc-toolbar .epc-stop-icon,.epc-toolbar [aria-busy=true]>.epc-load-icon{display:none}\n.epc-toolbar [aria-busy=true]>.epc-stop-icon{display:inline-block}\n.epc-toolbar-footer{border-top:1px solid var(--epc-line);padding-block:8px}\n.epc-toolbar-footer:not(:has(.epc-toolbar-utilities> :not([hidden]),.epc-toolbar-status>span:not([hidden]):not(:empty))){display:none}\n.epc-toolbar-utilities:not(:has(> :not([hidden]))),.epc-toolbar-status:not(:has(>span:not([hidden]):not(:empty))){display:none}\n.epc-toolbar-status>span:empty{display:none}\n.epc-toolbar-status{margin-inline-start:auto;color:var(--epc-muted);font-size:12px;font-variant-numeric:tabular-nums}\n.epc-toolbar-status :is(.epc-backfill-status,.epc-collage-status){color:var(--epc-accent);overflow-wrap:anywhere}\n.epc-collage-tools select{margin:0}\n.epc-collage-tools button,.epc-collage-status{overflow-wrap:anywhere}\n.epc-toolbar .epc-collage-tools button{white-space:normal;text-align:start}\n.epc-root button:disabled{cursor:default;opacity:.6}\na.epc-backfilled-page{text-decoration:line-through!important;opacity:.65}\na.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;pointer-events:none}\n.epc-navigation{display:flex;align-items:center;gap:2px;flex-wrap:wrap}\n.epc-root :is(.epc-navigation button,.epc-quiet){background:transparent;border-color:transparent;color:var(--epc-muted)}\n.epc-root .epc-navigation button[aria-expanded=true],.epc-root [data-ep-reveal][aria-pressed=true]{color:var(--epc-accent);background:var(--epc-soft)}\n.epc-workspace>.epc-panel{display:block;position:static;width:auto;max-height:none;border:0;border-top:1px solid var(--epc-line);border-radius:0 0 var(--epc-radius) var(--epc-radius);box-shadow:none;overflow:visible;padding:16px}\n.epc-panel-heading{margin-bottom:8px}\n.epc-panel-heading strong{font-size:17px;letter-spacing:-.025em}\n.epc-root .epc-caption{font-size:12px;color:var(--epc-muted);line-height:1.5;margin:4px 0 12px}\n.epc-root .epc-shortcut-list{padding-inline-start:20px;list-style:disc}\n.epc-root .epc-notice{margin:0 12px 8px;padding:8px 10px;border-radius:5px;background:color-mix(in srgb,var(--epc-accent) 10%,transparent)}\n.epc-root .epc-notice:empty{display:none}\n.epc-rule-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}\n.epc-root .epc-group{display:block!important;margin:12px 0;padding:0;border:0}\n.epc-root .epc-option-group[hidden]{display:none!important}\n.epc-root .epc-option-group{border-top:1px solid var(--epc-line);padding:5px 0;margin:8px 0}\n.epc-option-group>summary{display:flex;align-items:center;gap:10px;list-style:none}\n.epc-option-group>summary::-webkit-details-marker{display:none}\n.epc-option-group>summary:before{content:\"›\";font-size:18px;line-height:1;transition:transform .1s}\n.epc-option-group[open]>summary:before{transform:rotate(90deg)}\n.epc-option-count{font-size:11px;font-weight:400;opacity:.65;margin-left:auto}\n.epc-basic-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;max-width:700px;margin:12px 0 18px}\n.epc-basic-settings .epc-field,.epc-basic-settings .epc-setting{margin:0}\n.epc-basic-settings .epc-setting{font-size:12px;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:5px}\n.epc-basic-settings .epc-setting input,.epc-basic-settings .epc-setting select{width:100%;margin:0}\n.epc-settings-section{margin:10px 0 18px;max-width:700px}\n.epc-settings-section>h3{font-size:13px;margin:0 0 10px;font-weight:650}\n.epc-settings-section .epc-basic-settings{margin:0;gap:12px 20px}\n.epc-basic-settings .epc-setting-toggle{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px}\n.epc-basic-settings .epc-setting-toggle input{width:16px;height:16px;margin:0}\n.epc-settings-help{font-size:12px;margin-top:10px}\n.epc-cache-usage .epc-option-group{margin-bottom:0}\n.epc-settings-section[hidden]{display:none!important}\n.epc-settings-search{display:block;width:min(100%,480px);margin:8px 0 12px!important}\n.epc-pane:is([data-pane=settings],[data-pane=filters],[data-pane=searches]){--epc-group-indent:20px}\n.epc-pane:is([data-pane=settings],[data-pane=filters],[data-pane=searches]) :is(details[open],.epc-basic-settings){padding-inline-start:var(--epc-group-indent)}\n.epc-pane:is([data-pane=settings],[data-pane=filters],[data-pane=searches]) details[open]>summary{margin-inline-start:calc(-1 * var(--epc-group-indent))}\n.epc-pane[data-pane=settings] .epc-cache-usage>:is(details,p){margin-inline-start:var(--epc-group-indent)}\n@media(max-width:530px){.epc-pane:is([data-pane=settings],[data-pane=filters],[data-pane=searches]){--epc-group-indent:12px}}\n.epc-pane[data-pane=searches] .epc-search-more{margin:0;border:0}\n.epc-search-more>summary{font-size:12px;font-weight:400;padding:4px 8px}\n.epc-pane[data-pane=searches] .epc-search-more[open]{margin-inline-start:var(--epc-group-indent);flex-basis:calc(100% - var(--epc-group-indent))}\n.epc-search-more[open]>summary{padding-inline:0}\n.epc-is-editing>.epc-search-more>button{display:none}\n.epc-search-editor{padding:12px;margin:6px 0;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle)}\n.epc-search-editor>strong{display:block;margin-bottom:8px}\n.epc-search-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}\n.epc-search-editor .epc-field input:not([type=checkbox]),.epc-search-editor .epc-field select{width:100%}\n.epc-search-editor-extra{margin:8px 0}\n.epc-search-editor-status:empty{display:none}\n.epc-root h3{font:650 13px/1.5 system-ui,sans-serif;color:var(--epc-fg);margin:0 0 8px}\n.epc-root .epc-field{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:500;margin:10px 0}\n.epc-root textarea{width:100%;resize:vertical;min-height:65px;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle);color:var(--epc-fg);font:12px/1.5 ui-monospace,monospace;padding:8px;box-sizing:border-box}\n.epc-root textarea{font-family:var(--epc-list-font,ui-monospace,monospace)}\n.epc-root .epc-field input,.epc-root .epc-field select{margin:0}\n.epc-check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 20px}\n.epc-root .epc-check{display:flex;flex-direction:row;align-items:center;margin:3px 0;gap:8px;font-weight:400}\n.epc-check input{accent-color:var(--epc-accent)}\n.epc-root .epc-check input[type=checkbox]{flex:0 0 16px;width:16px;height:16px}\n.epc-root .epc-savebar{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--epc-line);margin-top:14px;padding-top:12px}\n.epc-root .epc-savebar .epc-caption{margin:0}\n.epc-root .epc-primary{background:var(--epc-accent);border-color:var(--epc-accent);color:var(--epc-bg);font-weight:650}\n.epc-root .epc-primary:hover{background:var(--epc-accent);filter:brightness(1.1)}\n.epc-root button:disabled{cursor:default;opacity:.5}\n.epc-saved{border:0;padding:0;margin:0}\n.epc-statistics{display:grid;grid-template-columns:1fr auto;gap:5px 16px;font-size:12px;max-width:500px}\n.epc-statistics dd{margin:0;font-variant-numeric:tabular-nums}\n.epc-setting{max-width:650px}\n.epc-setting:nth-child(n+12){font-size:12px}\n.epc-revealed{opacity:.75}\n.epc-filter-reason{display:block;width:fit-content;max-width:100%;margin:5px 0;color:#743918;background:#fff1de;border:1px solid #d99a62;border-radius:5px;padding:2px 7px;font-size:11px;font-weight:650;overflow-wrap:anywhere}\n.epc-grid-tag-cue{margin-top:6px;color:#155846;background:#e5f5ee;border:1px solid #8dbfad;border-radius:6px;padding:0 7px;font-size:11px;overflow-wrap:anywhere}\n.epc-grid-tag-cue[data-caution]{color:#694510;background:#fff2d4;border-color:#d9b76e}\n.epc-grid-tag-cue summary{padding:3px 0}\n.epc-grid-tag-matches{padding:0 0 5px}\n.epc-root .epc-columns{position:relative;z-index:3}\n.epc-root .epc-columns>summary{padding:4px 8px;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);font-size:12px}\n.epc-column-options{position:absolute;inset-inline-end:0;top:calc(100% + 5px);min-width:160px;padding:8px 10px;background:var(--epc-bg);border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);box-shadow:var(--epc-shadow)}\n.epc-column-option,.epc-column-option label{display:flex;align-items:center;gap:6px}\n.epc-column-option{justify-content:space-between;min-height:25px}\n.epc-column-option a{font-size:11px}\n#content [data-ep-list-column-hidden],#content table[data-ep-list-columns]>colgroup{display:none!important}\n#content ul#torrent_tags_list:not([data-ep-tags-expanded])>[data-ep-low-priority-tag]{display:none!important}\n#content ul#torrent_tags_list[data-ep-adaptive-tags]{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr));align-items:start;gap:6px 12px;float:none!important;width:auto!important}\n#content ul#torrent_tags_list[data-ep-adaptive-tags]>li{float:none!important;width:auto!important;min-width:0;box-sizing:border-box;margin:0;padding:4px 6px;overflow-wrap:anywhere}\n.epc-detail-tag-actions{margin:4px 0}\n.epc-luminance-import{margin-top:10px;border-top:1px solid var(--epc-line);padding:5px 0;max-width:680px}\n.epc-luminance-group{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start;padding:4px 0;border-top:1px solid var(--epc-line)}\n.epc-luminance-group summary,.epc-luminance-tags,.epc-luminance-conflicts{overflow-wrap:anywhere}\n.epc-luminance-tags{font:12px/1.5 ui-monospace,monospace;max-height:8em;overflow:auto}\n.epc-seen-dim{opacity:.6}\n.epc-freeleech-view{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--epc-muted)}\n.epc-root .epc-freeleech-view select{min-height:32px;margin:0;color:var(--epc-fg)}\n.epc-conditional-list{list-style:none;padding:0;margin:0}\n.epc-conditional-list li{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 12px;padding:6px 0;border-bottom:1px solid var(--epc-line)}\n.epc-conditional-list li>span{min-width:0;overflow-wrap:anywhere}\n.epc-conditional-list:not(:empty)+button{margin-top:8px}\n.epc-conditional-advanced{margin-top:12px}\n.epc-conditional-advanced code{overflow-wrap:anywhere}\n.epc-conditional-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;align-items:end;gap:8px;margin-bottom:8px}\n.epc-root .epc-conditional-row .epc-field{min-width:0;margin:0}\n.epc-conditional-row input,.epc-conditional-row select{width:100%;min-width:0}\n.epc-conditional-builder>label{max-width:320px}\n@media(max-width:480px){.epc-conditional-row{grid-template-columns:minmax(0,1fr)}.epc-conditional-row>button{justify-self:start}}\n[data-ep-freeleech=sitewide]{outline:2px solid #db9e27;outline-offset:1px}\n[data-ep-freeleech=unlimited]{outline:1px dashed currentColor;outline-offset:1px}\n.epc-history-list{list-style:none;padding:0;margin:0}\n.epc-history-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0}\n.epc-history-list a{min-width:0;overflow-wrap:anywhere}\n.epc-history-list button{flex-shrink:0}\n.nseToggleIcon{display:inline-flex!important;width:22px;height:22px;align-items:center;justify-content:center;cursor:pointer;border:1px solid #8a98ad!important;border-radius:5px!important;background:transparent!important;font:14px/1 system-ui,sans-serif!important;color:inherit}\n.nseToggleIcon>img{display:none!important}\n.nseToggleIcon:before{content:\"−\";font:14px/1 system-ui,sans-serif!important}\ntr[isnsehidden=\"1\"] .nseToggleIcon:before,.nseToggleIcon.nseIndividuallyBlacklisted:before{content:\"+\"}\n.nseToggleIcon:focus-visible{outline:2px solid var(--epc-accent,#4289dd);outline-offset:2px}\n#nseRCMBox.epc-root{position:fixed!important;z-index:2147483001!important;width:min(340px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;padding:14px;border-radius:var(--epc-radius);background:var(--epc-bg)!important;color:var(--epc-fg)!important;border:1px solid var(--epc-line)!important;box-shadow:var(--epc-shadow)}\n#nseRCMBox .nseRCMButton{display:inline-block;background:var(--epc-bg)!important;color:var(--epc-fg)!important;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);font:12px/1.5 system-ui,sans-serif;padding:5px 8px;margin:3px 0;cursor:pointer}\n#nseRCMBox .nseRCMButton:hover{background:var(--epc-soft)!important}\n#nseRCMBox #nseRCMClose{font:12px/1.5 system-ui,sans-serif;cursor:pointer}\n.epc-rule-import{display:inline-block;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-bg);padding:5px 8px;cursor:pointer}\n.epc-rule-import:focus-visible{outline:2px solid var(--epc-accent);outline-offset:2px}\n.epc-saved-shortcuts{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}\n.epc-saved-shortcuts>strong{font-size:12px;font-weight:500;color:var(--epc-muted)}\n.epc-root a.epc-saved-shortcut{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:3px 7px;border-radius:var(--epc-control-radius);color:var(--epc-accent)!important;background:var(--epc-soft);text-decoration:none;overflow-wrap:anywhere}\n.epc-root a.epc-saved-shortcut:hover{background:var(--epc-subtle)}\n.epc-saved-shortcut .epc-icon{width:12px;height:12px}\n.epc-toolbar .epc-quick-search{min-height:27px;padding:3px 5px}\n.epc-search-name{overflow-wrap:anywhere}\n.epc-search-feedback{display:flex;align-items:center;flex-wrap:wrap;gap:8px;grid-column:1/-1;margin:8px 0;padding:9px 12px;border:1px solid var(--epc-line);border-radius:5px;background:var(--epc-bg)}\n.epc-savebar [role=status]{font-size:12px;opacity:.72}\n.epc-root [aria-invalid=true]{border-color:#bf493e!important;outline:1px solid #bf493e}\n#content .nseHiddenTag,#content .nseHiddenTitle,#content .nseHiddenUploader,#content .nseBlacklistIdentifier{color:var(--epc-blocked,#f00)!important}\n#content .nseWhitelistedTag,#content .nseWhitelistedTitle,#content .nseWhitelistedUploader{color:var(--epc-allowed,#0f0)!important}\n#content .nseHardPassTag,#content .nseHardPassTitle{color:var(--epc-hard-pass,#a00)!important}\n/* Result tools share the existing list and rule menu. No extra toolbar. */\n#content tr.epc-version-hidden{display:none!important}\n#content tr.epc-version-member>td:nth-child(2){border-inline-start:2px solid #7a8ba780}\n#content .epc-version-control{display:inline-block;margin:3px 0 3px 8px;padding:2px 7px;border:1px solid #7a8ba780;border-radius:4px;background:transparent;color:inherit;font:11px/1.6 system-ui,sans-serif;cursor:pointer;vertical-align:middle}\n#content .epc-version-control:before{content:\"▸\";margin-inline-end:4px}\n#content .epc-version-control[aria-expanded=true]:before{content:\"▾\"}\n#content .epc-version-control:hover{background:#7a8ba720}\n#content .epc-version-control:focus-visible{outline:2px solid #4289dd;outline-offset:2px}\n#content a[data-ep-tag-tone=favorite]:not(.nseHiddenTag):not(.nseHardPassTag){background:#ccefe0;color:#154f39!important;box-shadow:inset 0 -2px #298661;border-radius:3px}\n#content a[data-ep-tag-tone=caution]:not(.nseHiddenTag):not(.nseHardPassTag){background:#ffe2a8;color:#68420b!important;box-shadow:inset 0 -2px #b67816;border-radius:3px}\n#content table.epc-stable-columns{table-layout:fixed;width:100%;min-width:var(--epc-table-min-width,0px)}\n#content table.epc-stable-columns td[width],#content table.epc-stable-columns th[width]{width:auto}\n#content table.epc-stable-columns td.user,#content table.epc-stable-columns .tags{overflow-wrap:anywhere}\n#content a.epc-tag-match{text-decoration:underline!important;text-decoration-thickness:2px!important;text-underline-offset:3px;font-weight:700}\n#nseRCMBox .epc-highlight-actions{margin-top:10px;padding-top:8px;border-top:1px solid var(--epc-line)}\n#nseRCMBox .epc-highlight-actions p{margin:0 0 5px}\n#nseRCMBox .epc-highlight-actions button{padding:4px 7px;margin:0 5px 4px 0}\n#nseRCMBox .epc-highlight-actions button[aria-pressed=true]{box-shadow:inset 0 0 0 2px var(--epc-accent)}\n#nseRCMBox .epc-menu-caption{display:block;margin-top:8px}\n#nseRCMBox[data-ep-rule-kind=tag] #nseRCMBoxChoices{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}\n#nseRCMBox[data-ep-rule-kind=tag] #nseRCMBoxChoices br{display:none}\n@media(max-width:700px){.epc-rule-grid,.epc-basic-settings,.epc-search-editor-fields,.epc-check-grid{grid-template-columns:1fr}.epc-savebar{flex-wrap:wrap}}\n@media(max-width:530px){\n  .epc-toolbar :is(.epc-toolbar-main,.epc-toolbar-context,.epc-toolbar-footer){padding-inline:10px}\n  .epc-navigation{width:100%;justify-content:space-between}.epc-navigation button{flex:1}\n  .epc-toolbar-status{margin-inline-start:0}\n}\n@media(pointer:coarse){\n  .epc-root .epc-toolbar :is(button,select,summary),.epc-root a.epc-saved-shortcut{min-height:44px}\n  .epc-root .epc-layout-switch button{min-height:40px}\n  .epc-toolbar .epc-load-gauge{width:44px}\n}\n\n/* First-use setup reuses the workspace's visual language and settings. */\n.epc-onboarding{width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 32px);overflow:auto;margin:auto;padding:22px;border:1px solid var(--epc-line);border-radius:var(--epc-radius);background:var(--epc-bg);color:var(--epc-fg);text-align:left;box-shadow:var(--epc-shadow)}\n.epc-onboarding::backdrop{background:#1017239c}\n.epc-onboarding h2{margin:0 0 10px;font-size:21px;line-height:1.25;color:inherit}\n.epc-welcome-heading{display:flex;align-items:center;gap:10px;margin-block-end:10px}\n.epc-welcome-heading .epc-brand-mark{flex:none}\n.epc-onboarding .epc-welcome-heading h2{margin:0}\n.epc-onboarding fieldset{margin:16px 0 12px;padding:12px;border:1px solid var(--epc-line);border-radius:8px;min-width:0}\n.epc-onboarding legend{padding:0 5px;font-weight:650}\n.epc-welcome-choice{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer}\n.epc-welcome-field{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}\n.epc-welcome-field input[type=number]{width:70px}\n.epc-onboarding textarea{width:100%;font:inherit;color:inherit;background:var(--epc-subtle);border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);padding:7px;resize:vertical}\n.epc-onboarding details{border-top:1px solid var(--epc-line);margin-top:16px;padding-top:4px}\n.epc-onboarding details .epc-welcome-field{display:block}\n.epc-welcome-sample{width:var(--epc-sample-width);max-width:100%;height:64px;border-radius:var(--epc-control-radius);margin:8px 0 12px;display:grid;place-items:center;color:var(--epc-accent);background:var(--epc-soft);font-size:11px}\n.epc-onboarding .epc-actions{justify-content:flex-end;margin-top:16px}\n@media(max-width:420px){.epc-onboarding{padding:16px}.epc-welcome-field{flex-wrap:wrap}.epc-onboarding h2{font-size:19px}}\n.epc-onboarding{padding:18px}\n.epc-onboarding p{margin:6px 0}\n.epc-onboarding fieldset{margin:12px 0 10px;padding:10px}\n.epc-welcome-choice{padding:2px 0}\n.epc-welcome-sample{height:40px}\n.epc-onboarding .epc-actions{position:sticky;bottom:-18px;padding:10px 0 4px;background:var(--epc-bg);box-shadow:0 -8px 8px var(--epc-bg)}\n@media(max-width:420px){.epc-onboarding .epc-actions{bottom:-16px}}\n.epc-cache-usage,.epc-cache-pinned{margin:12px 0;padding:12px;border:1px solid var(--epc-line);border-radius:7px;max-width:560px}\n.epc-cache-pinned{margin-inline:14px}\n#epc-cache-statistics dl{margin:6px 0}\n#epc-cache-statistics dl>div{display:flex;justify-content:space-between;gap:16px;padding:2px 0}\n#epc-cache-statistics dt,#epc-cache-statistics dd{margin:0}\n#epc-cache-statistics dd{font-variant-numeric:tabular-nums;text-align:right}\n:is(.epc-cache-usage,.epc-cache-pinned) p{margin:4px 0 0}\n.epc-cache-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}\n.epc-cache-heading strong{font-size:13px}\n.epc-cache-heading button{font-size:11px;min-height:25px;padding:3px 7px}\n.epc-cache-activity{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;table-layout:auto}\n.epc-cache-activity th,.epc-cache-activity td{padding:4px 3px;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}\n.epc-cache-activity th{font-size:11px;font-weight:600}\n.epc-cache-activity th:first-child{text-align:left;width:18%}\n.epc-cache-activity thead th{border-bottom:1px solid var(--epc-line);cursor:help;text-decoration:underline dotted;text-underline-offset:2px}\n.epc-cache-activity tbody th{font-weight:400}\n.epc-cache-activity tbody tr:last-child>*{border-top:1px solid var(--epc-line)}\n@media(max-width:420px){.epc-cache-usage,.epc-cache-pinned{padding:10px 8px}.epc-cache-activity{font-size:11px}.epc-cache-activity th{font-size:10px}.epc-cache-activity th,.epc-cache-activity td{padding:4px 2px}}\n\n/* Grid presentation of the native result rows. */\n#content table.epc-result-grid{display:block!important;width:100%!important;min-width:0!important;table-layout:auto!important;border:0;border-spacing:0}\n#content .epc-result-grid>colgroup{display:none!important}\n#content .epc-result-grid>tbody{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--epc-grid-width,320px)),1fr));gap:16px;align-items:start;width:100%}\n#content .epc-result-grid>thead,#content .epc-result-grid>tfoot{display:block;width:100%;margin-bottom:12px}\n#content .epc-result-grid tr:not(.torrent){display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}\n#content .epc-result-grid tr[data-ep-grid-header=static]{display:none!important}\n#content .epc-result-grid tr[data-ep-grid-header=sortable]:before{content:\"Sort by\";align-self:center;font:11px system-ui,sans-serif;opacity:.65}\n#content .epc-result-grid tr:not(.torrent)>th,#content .epc-result-grid tr:not(.torrent)>td{display:block;width:auto!important;padding:5px;border:0}\n#content .epc-result-grid tr[data-ep-grid-header=sortable]>:is(th,td):not(:has(a,button,input,select)){display:none!important}\n#content .epc-result-grid tr:not(.torrent)>th:empty{display:none}\n#content .epc-result-grid tr.torrent{display:flex;flex-wrap:wrap;align-content:start;gap:0;min-width:0;max-width:100%;height:auto!important;min-height:0!important;margin:0;padding:12px;border:1px solid #7a8ba760;border-radius:10px;box-sizing:border-box;overflow:hidden;box-shadow:0 2px 7px #0000000a}\n#content .epc-result-grid tr.torrent[hidden],#content .epc-result-grid tr.torrent.hidden:not(.epc-revealed),#content .epc-result-grid tr.epc-version-hidden,#content tr.torrent.epc-filter-hidden{display:none!important}\n#content .epc-result-grid tr.torrent>td{display:block!important;box-sizing:border-box;min-width:0!important;width:auto!important;max-width:100%;height:auto!important;min-height:0!important;border:0!important;padding:6px 10px 6px 0;text-align:left;vertical-align:top;overflow-wrap:anywhere}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category-hidden],#content .epc-result-grid tr.torrent>td[hidden],#content .epc-result-grid tr.torrent>td.hidden{display:none!important}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=title]{order:0;flex:0 0 100%;padding:0 0 10px;font-size:14px;line-height:1.5}\n#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=title]{padding-bottom:0}\n#content .epc-result-grid [data-ep-grid-cell=title]>br{display:none}\n#content .epc-result-grid [data-ep-grid-cell=title]>a{font-weight:650}\n#content .epc-result-grid [data-ep-grid-title]{display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;max-height:3em;line-height:1.5;overflow-wrap:anywhere}\n#content .epc-result-grid [data-ep-grid-cell=title] .tags{margin-top:8px;font-size:12px;line-height:1.7}\n#content .epc-result-grid:not([data-ep-grid-tags=true]) tr.torrent .tags{display:none!important}\n#content .epc-result-grid [data-ep-grid-cell=title] .tags>a{display:inline-block;margin-inline-end:5px;max-width:100%;overflow-wrap:anywhere}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=category]{order:2;flex:0 0 100%;font-size:11px;opacity:.8}\n#content .epc-result-grid tr.torrent>td[data-ep-grid-cell=meta]{order:1;flex:1 0 30%;font-size:12px;border-top:1px solid #7a8ba730!important}\n#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=meta],#content .epc-result-grid:not([data-ep-grid-details=true]) tr.torrent>td[data-ep-grid-cell=category]{display:none!important}\n#content .epc-result-grid [data-ep-grid-cell=meta]:before{content:attr(data-ep-grid-label);display:block;font:10px/1.5 system-ui,sans-serif;opacity:.65}\n#content .epc-result-grid .epc-thumbnail{display:block;float:none;width:100%;margin:0 0 12px}\n#content .epc-result-grid .epc-thumb-button{width:100%;height:auto;aspect-ratio:4/3;min-height:120px;max-height:none;border:0;border-radius:6px}\n#content .epc-result-grid .epc-thumb-button>:is(img,canvas){position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain}\n.epc-grid-gif-poster{display:none}\n.epc-root .epc-cover-motion-note{grid-column:1/-1;margin:0}\n.epc-root label:has(>input:disabled[aria-describedby^=\"epc-cover-motion-\"]){opacity:.65;cursor:not-allowed}\n.epc-thumb-button>:is(.epc-grid-gif-poster,.epc-grid-gif-playback){position:absolute;inset:0;width:100%;height:100%;object-fit:contain}\n#content :is(.epc-result-grid,.epc-managed-cover) .epc-grid-gif-poster,\nhtml[data-ep-list-autoplay] #content tr.torrent .epc-grid-gif-poster{display:block}\n#content .epc-managed-cover>:is(.epc-grid-gif-poster,.epc-grid-gif-playback){position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;pointer-events:none}\n#content .epc-result-grid [data-ep-grid-gif] img:not(.epc-grid-gif-playback),\nhtml[data-ep-list-autoplay] #content tr.torrent [data-ep-grid-gif] img:not(.epc-grid-gif-playback){visibility:hidden}\n#content .epc-managed-cover[data-ep-grid-gif]>.epc-cover-image{visibility:hidden}\n#content :is(.epc-thumbnail[data-ep-grid-playing] .epc-thumb-button,.epc-managed-cover[data-ep-grid-playing])>:not(.epc-grid-gif-playback){visibility:hidden!important}\n@media(prefers-reduced-motion:reduce){\n  #content .epc-grid-gif-playback{display:none}\n}\n#content .epc-result-grid .epc-version-control{display:none!important}\n#content .epc-result-grid .cats_col>div[title],#content .epc-result-grid .cats_cols>div[title]{position:static}\n@media(max-width:520px){#content .epc-result-grid>tbody{gap:12px}#content .epc-result-grid tr.torrent{padding:10px}}\n#content .epc-result-grid[data-ep-grid-spacing=compact]>tbody{gap:10px}\n#content .epc-result-grid[data-ep-grid-spacing=compact] tr.torrent{padding:0}\n#content .epc-result-grid[data-ep-grid-spacing=compact] tr.torrent>td[data-ep-grid-cell=title]{padding:0 8px 8px}\n#content .epc-result-grid[data-ep-grid-spacing=compact] .epc-thumbnail{width:calc(100% + 16px);margin:0 -8px 6px}\n#content .epc-result-grid[data-ep-grid-spacing=compact] .epc-thumb-button{border-radius:0}\n#content .epc-result-grid[data-ep-grid-spacing=compact] tr.torrent>td:is([data-ep-grid-cell=meta],[data-ep-grid-cell=category]){padding-inline:8px}\n\nhtml[data-ep-compact-cover-grid] #content .torrent_grid{gap:4px;padding:0}\nhtml[data-ep-compact-cover-grid] #content .torrent_grid>.torrent_grid__torrent{padding:0;border-width:1px}\nhtml[data-ep-compact-cover-grid] #content .torrent_grid .torrent_grid__torrent__info{padding:6px}\n");
 const epBridge = {};
 function epRunNSE(app) {
   const run = () => app.batchDOM(() => {
@@ -7732,6 +8202,7 @@ if(torrents) {
             }
     
             const conditional = matchConditional?.(tagElement, titleElement, uploaderElement);
+            let hideReason, passReason;
             let countMe = 1;
             let currentHidden = false;
             let currentWhitelisted = false;
@@ -7866,8 +8337,10 @@ if(torrents) {
                             }
             
                             //Save lists immediately after manipulating them
+                            app.beforeFilterWrite();
                             GM_setValue("nseIndividualUploadHidingBlacklist", nseIndividualUploadHidingBlacklist);
                             GM_setValue("nseIndividualUploadHidingWhitelist", nseIndividualUploadHidingWhitelist);
+                            app.afterFilterWrite();
 
                             if(nseRenumberTorrentsEnabled && currentPage == "Top 10") {
                                 renumberTorrents();
@@ -7946,8 +8419,10 @@ if(torrents) {
                                 }
 
                                 // Save lists immediately after manipulating them
+                                app.beforeFilterWrite();
                                 GM_setValue("nseIndividualUploadHidingBlacklist", nseIndividualUploadHidingBlacklist);
                                 GM_setValue("nseIndividualUploadHidingWhitelist", nseIndividualUploadHidingWhitelist);
+                                app.afterFilterWrite();
                             }
 
                             if(nseRenumberTorrentsEnabled && currentPage == "Top 10") {
@@ -7961,6 +8436,7 @@ if(torrents) {
                     // Check if torrent is black/whitelisted this way
                     let currentBLIndex = nseIndividualUploadHidingBlacklist.indexOf(torrentID);
                     if(currentBLIndex > -1) {
+                    passReason ??= "Hidden individually";
                         if(russianRouletteBulletInChamber == false) {
                             actualIcon.classList.add("nseIndividuallyBlacklisted");
                             currentHidden = true;
@@ -7989,12 +8465,14 @@ if(torrents) {
             // Check if filtered via options
             if(nseHideReportedEnabled) {
                 if(titleElement.querySelector("span.reported") !== null) {
+                    hideReason ??= "Reported result";
                     currentHidden = true;
                 }
             }
     
             if(nseHideWarnedEnabled) {
                 if(torrents[i].classList.contains("redbar")) {
+                    hideReason ??= "Warned result";
                     currentHidden = true;
                 }
             }
@@ -8008,6 +8486,7 @@ if(torrents) {
                 
                 let seeders = torrents[i].querySelector(selector);
                 if(seeders.classList.contains("r00")) {
+                    hideReason ??= "No seeders";
                     currentHidden = true;
                     
                 }
@@ -8018,6 +8497,7 @@ if(torrents) {
             if(torrentIconElement) {
                 if(nseHideSnatchedEnabled) {
                     if(torrentIconElement.classList.contains("snatched")) {
+                    hideReason ??= "Activity filter · snatched";
                         currentHidden = true;
     
                         if(nseBypassWhitelistsEnabled) {
@@ -8028,6 +8508,7 @@ if(torrents) {
     
                 if(nseHideSeedingEnabled) {
                     if(torrentIconElement.classList.contains("seeding")) {
+                    hideReason ??= "Activity filter · seeding";
                         currentHidden = true;
     
                         if(nseBypassWhitelistsEnabled) {
@@ -8038,6 +8519,7 @@ if(torrents) {
     
                 if(nseHideGrabbedEnabled) {
                     if(torrentIconElement.classList.contains("grabbed")) {
+                    hideReason ??= "Activity filter · grabbed";
                         currentHidden = true;
     
                         if(nseBypassWhitelistsEnabled) {
@@ -8048,6 +8530,7 @@ if(torrents) {
     
                 if(nseHideLeechingEnabled) {
                     if(torrentIconElement.classList.contains("leeching")) {
+                    hideReason ??= "Activity filter · leeching";
                         currentHidden = true;
     
                         if(nseBypassWhitelistsEnabled) {
@@ -8060,6 +8543,7 @@ if(torrents) {
             if(nseHideBookmarkedEnabled) {
                 let bmElement = torrents[i].querySelector("i.bookmarked");
                 if(bmElement) {
+                    hideReason ??= "Bookmarked result";
                     currentHidden = true;
                     
                     if(nseBypassWhitelistsEnabled) {
@@ -8075,6 +8559,7 @@ if(torrents) {
                     if(nseHideAnonUploadsEnabled) {
                         let anonName = torrents[i].querySelector("td > span.anon_name");
                         if(anonName && anonName.innerHTML == "anon") {
+                    hideReason ??= "Anonymous uploader";
                             currentHidden = true;
                             if(russianRouletteBulletInChamber == false) {
                                 anonName.classList.add("nseHiddenUploader");
@@ -8087,6 +8572,7 @@ if(torrents) {
                     let hiddenByUploader = false;
                     for(let l = 0; l < nseBlacklistUploaders.length; l++) {
                         if(uploader == nseBlacklistUploaders[l].trim().toLowerCase()) {
+                    hideReason ??= "Blocked uploader · " + uploaderElement.textContent.trim();
                             hiddenByUploader = true;
                             currentHidden = true;
                             if(russianRouletteBulletInChamber == false) { 
@@ -8121,6 +8607,7 @@ if(torrents) {
                 if(currentTBLPhrase != "") {
                     if(torrentTitle.includes(currentTBLPhrase)) {
                         currentHidden = true;
+                        hideReason ??= "Blocked title · " + currentTBLPhrase;
                         if(russianRouletteBulletInChamber == false) { 
                             titleElement.innerHTML = titleElement.innerHTML + ` <color class="nseHiddenTitle">(${escapeHTML(currentTBLPhrase)})</color>`;
                         }
@@ -8138,6 +8625,7 @@ if(torrents) {
                         if(torrentTitle.includes(currentTBLPhrase)) {
                             currentHidden = true;
                             currentForceHide = true;
+                        passReason ??= "Hard Pass title · " + currentTBLPhrase;
                             if(russianRouletteBulletInChamber == false) { 
                                 titleElement.innerHTML = titleElement.innerHTML + ` <color class="nseHardPassTitle">(${escapeHTML(currentTBLPhrase)})</color>`;
 
@@ -8173,6 +8661,7 @@ if(torrents) {
                 for(let k = 0; k < tagList.length; k++) {
                     if(nseHardPassEnabled) {
                         if(nseHardPassTags.includes(tagList[k].innerHTML) === true) {
+                    passReason ??= "Hard Pass tag · " + tagList[k].textContent.trim();
                             currentHidden = true;
                             currentForceHide = true;
                             if(russianRouletteBulletInChamber == false) { 
@@ -8187,6 +8676,7 @@ if(torrents) {
                     }
         
                     if(nseBlacklistTags.includes(tagList[k].innerHTML) === true) {
+                    hideReason ??= "Blocked tag · " + tagList[k].textContent.trim();
                         currentHidden = true;
                         if(russianRouletteBulletInChamber == false) { 
                             tagList[k].classList.add("nseHiddenTag"); 
@@ -8202,10 +8692,14 @@ if(torrents) {
                 }
             }
     
-            if (conditional?.has("HIDE")) currentHidden = true;
+            if (conditional?.has("HIDE")) {
+                currentHidden = true;
+                hideReason ??= "Conditional rule " + (conditional.get("HIDE").line + 1);
+            }
             if (conditional?.has("SHOW") && !currentBypassWhitelist) currentWhitelisted = true;
             if (conditional?.has("PASS")) {
                 currentForceHide = true;
+                passReason ??= "Hard Pass · conditional rule " + (conditional.get("PASS").line + 1);
                 if (!currentForceShow && nseHardPassEnabled && nseRemoveHardPassResults) {
                     torrents[i].classList.add("nseHardPassRemove");
                     countMe = 0;
@@ -8221,7 +8715,9 @@ if(torrents) {
                 currentWhitelisted = false;
             }
     
+            app.resultFilters.setEngineReason(torrents[i], !currentWhitelisted && currentHidden ? passReason || hideReason : null);
             if(currentWhitelisted === true) {
+                torrents[i].classList.remove("nseHardPassRemove");
                 torrents[i].classList.remove("hidden");
                 torrents[i].setAttribute("isNSEHidden", "0");
             } else if(currentHidden === true) {
@@ -8397,8 +8893,10 @@ if(torrents) {
                     }
     
                     //Save lists immediately after manipulating them
+                    app.beforeFilterWrite();
                     GM_setValue("nseIndividualUploadHidingBlacklist", nseIndividualUploadHidingBlacklist);
                     GM_setValue("nseIndividualUploadHidingWhitelist", nseIndividualUploadHidingWhitelist);
+                    app.afterFilterWrite();
                 };
 
                 // Clear list status on right-click
@@ -8425,8 +8923,10 @@ if(torrents) {
                     this.classList.add("nseIndividuallyUntouched");
 
                     //Save lists immediately after manipulating them
+                    app.beforeFilterWrite();
                     GM_setValue("nseIndividualUploadHidingBlacklist", nseIndividualUploadHidingBlacklist);
                     GM_setValue("nseIndividualUploadHidingWhitelist", nseIndividualUploadHidingWhitelist);
+                    app.afterFilterWrite();
                 }, false);
 
                 torrentIconContainer.appendChild(nseToggleHideElement);

@@ -3,6 +3,7 @@ import { compileConditionalRules } from './conditional-rules.mjs';
 import { ConditionalRuleEditor } from './conditional-rule-editor.mjs';
 import { torrentID } from './backfill.mjs';
 import { mountFilterControls, optionGroup } from './workspace.mjs';
+import { resultTitleLink } from './result-tools.mjs';
 
 const SEEN_PREFIX = 'ep.seen.';
 const IGNORED_KEY = 'nseIndividualUploadHidingBlacklist';
@@ -34,6 +35,8 @@ export class ResultFilters {
     this.bookmarks = this.pageURL.pathname === '/bookmarks.php';
     this.freeleechKey = this.bookmarks ? 'bookmarkFreeleechView' : 'freeleechView';
     this.icons = new WeakMap();
+    this.engineReasons = new WeakMap();
+    this.reasonNodes = new WeakMap();
   }
   mountFreeleech() {
     const app = this.app;
@@ -79,8 +82,8 @@ export class ResultFilters {
         title: title?.textContent.trim().toLocaleLowerCase() || '',
         uploader: uploader?.textContent.trim().toLocaleLowerCase() || ''
       };
-      const actions = new Set();
-      for (const rule of rules) if (!actions.has(rule.action) && rule.test(row)) actions.add(rule.action);
+      const actions = new Map();
+      for (const rule of rules) if (!actions.has(rule.action) && rule.test(row)) actions.set(rule.action, rule);
       return actions;
     } : null;
     return this.matchRules;
@@ -108,6 +111,25 @@ export class ResultFilters {
       }
     } catch { app.report('Seen history could not be updated.'); }
   }
+  setEngineReason(row, reason) {
+    if (reason) this.engineReasons.set(row, reason);
+    else this.engineReasons.delete(row);
+  }
+  outsideView(row, kind = findFreeleech(row).kind) {
+    const view = this.app.settings[this.freeleechKey];
+    return view === 'sitewide' ? kind !== 'sitewide' : view === 'freeleech' && !kind;
+  }
+  renderReason(row, reason) {
+    let node = this.reasonNodes.get(row);
+    if (!reason) { node?.remove(); this.reasonNodes.delete(row); return; }
+    if (!node) {
+      const title = resultTitleLink(row);
+      if (!title) return;
+      node = this.app.node('span', null, 'epc-root epc-filter-reason');
+      title.after(node); this.reasonNodes.set(row, node);
+    }
+    if (node.textContent !== reason) node.textContent = reason;
+  }
   applyRow(row) {
     const { app } = this;
     const { kind, icon } = findFreeleech(row);
@@ -115,15 +137,14 @@ export class ResultFilters {
     if (previous && previous !== icon) delete previous.dataset.epFreeleech;
     if (icon) { icon.dataset.epFreeleech = kind; this.icons.set(row, icon); }
     else this.icons.delete(row);
-    const view = app.settings[this.freeleechKey];
-    const outsideView = view === 'sitewide' ? kind !== 'sitewide' : view === 'freeleech' && !kind;
+    const outsideView = this.outsideView(row, kind);
     const mode = app.settings.seenMode;
     const seen = mode !== 'show' && (this.seen ||= this.readSeenIDs()).has(torrentID(row, this.pageURL.href));
     const seenFiltered = seen && mode === 'hide';
     row.classList.toggle('epc-filter-hidden', outsideView || seenFiltered && !app.revealingFiltered);
     row.classList.toggle('epc-seen-revealed', seenFiltered && !!app.revealingFiltered);
     row.classList.toggle('epc-seen-dim', seen && mode === 'dim');
-    return seenFiltered;
+    return { outsideView, seenFiltered };
   }
   refreshSeen() {
     const showingHistory = this.historyVisible();

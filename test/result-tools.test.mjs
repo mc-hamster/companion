@@ -88,7 +88,7 @@ test('filtering the representative promotes an eligible version; revealing filte
     for (const row of f.doc.querySelectorAll('tr.torrent')) { row.classList.add('hidden'); row.setAttribute('isNSEHidden', '1'); }
     f.app.syncGridFilters();
     assert.equal(f.doc.querySelector('.epc-version-control'),null);
-    assert.match(f.app.filterSummary.textContent, /^3 shown · 3 filtered/);
+    assert.match(f.app.filterSummary.textContent, /^3 shown · 3 revealed/);
     f.app.toggleFiltered.click();
     for(const row of f.doc.querySelectorAll('tr.torrent')){row.classList.remove('hidden');row.setAttribute('isNSEHidden','0');}
     f.app.syncGridFilters();assert.equal(f.doc.querySelector('.epc-version-control').getAttribute('aria-expanded'),'true');

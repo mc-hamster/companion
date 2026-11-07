@@ -163,7 +163,7 @@ export class VersionGroups {
   stabilizeLayouts() {
     if (!this.app.settings.groupVersions || this.app.backfill?.busy) return;
     for (const table of this.app.doc.querySelectorAll('table.torrent_table,table#torrent_table')) {
-      if (table.classList.contains('epc-result-grid')) continue;
+      if (table.matches('.epc-result-grid,[data-ep-list-columns]')) continue;
       if (this.layouts.has(table) || table.querySelector(':scope > colgroup') || table.querySelectorAll('tr.torrent').length < 200) continue;
       const row = [...table.querySelectorAll('tr.torrent')].find(row => row.getClientRects().length);
       if (!row) continue;
@@ -259,7 +259,10 @@ function matchesTagParts(value, parts) {
 }
 
 export class TagHighlights {
-  constructor(app) { this.app = app; this.originals = new Map(); this.index = new Map(); this.values = new WeakMap(); }
+  constructor(app) {
+    this.app = app; this.originals = new Map(); this.index = new Map(); this.values = new WeakMap();
+    this.cues = new Map();
+  }
   refresh(root) {
     if (root?.matches?.('img,source,video,canvas')) return;
     const { app } = this, { doc, settings } = app;
@@ -285,16 +288,21 @@ export class TagHighlights {
     const { favorites, caution } = this;
     const selector = '#content div.tags>a,#content ul#torrent_tags_list>li>a';
     const tags = new Set();
+    const rows = new Set();
     if (this.initialized && changed && !queryChanged) {
       for (const value of affected) for (const tag of this.index.get(value) || []) tags.add(tag);
     } else if (!root || queryChanged || !this.initialized) root = doc;
     if (root) {
       for (const scope of Array.isArray(root) ? root : [root]) {
+        const row = scope.closest?.('tr.torrent');
+        if (row) rows.add(row);
         for (const tag of scope.matches?.(selector) ? [scope] : scope.querySelectorAll?.(selector) || []) tags.add(tag);
       }
     }
     this.initialized = true;
     for (const tag of tags) {
+      const row = tag.closest('tr.torrent');
+      if (row) rows.add(row);
       const value = tag.textContent.trim().toLocaleLowerCase();
       const previous = this.values.get(tag);
       if (previous !== value) {
@@ -316,8 +324,90 @@ export class TagHighlights {
         if (tag.title !== title) tag.title = title;
       } else this.restore(tag);
     }
+    if (root === doc) for (const row of this.cues.keys()) rows.add(row);
+    const showCues = settings.resultsView === 'grid' && settings.gridTagCues && !settings.gridShowTags;
+    if (showCues || this.cues.size) for (const row of rows) this.refreshCue(row, showCues);
+    this.refreshDetailTags();
+  }
+  refreshCue(row, enabled) {
+    const { app } = this;
+    const favorites = new Set(), cautions = new Set();
+    if (enabled && row.isConnected) for (const tag of row.querySelectorAll('div.tags > a')) {
+      const value = this.values.get(tag);
+      if (this.caution.has(value)) cautions.add(value);
+      else if (this.favorites.has(value)) favorites.add(value);
+    }
+    let cue = this.cues.get(row);
+    if (!favorites.size && !cautions.size) { cue?.remove(); this.cues.delete(row); return; }
+    if (!cue) {
+      const title = resultTitleLink(row);
+      if (!title) return;
+      cue = app.node('details', null, 'epc-root epc-grid-tag-cue');
+      cue.append(app.node('summary'), app.node('div', null, 'epc-grid-tag-matches'));
+      title.after(cue); this.cues.set(row, cue);
+    }
+    const caption = [
+      cautions.size === 1 ? 'Caution · ' + [...cautions][0] : cautions.size ? cautions.size + ' cautions' : '',
+      favorites.size ? favorites.size + (favorites.size === 1 ? ' favorite' : ' favorites') : ''
+    ].filter(Boolean).join(' · ');
+    if (cue.firstElementChild.textContent !== caption) cue.firstElementChild.textContent = caption;
+    const contents = [
+      cautions.size ? 'Caution · ' + [...cautions].join(', ') : '',
+      favorites.size ? 'Favorite · ' + [...favorites].join(', ') : ''
+    ].filter(Boolean);
+    if (cue.lastElementChild.textContent !== contents.join('')) {
+      cue.lastElementChild.replaceChildren(...contents.map(text => app.node('div', text)));
+    }
+    cue.toggleAttribute('data-caution', !!cautions.size);
+  }
+  refreshDetailTags() {
+    const { app } = this;
+    const list = app.doc.querySelector('ul#torrent_tags_list');
+    if (list !== this.detailList) {
+      this.releaseDetailTags();
+      this.detailList = list;
+      this.detailExpanded = false;
+    }
+    if (!list) return;
+    const { adaptiveDetailTags, collapsedDetailTags } = app.settings;
+    list.toggleAttribute('data-ep-adaptive-tags', adaptiveDetailTags);
+    list.toggleAttribute('data-ep-tags-expanded', this.detailExpanded);
+    const collapsed = new Set(highlightTagList(collapsedDetailTags));
+    let count = 0;
+    for (const item of list.children) {
+      const tag = item.matches('li') && item.querySelector(':scope > a');
+      const low = !!tag && !item.hidden && !item.classList.contains('hidden') && collapsed.has(tag.textContent.trim().toLocaleLowerCase());
+      item.toggleAttribute('data-ep-low-priority-tag', low);
+      if (low) count++;
+    }
+    if (!count) {
+      this.detailControls?.remove(); this.detailControls = this.detailToggle = null; this.detailExpanded = false;
+      return;
+    }
+    if (!this.detailToggle) {
+      const controls = app.node('div', null, 'epc-root epc-detail-tag-actions');
+      this.detailToggle = app.button('', () => {
+        this.detailExpanded = !this.detailExpanded;
+        this.refreshDetailTags();
+      });
+      this.detailToggle.setAttribute('aria-controls', list.id);
+      controls.append(this.detailToggle); list.before(controls);
+      this.detailControls = controls;
+    }
+    const label = (this.detailExpanded ? 'Hide ' : 'Show ') + count + (count === 1 ? ' other tag' : ' other tags');
+    if (this.detailToggle.textContent !== label) this.detailToggle.textContent = label;
+    this.detailToggle.setAttribute('aria-expanded', String(this.detailExpanded));
+  }
+  releaseDetailTags() {
+    this.detailControls?.remove(); this.detailControls = this.detailToggle = null;
+    this.detailList?.removeAttribute('data-ep-adaptive-tags');
+    this.detailList?.removeAttribute('data-ep-tags-expanded');
+    for (const item of this.detailList?.children || []) item.removeAttribute('data-ep-low-priority-tag');
   }
   forget(root) {
+    for (const row of [root, ...root.querySelectorAll('tr.torrent')]) {
+      this.cues.get(row)?.remove(); this.cues.delete(row);
+    }
     for (const tag of [root, ...root.querySelectorAll('div.tags>a,ul#torrent_tags_list>li>a')]) {
       const value = this.values.get(tag), entries = this.index.get(value);
       entries?.delete(tag); if (entries && !entries.size) this.index.delete(value);
@@ -365,5 +455,10 @@ export class TagHighlights {
     }
     menu.append(group);
   }
-  dispose() { for (const tag of this.originals.keys()) this.restore(tag); this.index.clear(); }
+  dispose() {
+    for (const tag of this.originals.keys()) this.restore(tag);
+    this.index.clear();
+    for (const cue of this.cues.values()) cue.remove();
+    this.cues.clear(); this.releaseDetailTags();
+  }
 }

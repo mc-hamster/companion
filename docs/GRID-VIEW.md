@@ -11,6 +11,10 @@ Version 2.12.1 limits grid title links to two visible lines without changing the
 
 Tags are hidden by default in Grid. **Settings → Appearance → Show tags in grid cards** independently restores the native tag links. This only changes their presentation: tag filters, highlights and saved rules still apply. The preference persists across pages and sessions and participates in backup/restore. List tags retain their native display.
 
+With the full tag list hidden, Grid shows a compact disclosure on cards with Favorite or Caution matches. Open it to see the matching tags. The cue can be turned off under **Settings → Advanced settings → Appearance**.
+
+Use **Columns** beside the List and Grid switches to choose which metadata appears in List. The menu appears on tables with recognized column headings. Hidden sortable columns retain a **Sort** link in the menu. Column choices are remembered and included in backups.
+
 **Settings → Appearance → Grid spacing → Compact** makes covers flush with the card edges and sets the gap to 10 px in Companion’s Grid. It also reduces the borders and gaps in Empornium’s native Cover Art grid. When results are in List view, **Switch to Grid** in Appearance applies the grid settings to those results.
 
 Grid cards warm thumbnails throughout the loaded results, including backfilled rows. List thumbnails, Grid cards, and native Cover Art cards use the original once it has finished loading. Cards with neither image available show **Thumbnail unavailable** if the thumbnail fails. A confirmed missing thumbnail leaves other requests on the same host eligible. Hidden or grouped rows wait, and background tabs pause new requests.

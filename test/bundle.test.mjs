@@ -168,6 +168,115 @@ test('show filtered reveals matching rows alongside visible rows and keeps previ
   button.click(); assert.equal(f.doc.querySelectorAll('tr.epc-revealed').length, 0); f.close();
 });
 
+test('filter review counts only revealable results and identifies the effective rule', async () => {
+  const rows = rowHTML(1, { tags: 'blocked' }) +
+    rowHTML(2, { tags: 'blocked hard allowed', extra: 'sitewide_leech' }) +
+    rowHTML(3, { tags: 'other', extra: 'sitewide_leech' });
+  const f = await setup({ nseTaglist: 'blocked', nseWhitelist: 'allowed', nseHardPassTaglist: 'hard',
+    nseHardPassEnabled: true, nseRemoveHardPassResults: true, nseIndividualUploadHidingEnabled: true,
+    'ep.settings': { inlineThumbnails: false, freeleechView: 'sitewide', conditionalRules: 'HIDE: $TA{other}' } }, rows);
+  try {
+    const toggle = f.doc.querySelector('[data-ep-reveal]');
+    assert.equal(toggle.getAttribute('aria-label'), 'Show filtered (2)');
+    toggle.click();
+    assert.deepEqual([...f.doc.querySelectorAll('.epc-filter-reason')].map(node => node.textContent),
+      ['Hard Pass tag · hard', 'Conditional rule 1']);
+    const row = f.doc.querySelector('[data-fixture-id="2"]');
+    const icon = row.querySelector('.nseToggleIcon');
+    assert.equal(icon.getAttribute('aria-label'), 'Always show this result');
+    icon.click(); await until(() => toggle.getAttribute('aria-label') === 'Hide filtered (1)', 'Override reconciled');
+    assert.deepEqual([...f.storage.get('nseIndividualUploadHidingWhitelist')], ['2']);
+    assert.equal(row.querySelector('.epc-filter-reason'), null);
+    assert.equal(row.classList.contains('hidden'), false);
+    const filter = f.doc.querySelector('[data-setting=freeleechView]');
+    filter.value = 'all'; filter.dispatchEvent(new f.win.Event('change', { bubbles: true }));
+    await until(() => toggle.getAttribute('aria-label') === 'Hide filtered (2)', 'View reconciled');
+    assert.equal(f.doc.querySelector('[data-fixture-id="1"] .epc-filter-reason').textContent, 'Blocked tag · blocked');
+  } finally { f.close(); }
+});
+
+test('Luminance import previews a merge, preserves existing choices and can undo without reverting searches', async () => {
+  const f = await setup({ nseTaglist: 'old.block', nseWhitelist: 'allowed', 'ep.settings': { favoriteTags: 'existing' } });
+  try {
+    const form = f.doc.querySelector('.epc-luminance-import');
+    const button = text => [...form.querySelectorAll('button')].find(node => node.textContent === text);
+    form.querySelector('textarea').value = JSON.stringify({ useTag1aTags: true, useTag7aTags: true, useTerribleTags: true,
+      useTag7dTags: true, tags: { Tags1a: ['📸 Fern', 'fern'], Tags7a: ['existing', 'review'], terrible: ['block.me', 'allowed'],
+        Tags7d: ['metadata'] } });
+    button('Preview import').click();
+    const select = [...form.querySelectorAll('select')];
+    assert.deepEqual(select.map(node => node.value), ['favorite', 'caution', 'skip', 'skip']);
+    assert.equal(f.storage.get('nseTaglist'), 'old.block');
+    for (const [index, value] of [[2, 'block'], [3, 'collapse']]) {
+      select[index].value = value; select[index].dispatchEvent(new f.win.Event('change'));
+    }
+    assert.match(form.querySelector('[role=status]').textContent, /2 conflicts skipped/);
+    button('Import selected tags').click();
+    assert.equal(f.storage.get('nseTaglist'), 'old.block block.me');
+    assert.equal(f.storage.get('ep.settings').favoriteTags, 'existing fern');
+    assert.equal(f.storage.get('ep.settings').cautionTags, 'review');
+    assert.equal(f.storage.get('ep.settings').collapsedDetailTags, 'metadata');
+    button('Preview import').click();
+    assert.equal(button('Import selected tags').disabled, true);
+    f.doc.querySelector('input[name=searchtext]').value = 'Botanical notes';
+    f.doc.querySelector('.epc-toolbar-utilities button').click();
+    assert.equal(f.storage.get('ep.searches').length, 1);
+    [...f.doc.querySelectorAll('button')].find(node => node.textContent === 'Undo changes').click();
+    assert.equal(f.storage.get('nseTaglist'), 'old.block');
+    assert.equal(f.storage.get('ep.settings').favoriteTags, 'existing');
+    assert.equal(f.storage.get('ep.searches').length, 1);
+  } finally { f.close(); }
+});
+
+test('Grid cues reveal matching tags while detail collapse and responsive layout preserve native links', async () => {
+  const detail = '<div id="torrent_tags"><ul id="torrent_tags_list"><li><a href="?taglist=fern">fern</a></li>' +
+    '<li><a href="?taglist=metadata">metadata</a><button type="button">Vote</button></li></ul></div>';
+  const f = await setup({ 'ep.settings': { resultsView: 'grid', inlineThumbnails: false, favoriteTags: 'fern woodland',
+    cautionTags: 'orchid', collapsedDetailTags: 'metadata', adaptiveDetailTags: true } },
+  rowHTML(1, { tags: 'fern woodland orchid' }), detail);
+  try {
+    const cue = f.doc.querySelector('.epc-grid-tag-cue');
+    assert.match(cue.querySelector('summary').textContent, /Caution · orchid · 2 favorites/);
+    cue.querySelector('summary').click();
+    assert.equal(cue.open, true);
+    assert.match(cue.lastElementChild.textContent, /fern, woodland/);
+    const list = f.doc.querySelector('#torrent_tags_list');
+    assert.equal(list.hasAttribute('data-ep-adaptive-tags'), true);
+    const tag = list.querySelector('[data-ep-low-priority-tag]');
+    const link = tag.querySelector('a');
+    assert.equal(f.win.getComputedStyle(tag).display, 'none');
+    const toggle = f.doc.querySelector('.epc-detail-tag-actions button');
+    assert.equal(toggle.textContent, 'Show 1 other tag');
+    toggle.click();
+    assert.notEqual(f.win.getComputedStyle(tag).display, 'none');
+    assert.equal(list.querySelector('[data-ep-low-priority-tag] a'), link);
+    assert.equal(tag.querySelector('button').textContent, 'Vote');
+    f.doc.querySelector('[data-ep-layout=list]').click();
+    assert.equal(f.doc.querySelector('.epc-grid-tag-cue'), null);
+  } finally { f.close(); }
+});
+
+test('List column choices use heading identity, keep sorting accessible and apply to appended rows', async () => {
+  const labels = ['Category', 'Name', 'Files', 'Comments', 'Added', 'Size', 'Snatches', 'Seeds', 'Peers', 'Uploader'];
+  const header = '<tr class="colhead">' + labels.map(label => '<th>' +
+    (label === 'Comments' ? '<a href="?order_by=comments">Comments</a>' : label) + '</th>').join('') + '</tr>';
+  const f = await setup({}, header + rowHTML(1));
+  try {
+    const choice = () => f.doc.querySelector('[data-column-choice=comments]');
+    choice().click();
+    assert.equal(f.storage.get('ep.settings').listHiddenColumns, 'comments');
+    assert.equal(f.doc.querySelectorAll('[data-ep-list-column-hidden]').length, 2);
+    assert.equal(new URL(f.doc.querySelector('a[aria-label="Sort by Comments"]').href).search, '?order_by=comments');
+    f.doc.querySelector('.torrent_table tbody').insertAdjacentHTML('beforeend', rowHTML(2));
+    await until(() => f.doc.querySelector('[data-fixture-id="2"] [data-ep-list-column-hidden]'));
+    f.doc.querySelector('[data-ep-layout=grid]').click();
+    assert.equal(f.doc.querySelectorAll('[data-ep-list-column-hidden]').length, 0);
+    f.doc.querySelector('[data-ep-layout=list]').click();
+    assert.equal(choice().checked, false);
+    assert.equal(f.doc.querySelectorAll('[data-ep-list-column-hidden]').length, 3);
+  } finally { f.close(); }
+});
+
 test('[FLT-08] Show filtered reveals a blocked alternate version instead of immediately collapsing it again',async()=>{
   const rows=rowHTML(1,{title:'Mountain Walk [720p]',tags:'landscape'})+
     rowHTML(2,{title:'Mountain Walk [1080p]',tags:'blocked'})+rowHTML(3,{title:'Other landscape',tags:'blocked'});

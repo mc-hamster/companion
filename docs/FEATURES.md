@@ -1,5 +1,7 @@
 # Feature mapping
 
+Version 2.14.0-alpha.9 explains why revealed results were filtered and counts results that can be revealed in the current Freeleech view. It adds a Luminance tag import with a mapping preview and undo, Favorite and Caution cues in Grid, a List column chooser, and collapsible and responsive detail tags. Expanded groups in Settings, Filters, and Searches use shared indentation. [Filters and import](REFERENCE.md) · [List and Grid](GRID-VIEW.md)
+
 Version 2.13.3 keeps one thumbnail moving alongside an active original when the image host has reduced capacity to one slot and its cooldown has expired. In **Settings → Image cache**, **Pin statistics** moves the cache activity table below the toolbar across pages. Each column has its own tooltip.
 
 Version 2.13.2 speeds up backfill batches of up to five collage pages. Thumbnail cache hits can display during image-host cooldowns, and covers can reuse saved resizes from matching rows. The local diagnostic export records cache outcomes, fallback reasons, and managed image HTTP statuses.

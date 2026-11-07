@@ -138,6 +138,13 @@ export function mountFilterControls(app) {
     input.dataset.setting = key; input.setAttribute('aria-label', label);
     row.append(app.node('span', label), input); highlights.append(row); app.controls.set(key, input);
   }
+  const lowPriority = optionGroup(app, app.panes.filters, 'Collapse tags on detail pages', { key: 'collapsed-detail-tags' });
+  const lowPriorityField = app.node('label', null, 'epc-field');
+  const lowPriorityInput = app.node('textarea'); lowPriorityInput.rows = 2; lowPriorityInput.maxLength = 50000;
+  lowPriorityInput.value = app.settings.collapsedDetailTags; lowPriorityInput.dataset.setting = 'collapsedDetailTags';
+  lowPriorityField.append(app.node('span', 'Low-priority tags'), lowPriorityInput);
+  lowPriority.append(app.node('p', 'Matching tags stay available under Show other tags on detail pages.', 'epc-caption'), lowPriorityField);
+  app.controls.set('collapsedDetailTags', lowPriorityInput);
   summarize(highlights, () => {
     const count = key => app.controls.get(key).value.trim().split(/\s+/).filter(Boolean).length;
     const favorite = count('favoriteTags'), caution = count('cautionTags');
@@ -270,9 +277,10 @@ export function styleRowControls(app, roots = [app.doc]) {
   app.rowKeys ||= new WeakSet();
   for (const root of roots) for (const icon of root.querySelectorAll('.nseToggleIcon')) {
     const row = icon.closest('tr'); const hidden = row?.getAttribute('isNSEHidden') === '1';
-    const label = icon.classList.contains('nseIndividuallyWhitelisted') ? 'Reset visibility override' :
-      hidden ? 'Show this result' : 'Hide this result';
-    icon.setAttribute('role', 'button'); icon.setAttribute('aria-label', label); icon.title = label; icon.tabIndex = 0;
+    const label = hidden ? 'Always show this result' : 'Hide this result';
+    icon.setAttribute('role', 'button'); icon.setAttribute('aria-label', label);
+    icon.title = icon.matches('.nseIndividuallyWhitelisted,.nseIndividuallyBlacklisted') ? label + ' · Right-click to reset the exception' : label;
+    icon.tabIndex = 0;
     if (!app.rowKeys.has(icon)) {
       app.rowKeys.add(icon);
       icon.addEventListener('keydown', e => { if (['Enter', ' '].includes(e.key)) { e.preventDefault(); icon.click(); } });

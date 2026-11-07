@@ -5,7 +5,8 @@ export const DEFAULTS = Object.freeze({
   thumbnailPlacement: 'title', categoryDisplay: 'keep', thumbnailMode: 'auto',
   thumbnailSize: 100, previewWidth: 440, hoverDelay: 140, hideDelay: 240,
   resultsView: 'list', gridCardWidth: 320, gridSpacing: 'standard', gridAutoplayGifs: false, listAutoplayGifs: false,
-  gridShowDetails: false, gridShowTags: false,
+  gridShowDetails: false, gridShowTags: false, gridTagCues: true, adaptiveDetailTags: false,
+  listHiddenColumns: '', collapsedDetailTags: '',
   concurrency: 8, maxRetries: 2, stallMs: 8000, timeoutMs: 24000, thumbnailTimeoutMs: 4500,
   cacheEntries: 24, cacheMegapixels: 48, preloadScreens: 0.8,
   persistentImages: true, persistentCacheMB: 512,
@@ -54,11 +55,15 @@ export function validateSettings(input = {}) {
   })) if (options.includes(input[key])) result[key] = input[key];
   if (typeof input.conditionalRules === 'string') result.conditionalRules = input.conditionalRules;
   if (result.thumbnailMode === 'small') result.thumbnailMode = 'auto';
-  for (const key of ['favoriteTags', 'cautionTags']) {
+  for (const key of ['favoriteTags', 'cautionTags', 'collapsedDetailTags']) {
     if (typeof input[key] === 'string') {
       if (input[key].length > 50000) throw new Error('Tag highlight list exceeds 50,000 characters.');
       result[key] = [...new Set(input[key].trim().toLocaleLowerCase().split(/\s+/).filter(Boolean))].join(' ');
     }
+  }
+  if (typeof input.listHiddenColumns === 'string') {
+    result.listHiddenColumns = [...new Set(input.listHiddenColumns.split(' ').filter(key =>
+      /^(?:files|comments|added|size|snatches|seeds|peers|uploader)$/.test(key)))].join(' ');
   }
   // A caution takes visual precedence if a manually edited list overlaps.
   const caution = new Set(result.cautionTags.split(' '));
