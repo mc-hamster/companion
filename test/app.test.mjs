@@ -59,6 +59,26 @@ test('imports validate before changes; toolkit and NSE settings have separate na
   assert.throws(() => validateNSE({ nseCustomTheme: { backgroundColor: 'url(https://x)' } }, schema), /theme/);
   f.close();
 });
+test('restores a pre-rename backup and exports it with the Companion filename', async () => {
+  const f = await setup();
+  try {
+    f.app.importData(JSON.stringify({
+      format: 'empornium-companion', version: 1, settings: { thumbnailSize: 88 },
+      searches: [{ id: 'saved', title: 'Saved search', fields: [] }], nse: { nseTaglist: 'old.tag' }
+    }));
+    assert.equal(f.storage.get('ep.settings').thumbnailSize, 88);
+    assert.equal(f.storage.get('ep.searches')[0].title, 'Saved search');
+    assert.equal(f.storage.get('nseTaglist'), 'old.tag');
+
+    let downloaded;
+    f.app.download = (name, data) => { downloaded = { name, data: JSON.parse(data) }; };
+    [...f.doc.querySelectorAll('[data-option-group=backup] button')]
+      .find(button => button.textContent === 'Export everything').click();
+    assert.equal(downloaded.name, 'companion-backup.json');
+    assert.equal(downloaded.data.format, 'empornium-companion');
+    assert.equal(downloaded.data.version, 1);
+  } finally { f.close(); }
+});
 test('transaction rolls back a storage write failure', async () => {
   const f = await setup('', {}, { nseTaglist: 'old.tag' });
   const set = f.storage.set; let first = true;

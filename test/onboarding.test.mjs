@@ -16,6 +16,7 @@ test('[ONB-01] first use introduces Companion, shows Settings guidance and defer
   const store=fresh(),calls=[];const f=await boot({}, {store,fetch:async url=>{calls.push(url);return resultPage(url);}});
   try{
     const d=dialog(f);assert.ok(d?.open);assert.match(d.textContent,/These options—and much more—are available in Settings anytime/);
+    assert.equal(d.querySelector('#epc-welcome-title').textContent, 'Welcome to Companion');
     assert.equal(d.querySelector('[name="welcome-backfill"]:checked').value,'pages');
     assert.equal(d.querySelector('input[type=number]').value,'3');assert.equal(calls.length,0);
     clickText(d,'Start browsing');await until(()=>calls.length===3&&!f.doc.querySelector('[data-ep-backfill][aria-busy=true]'),'three additional pages',6000);

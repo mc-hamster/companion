@@ -39,7 +39,7 @@ const epApp = createApp(window, epStorage, {
   validateNSE: input => validateNSE(input, epSchema)
 }).start();
 document.addEventListener(epRunningEvent, event => event.preventDefault());
-GM_registerMenuCommand('Empornium Companion settings', () => {
+GM_registerMenuCommand('Companion settings', () => {
   epApp.openPane('settings'); epApp.root?.scrollIntoView({ block: 'start' });
 });
 function epNSEEngine(app, bridge) {

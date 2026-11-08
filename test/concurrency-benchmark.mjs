@@ -15,7 +15,7 @@ function instrument(source){
   // Values above8 are experimental and exist only in this served copy.
   replace('concurrency: [1, 8]','concurrency: [1, 16]');
   replace('const epApp = createApp(','window.bench.install({MediaPool});\nconst epApp = createApp(');
-  replace("GM_registerMenuCommand('Empornium Companion settings'","window.bench.attach(epApp);\nGM_registerMenuCommand('Empornium Companion settings'");
+  replace("GM_registerMenuCommand('Companion settings'","window.bench.attach(epApp);\nGM_registerMenuCommand('Companion settings'");
   return source;
 }
 const experimental=instrument(fixed),adaptiveBundle=instrument(bundle);

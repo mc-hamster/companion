@@ -55,7 +55,7 @@ if(process.argv[2]==='init') {
   const artifact=await readFile(new URL('../dist/EmporniumCompanion.user.js',import.meta.url));
   const version=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version;
   await mkdir(new URL('../docs/',import.meta.url),{recursive:true});
-  await writeQA({title:'Empornium Companion quality audit',phase:'Audit in progress',focus:'Baseline and acceptance coverage',
+  await writeQA({title:'Companion quality audit',phase:'Audit in progress',focus:'Baseline and acceptance coverage',
     artifact:{version,sha256:createHash('sha256').update(artifact).digest('hex')},startedAt:new Date().toISOString(),
     environments:[{name:'Node + jsdom',status:'Available; automated model/bundle checks'},
       {name:'In-app Chromium',status:'Available; real browser, mock persistent GM APIs'},

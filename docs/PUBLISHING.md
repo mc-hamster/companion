@@ -1,4 +1,4 @@
-# Publishing Empornium Companion
+# Publishing Companion
 
 Repository: `mc-hamster/companion`. Published branch: `main`.
 
@@ -37,7 +37,7 @@ pnpm test
 
 Commit `dist/EmporniumCompanion.user.js`, `dist/EmporniumCompanion.meta.js`, `dist/EmporniumCompanion-<version>.user.js`, and `dist/nse-schema.json` together with the source changes. The build derives the publication URLs from `package.json`. The bundle regression verifies that the versioned download and metadata match the stable script and that the README uses the same install URL. GitHub Actions rebuilds, checks syntax, runs the tests, and rejects missing or stale generated files. It does not publish releases or modify the repository.
 
-Keep the existing `@name`, `@namespace`, and storage keys so users can update the same script and retain preferences.
+Keep the existing `@namespace`, update and download URLs, storage keys, and backup format identifier. The display name changed to Companion in 2.14.2-alpha.1. Tampermonkey's update check applies the rename to the existing installation. Opening the install URL directly during the rename can offer a separate installation.
 
 ## Future releases
 

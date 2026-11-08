@@ -1,5 +1,5 @@
 {
-  "title": "Empornium Companion quality audit",
+  "title": "Companion quality audit",
   "phase": "Title interaction update complete · extension validation outstanding",
   "focus": "160 automated tests pass.68 local scenarios pass; title tooltips and native title menus verified. Chrome/Tampermonkey and Firefox remain unverified.",
   "artifact": {

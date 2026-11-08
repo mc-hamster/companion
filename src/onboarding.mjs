@@ -16,7 +16,7 @@ export class OnboardingController {
     const dialog = app.node('dialog', null, 'epc-root epc-onboarding'); this.element = dialog;
     applyWorkspaceTheme(app, [dialog]);
     dialog.setAttribute('aria-labelledby', 'epc-welcome-title');
-    const title = app.node('h2', 'Welcome to Empornium Companion'); title.id = 'epc-welcome-title';
+    const title = app.node('h2', 'Welcome to Companion'); title.id = 'epc-welcome-title';
     const heading = app.node('header', null, 'epc-welcome-heading');
     const mark = app.node('span', null, 'epc-brand-mark'); mark.append(companionIcon(app, 'brand'));
     heading.append(mark, title);
