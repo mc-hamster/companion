@@ -48,14 +48,27 @@ export class ResultFilters {
       const option = app.node('option', caption); option.value = value; select.append(option);
     }
     select.value = app.settings[this.freeleechKey];
-    const help = app.node('span', 'Any freeleech includes permanent and temporary offers. Sitewide only shows time-limited sitewide offers.');
-    help.id = 'epc-freeleech-help'; help.hidden = true;
-    select.setAttribute('aria-describedby', help.id); select.title = help.textContent;
-    label.append(app.node('span', 'Freeleech'), select, help);
+    label.append(setSettingHelp(app.node('span', 'Freeleech'),
+      'Any freeleech includes permanent and temporary offers. Sitewide only shows time-limited sitewide offers.', select), select);
     label.hidden = true;
     app.controls.set(this.freeleechKey, select);
-    app.toolbarContext.append(label);
+    app.panes.filters.prepend(label);
     this.freeleechControl = label;
+    this.freeleechChip = app.button('', () => {
+      if (app.setResultPreference(this.freeleechKey, 'all')) app.paneButtons.get('filters').focus();
+    });
+    this.freeleechChip.className = 'epc-active-filter';
+    this.freeleechChip.hidden = true;
+    app.toolbarStatus.append(this.freeleechChip);
+  }
+  syncFreeleech(available) {
+    const mode = this.app.settings[this.freeleechKey];
+    this.freeleechControl.hidden = !available;
+    this.freeleechChip.hidden = !available || mode === 'all';
+    if (this.freeleechChip.hidden) return;
+    const caption = mode === 'sitewide' ? 'Sitewide freeleech' : 'Any freeleech';
+    this.freeleechChip.textContent = caption + ' ×';
+    this.freeleechChip.setAttribute('aria-label', 'Clear ' + caption + ' filter');
   }
   mountRules(parent) {
     this.ruleEditor = new ConditionalRuleEditor(this.app, parent);

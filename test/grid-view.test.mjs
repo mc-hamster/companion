@@ -504,7 +504,9 @@ test('compiled grid backfill retains filtering, grouping, reveal and the current
         .replace(/<a class="pager_prev"[\s\S]*?<\/a><a class="pager_next"[\s\S]*?<\/a>/, '') })
   });
   try {
-    clickText(f.doc.querySelector('.epc-toolbar'), 'Load more');
+    const footer = f.doc.querySelector('.epc-results-end');
+    assert.equal(footer.previousElementSibling, f.doc.querySelector('.epc-result-grid'));
+    clickText(footer, 'Load more');
     await until(() => !!f.doc.querySelector('[data-fixture-id="3"]'));
     const table = f.doc.querySelector('table.torrent_table'), row = table.querySelector('[data-fixture-id="3"]');
     assert.equal(table.classList.contains('epc-result-grid'), true); assert.equal(row.cells[1].dataset.epGridCell, 'title');

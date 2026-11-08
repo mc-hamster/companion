@@ -8,7 +8,8 @@ const listColumnLabels = new Map([
   ['snatches', 'Snatches'], ['seeds', 'Seeds'], ['peers', 'Peers'], ['uploader', 'Uploader']
 ]);
 const listColumnAliases = new Map([
-  ['files', 'files'], ['file count', 'files'], ['comments', 'comments'], ['added', 'added'], ['time', 'added'], ['date added', 'added'],
+  ['files', 'files'], ['file count', 'files'], ['comments', 'comments'], ['comm', 'comments'],
+  ['added', 'added'], ['time', 'added'], ['date added', 'added'],
   ['size', 'size'], ['snatches', 'snatches'], ['snatched', 'snatches'], ['seeds', 'seeds'], ['seeders', 'seeds'],
   ['peers', 'peers'], ['leechers', 'peers'], ['leeches', 'peers'], ['uploader', 'uploader'], ['uploaded by', 'uploader']
 ]);
@@ -48,31 +49,89 @@ export class ResultGrid {
     this.layoutButtons = new Map();
     for (const [value, label, help] of [['list', 'List', 'Show results in a list'], ['grid', 'Grid', 'Show results as image cards']]) {
       const button = app.button(label, () => {
-        if (!app.preferences.flush() || app.settings.resultsView === value) return;
-        app.controls.get('resultsView').value = value;
-        app.dirty = true; app.preferences.flush();
+        if (app.settings.resultsView !== value) app.setResultPreference('resultsView', value);
       });
       button.prepend(companionIcon(app, value));
       button.dataset.epLayout = value;
       button.title = help;
       this.layoutButtons.set(value, button); this.layout.append(button);
     }
-    this.syncControls();
     app.toolbarContext.append(this.layout);
-    this.columns = app.node('details', null, 'epc-columns');
-    this.columns.hidden = true;
-    this.columns.append(app.node('summary', 'Columns'));
-    this.columnOptions = app.node('div', null, 'epc-column-options');
-    this.columns.append(this.columnOptions);
+    this.viewOptions = app.node('div', null, 'epc-view-options');
+    this.viewOptions.id = 'epc-view-options';
+    this.viewOptions.hidden = true;
+    this.viewOptionsButton = app.button('View options', () => {
+      if (!this.viewOptions.hidden) { this.closeViewOptions(); return; }
+      if (app.activePane) { app.closePane(); this.viewOptionsButton.focus(); }
+      this.viewOptions.hidden = false;
+      this.viewOptionsButton.setAttribute('aria-expanded', 'true');
+      app.media.invalidateLayout();
+    });
+    this.viewOptionsButton.hidden = true;
+    this.viewOptionsButton.setAttribute('aria-expanded', 'false');
+    this.viewOptionsButton.setAttribute('aria-controls', this.viewOptions.id);
+    this.viewOptions.append(this.columnOptions = app.node('div', null, 'epc-column-options'),
+      this.gridOptions = app.node('div', null, 'epc-grid-options'));
+    this.columnOptions.hidden = this.gridOptions.hidden = true;
+    app.resultActions.append(this.viewOptionsButton);
+    this.viewOptions.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault(); event.stopPropagation();
+      this.closeViewOptions();
+      this.viewOptionsButton.focus();
+    });
+    this.viewOptionsButton.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || this.viewOptions.hidden) return;
+      event.preventDefault(); event.stopPropagation();
+      this.closeViewOptions();
+    });
     const control = app.node('input'); control.type = 'hidden'; control.hidden = true;
     control.value = app.settings.listHiddenColumns; control.dataset.setting = 'listHiddenColumns';
     app.controls.set('listHiddenColumns', control);
-    app.toolbarContext.append(this.columns, control);
+    app.toolbarContext.append(control);
+    this.syncControls();
+  }
+  closeViewOptions() {
+    if (this.viewOptions.hidden) return;
+    this.viewOptions.hidden = true;
+    this.viewOptionsButton.setAttribute('aria-expanded', 'false');
+    this.app.media.invalidateLayout();
+  }
+  mountViewOptions() {
+    const { app } = this;
+    app.toolbarContext.append(this.viewOptions);
+    this.gridOptionFields = new Map();
+    for (const [key, label] of [['gridCardWidth', 'Card size'], ['gridSpacing', 'Spacing'],
+      ['gridShowTags', 'Show tags'], ['gridShowDetails', 'Show details']]) {
+      const field = app.controls.get(key).cloneNode(true);
+      field.removeAttribute('data-setting');
+      field.removeAttribute('data-numeric');
+      field.removeAttribute('aria-describedby');
+      field.dataset.viewOption = key;
+      const row = app.node('label');
+      if (field.type === 'checkbox') row.append(field, app.node('span', label));
+      else row.append(app.node('span', label), field);
+      this.gridOptions.append(row);
+      this.gridOptionFields.set(key, field);
+      field.addEventListener('change', () => {
+        if (!app.setResultPreference(key, field.type === 'checkbox' ? field.checked : field.value)) this.syncGridOptions();
+      });
+    }
+    this.syncGridOptions();
+  }
+  syncGridOptions() {
+    for (const [key, field] of this.gridOptionFields || []) {
+      const value = this.app.settings[key];
+      if (field.type === 'checkbox') field.checked = value;
+      else if (key === 'gridCardWidth' && ![...field.options].some(option => Number(option.value) === value)) {
+        gridCardSizeChoices(field, value);
+      } else field.value = value;
+    }
   }
   syncListColumns(grid) {
     const { app } = this;
     this.clearListColumns();
-    if (!this.columns) return;
+    if (!this.columnOptions) return;
     const hidden = new Set(app.settings.listHiddenColumns.split(' '));
     const available = new Map(), sorts = new Map();
     const tables = new Set(grid ? [] : [...app.doc.querySelectorAll('#content table')]
@@ -112,13 +171,12 @@ export class ResultGrid {
         }
       }
     }
-    this.columns.hidden = !available.size;
-    if (this.columns.hidden) this.columns.open = false;
+    this.columnOptions.hidden = grid || !available.size;
     const optionsKey = JSON.stringify([...available].map(([key, label]) => [key, label, hidden.has(key), sorts.get(key)?.href]));
     if (this.columnOptionsKey === optionsKey) return;
     this.columnOptionsKey = optionsKey;
     const focused = app.doc.activeElement?.dataset.columnChoice;
-    this.columnOptions.replaceChildren(app.node('p', 'Show in List', 'epc-caption'));
+    this.columnOptions.replaceChildren(app.node('p', 'Columns', 'epc-caption'));
     for (const [key, label] of available) {
       const line = app.node('div', null, 'epc-column-option');
       const field = app.node('label');
@@ -127,12 +185,7 @@ export class ResultGrid {
       input.addEventListener('change', () => {
         const next = new Set(app.settings.listHiddenColumns.split(' ').filter(Boolean));
         if (input.checked) next.delete(key); else next.add(key);
-        app.controls.get('listHiddenColumns').value = [...next].join(' ');
-        app.dirty = true;
-        if (!app.preferences.flush()) {
-          input.checked = !input.checked;
-          app.controls.get('listHiddenColumns').value = app.settings.listHiddenColumns;
-        }
+        if (!app.setResultPreference('listHiddenColumns', [...next].join(' '))) input.checked = !input.checked;
       });
       field.append(input, app.node('span', label)); line.append(field);
       if (hidden.has(key) && sorts.has(key)) {
@@ -165,8 +218,13 @@ export class ResultGrid {
     this.hiddenCells.clear(); this.listTables.clear(); this.listSpans.clear();
   }
   syncControls() {
+    const grid = this.app.settings.resultsView === 'grid';
     for (const [value, button] of this.layoutButtons) button.setAttribute('aria-pressed', String(this.app.settings.resultsView === value));
-    if (this.settingsSwitch) this.settingsSwitch.hidden = this.layout.hidden || this.app.settings.resultsView === 'grid';
+    if (this.settingsSwitch) this.settingsSwitch.hidden = this.layout.hidden || grid;
+    this.gridOptions.hidden = !grid;
+    this.viewOptionsButton.hidden = this.layout.hidden || !grid && this.columnOptions.hidden;
+    if (this.viewOptionsButton.hidden) this.closeViewOptions();
+    this.syncGridOptions();
   }
   settingsHelp() {
     const { app } = this;
@@ -269,7 +327,7 @@ export class ResultGrid {
     }
   }
   dispose() {
-    this.clearListColumns(); this.columns?.remove();
+    this.clearListColumns();
     for (const table of this.tables.keys()) this.release(table);
     this.app.doc.documentElement.removeAttribute('data-ep-compact-cover-grid');
     this.app.doc.documentElement.removeAttribute('data-ep-list-autoplay');

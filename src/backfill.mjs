@@ -84,13 +84,15 @@ export class BackfillController {
     this.button.append(add, stop, this.buttonLabel);
     this.status = this.app.node('span', '', 'epc-backfill-status');
     this.status.setAttribute('role', 'status'); this.status.setAttribute('aria-live', 'polite');
-    this.app.contextActions.append(this.button);
-    this.app.toolbarStatus.append(this.status);
+    this.footer = this.app.node('div', null, 'epc-root epc-results-end');
+    this.endLabel = this.app.node('span', 'End of loaded results');
+    this.footer.append(this.endLabel, this.status, this.button);
     this.sync();
   }
   sync() {
     if (!this.button || this.disposed) return;
-    const available = this.supported();
+    const table = this.table(), available = !!table && !!backfillURL(this.search, this.search);
+    if (available && table.nextElementSibling !== this.footer) table.after(this.footer);
     if (!this.app.settings.backfillEnabled && this.busy) this.stop();
     if (available && this.app.filtersReady && !this.initialized) {
       this.initialized = true;
@@ -116,6 +118,8 @@ export class BackfillController {
       this.status.append(this.doc.createTextNode(' '), link);
     }
     this.status.hidden ||= !this.message;
+    this.endLabel.hidden = !this.status.hidden;
+    this.footer.hidden = this.button.hidden && this.status.hidden;
   }
   maybeAutomatic() {
     if (this.autoStarted || this.busy || this.disposed || !this.app.onboardingComplete || this.app.onboarding?.open ||
@@ -408,5 +412,6 @@ export class BackfillController {
   dispose() {
     this.disposed = true; this.generation++; this.controller?.abort(); this.cancelForeground?.(); this.cancelDelay?.();
     this.win.clearTimeout(this.cooldownTimer);
+    this.footer?.remove();
   }
 }

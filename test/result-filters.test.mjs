@@ -187,7 +187,7 @@ test('backfilled rows apply all three filters before warming their thumbnails', 
     fetch: async url => ({ ok: true, url, headers: new Map([['content-type', 'text/html']]), text: async () => fixtureHTML(appended, definitions) })
   });
   try {
-    clickText(f.doc.querySelector('.epc-toolbar'), 'Load more');
+    clickText(f.doc.querySelector('.epc-results-end'), 'Load more');
     await until(() => /new-5\.th\.jpg$/.test(result(f, 5)?.querySelector('.epc-thumbnail img')?.src || ''));
     assert.equal(outsideView(result(f, 2)), true);
     assert.equal(outsideView(result(f, 3)), true);

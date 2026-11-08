@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install stable Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.14.0](dist/EmporniumCompanion-2.14.0.user.js)**
+**[Install stable Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.14.1](dist/EmporniumCompanion-2.14.1.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -31,7 +31,7 @@ If you use older scripts for the same features, back up their settings first, th
 
 **Filters** lets you choose what to hide or highlight. Most changes save automatically. When results are hidden, click **Show filtered** in the toolbar to temporarily bring them back.
 
-Use **Freeleech** in the toolbar to switch between **All results**, **Any freeleech**, and **Sitewide only**. Bookmarks remembers its own selection.
+Open **Filters → Freeleech** to switch between **All results**, **Any freeleech**, and **Sitewide only**. Select the active filter chip to return to all results. Bookmarks remembers its own selection.
 
 In **Filters → Conditional rules**, choose **Add a rule** to combine tags, titles, and uploaders. **Filters → Seen & Ignored** lets you show, dim, or hide torrents you have opened and undo individual seen or ignored entries. [Filter examples](docs/REFERENCE.md#freeleech-conditional-rules-and-seen-history)
 
@@ -41,9 +41,9 @@ In **Filters → Conditional rules**, choose **Add a rule** to combine tags, tit
 
 Enable **Use keyboard shortcuts** during setup, or find the toggle and key mappings under **Settings → Advanced settings → Keyboard & menus**.
 
-Click **Grid** above the results to switch to thumbnail cards. **List** switches back. Under **Settings → Appearance**, choose Compact (240px), Balanced (320px), Large (420px), or Extra large (540px) cards. Hover over a thumbnail or click its preview button to load the larger image. Your layout is remembered across visits.
+Click **Grid** above the results to switch to thumbnail cards. **List** switches back. Open **View options** beside the layout switch to choose the card size, spacing, tags, and details in Grid or the visible columns in List. Hover over a thumbnail or click its preview button to load the larger image. Use the versions button on a grouped card to open alternate releases. Your layout is remembered across visits.
 
-Set **Grid spacing → Compact** to bring cards closer together and extend covers to the card edges. Turn on **Play animated covers in Grid** or **Play animated covers in List** to preload covers, including off-screen results, and play animations as they come into view. List playback shows inline covers. Companion uses its image cache and respects your system's reduced-motion preference. These options are also in **Getting started**.
+Grid covers fill the card width. Set **View options → Spacing → Compact** to bring cards closer together. Turn on **Play animated covers in Grid** or **Play animated covers in List** to preload covers, including off-screen results, and play animations as they come into view. List playback shows inline covers. Companion uses its image cache and respects your system's reduced-motion preference. These options are also in **Getting started**.
 
 Hover over, focus, or tap the small gauge beside the Companion name to see load progress for thumbnails, cover playback, previews, other images, and additional result pages. The percentage counts finished items. The breakdown separates ready, partial, and failed loads and marks tasks whose totals are unknown.
 
@@ -51,7 +51,7 @@ Grid titles are limited to two lines. Stats, uploader and category information a
 
 Tags are also hidden by default in grid view. **Settings → Appearance → Show tags in grid cards** controls them separately from the details block. Both choices are remembered; tag filtering and highlighting continue to work.
 
-To add more results yourself, click **Load more** in the toolbar. This brings the following pages into the page you're viewing. **Stop loading** keeps the results already added. For automatic loading, look under **Settings → Browsing → Load more pages**.
+To add more results yourself, click **Load more** below the results. This brings the following pages into the page you're viewing. **Stop loading** stays visible while pages load and keeps the results already added. For automatic loading, look under **Settings → Browsing → Load more pages**.
 
 To curate a collage, open it and click **Pin for quick add** in the Companion toolbar. Open a torrent's details page and click **Add to [collage name]**. If you pin several collages, use the selector next to the button to switch destinations. You can unpin a collage from its own page.
 
