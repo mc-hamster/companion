@@ -8,7 +8,8 @@ const listColumnLabels = new Map([
   ['snatches', 'Snatches'], ['seeds', 'Seeds'], ['peers', 'Peers'], ['uploader', 'Uploader']
 ]);
 const listColumnAliases = new Map([
-  ['files', 'files'], ['file count', 'files'], ['comments', 'comments'], ['added', 'added'], ['time', 'added'], ['date added', 'added'],
+  ['files', 'files'], ['file count', 'files'], ['comments', 'comments'], ['comm', 'comments'],
+  ['added', 'added'], ['time', 'added'], ['date added', 'added'],
   ['size', 'size'], ['snatches', 'snatches'], ['snatched', 'snatches'], ['seeds', 'seeds'], ['seeders', 'seeds'],
   ['peers', 'peers'], ['leechers', 'peers'], ['leeches', 'peers'], ['uploader', 'uploader'], ['uploaded by', 'uploader']
 ]);

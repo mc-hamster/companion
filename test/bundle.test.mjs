@@ -299,6 +299,22 @@ test('List column choices use heading identity, keep sorting accessible and appl
   } finally { f.close(); }
 });
 
+test('List Columns recognizes the native Comm heading as Comments', async () => {
+  const labels = ['Category', 'Name', 'Files', 'Comm', 'Time', 'Size', '↻', '↑', '↓', 'Uploader'];
+  const header = '<tr class="colhead_dark">' + labels.map(label => '<td>' + label + '</td>').join('') + '</tr>';
+  const f = await setup({}, header + rowHTML(1));
+  try {
+    const choice = () => f.doc.querySelector('[data-column-choice=comments]');
+    const comments = f.doc.querySelector('tr.torrent').cells[3];
+    assert.equal(choice()?.closest('label').textContent, 'Comments');
+    assert.equal(choice().checked, true);
+    choice().click();
+    assert.equal(comments.hasAttribute('data-ep-list-column-hidden'), true);
+    choice().click();
+    assert.equal(comments.hasAttribute('data-ep-list-column-hidden'), false);
+  } finally { f.close(); }
+});
+
 test('[FLT-08] Show filtered reveals a blocked alternate version instead of immediately collapsing it again',async()=>{
   const rows=rowHTML(1,{title:'Mountain Walk [720p]',tags:'landscape'})+
     rowHTML(2,{title:'Mountain Walk [1080p]',tags:'blocked'})+rowHTML(3,{title:'Other landscape',tags:'blocked'});
