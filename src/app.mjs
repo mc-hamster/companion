@@ -21,7 +21,7 @@ const SETTINGS_KEY = 'ep.settings';
 const SEARCH_KEY = 'ep.searches';
 const CACHE_STATS_PIN_KEY = 'ep.cacheStatsPinned';
 const DIAGNOSTIC_LIMIT = 3000;
-const OWN = '.epc-root,.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback,.epc-media-retry,.epc-engine,.epc-version-control,.epc-version-columns,#nseOuter,#nseFloatyBoi';
+const OWN = '.epc-root,.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback,.epc-media-retry,.epc-engine,.epc-version-control,.epc-version-columns,.epc-grid-card-actions,#nseOuter,#nseFloatyBoi';
 // Image URLs can be extensionless, and formats such as WebP can carry animation.
 const coverMayAnimate = source => !/\.(?:jpe?g|bmp|ico)$/i.test(new URL(source).pathname);
 const loadLabels = {
@@ -322,17 +322,23 @@ export class CompanionApp {
     this.panel.append(heading);
     this.panes = {}; this.paneButtons = new Map();
     const navigation = this.node('nav', null, 'epc-navigation'); navigation.setAttribute('aria-label', 'Companion tools');
+    const resultActions = this.node('nav', null, 'epc-navigation epc-result-actions');
+    resultActions.setAttribute('aria-label', 'Result controls');
     for (const [key, title] of [['filters', 'Filters'], ['searches', 'Searches'], ['images', 'Images'], ['settings', 'Settings']]) {
       const pane = this.node('section', null, 'epc-pane'); pane.hidden = true;
       pane.dataset.pane = key; pane.id = 'epc-pane-' + key;
       const button = this.button(title, () => this.openPane(key));
       button.dataset.pane = key; button.setAttribute('aria-controls', pane.id); button.setAttribute('aria-expanded', 'false');
       this.paneButtons.set(key, button); this.panes[key] = pane;
-      if (key !== 'images') { button.prepend(companionIcon(this, key)); navigation.append(button); }
+      if (key !== 'images') {
+        button.prepend(companionIcon(this, key));
+        (key === 'filters' ? resultActions : navigation).append(button);
+      }
       this.panel.append(pane);
     }
     main.append(navigation);
     this.toolbarContext = this.node('div', null, 'epc-toolbar-context');
+    this.resultActions = resultActions;
     this.contextActions = this.node('div', null, 'epc-context-actions');
     const footer = this.node('div', null, 'epc-toolbar-footer');
     this.toolbarUtilities = this.node('div', null, 'epc-toolbar-utilities');
@@ -341,7 +347,7 @@ export class CompanionApp {
     this.notice = this.node('p', '', 'epc-notice'); this.notice.setAttribute('role', 'status');
     this.health = this.node('span', '', 'epc-health'); this.health.hidden = true;
     this.toolbarStatus.append(this.filterSummary, this.health);
-    footer.append(this.toolbarUtilities, this.toolbarStatus);
+    footer.append(this.toolbarStatus, this.toolbarUtilities);
     this.toolbar.append(main, this.toolbarContext, footer);
     const filteredLabel = this.node('span', 'Show filtered');
     this.filteredCount = this.node('span', '', 'epc-filtered-count');
@@ -359,7 +365,8 @@ export class CompanionApp {
     this.controls = new Map();
     this.grid.mount();
     this.resultFilters.mountFreeleech();
-    this.toolbarContext.append(this.toggleFiltered, this.contextActions);
+    this.toolbarStatus.append(this.toggleFiltered);
+    this.toolbarContext.append(resultActions, this.contextActions);
     this.backfill.mount();
     this.panes.filters.append(this.node('p', 'Loading filter preferences…', 'epc-filter-placeholder'));
     this.panes.searches.append(this.node('p', 'Click a name to run its search. More lets you edit saved criteria here.', 'epc-caption'));
@@ -523,6 +530,7 @@ export class CompanionApp {
       if(type==='checkbox'&&(parent===settings||parent===browsing))row.prepend(control);
     }
     this.coverMotionNote = this.createCoverMotionNote('epc-cover-motion-settings');
+    this.grid.mountViewOptions();
     this.controls.get('listAutoplayGifs').closest('label').after(this.coverMotionNote);
     settings.append(this.controls.get('previews').closest('label'));
     settings.append(this.grid.settingsHelp());
@@ -629,6 +637,7 @@ export class CompanionApp {
     this.preferences.flush();
     if (!this.panes?.[key]) return;
     this.hideSettingHelp?.();
+    this.grid.closeViewOptions();
     if (key === 'filters' || key === 'settings') mountFilterControls(this);
     if (key === 'searches') this.ensureSavedSearchUI();
     if (key === 'searches' && !this.savedDrawer) {
@@ -765,6 +774,18 @@ export class CompanionApp {
   }
   markDirty(target, event) { this.preferences.changed(target, event); this.refreshOptionSummaries?.(); }
   applyChanges() { return this.preferences.flush(); }
+  setResultPreference(key, value) {
+    if (!this.preferences.flush()) return false;
+    const control = this.controls.get(key);
+    const field = control.type === 'checkbox' ? 'checked' : 'value';
+    const previous = control[field];
+    control[field] = value;
+    this.dirty = true;
+    if (this.preferences.flush()) return true;
+    control[field] = previous;
+    this.dirty = false;
+    return false;
+  }
   captureFilterBaseline(rows) { this.versions?.captureOrder(rows); captureFilterBaseline(this, rows); }
   restoreFilterBaseline() { restoreFilterBaseline(this); }
   detachFilteredRow(row) {
@@ -823,12 +844,12 @@ export class CompanionApp {
   updateMediaPreferences(previous) {
     this.syncSettingsUI();
     gridCardSizeChoices(this.controls.get('gridCardWidth'), this.settings.gridCardWidth);
-    this.grid?.refresh();
+    if (previous.resultsView === this.settings.resultsView) this.grid?.refresh();
     this.backfill?.sync();
     this.backfill?.maybeAutomatic();
     if(previous.persistentCacheMB!==this.settings.persistentCacheMB)void this.imageCache.prune(this.imageCache.limit());
     if (previous.seenMode !== this.settings.seenMode) this.resultFilters.seen = null;
-    if (previous.groupVersions !== this.settings.groupVersions || previous.seenMode !== this.settings.seenMode ||
+    if (previous.resultsView !== this.settings.resultsView || previous.groupVersions !== this.settings.groupVersions || previous.seenMode !== this.settings.seenMode ||
         previous[this.resultFilters.freeleechKey] !== this.settings[this.resultFilters.freeleechKey]) {
       this.resultFilters.refreshView();
     }
@@ -859,9 +880,10 @@ export class CompanionApp {
   adoptEngine() {
     if (!this.doc.getElementById('nseOuter')) {
       if (this.resultFilters.bookmarks) {
-        this.panes.filters.replaceChildren();
+        this.panes.filters.replaceChildren(this.resultFilters.freeleechControl);
         this.resultFilters.mountHistory(this.panes.filters);
-      } else this.panes.filters.replaceChildren(this.node('p', 'Filtering is available on torrent lists and detail pages.'));
+      } else this.panes.filters.replaceChildren(this.resultFilters.freeleechControl,
+        this.node('p', 'Filtering is available on torrent lists and detail pages.'));
       return;
     }
     this.engineReady = true;
@@ -1058,7 +1080,7 @@ export class CompanionApp {
     const searches = [...this.searches].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
     this.searchSignatures = new Set(searches.map(item => searchSignature(item.fields)));
     if (this.savedShortcuts) {
-      this.savedShortcuts.replaceChildren(this.node('strong', 'Saved searches'));
+      this.savedShortcuts.replaceChildren();
       for (const saved of searches) {
         const link = this.searchLink(saved); link.className = 'epc-saved-shortcut';
         link.append(companionIcon(this, 'open'));
@@ -1309,7 +1331,7 @@ export class CompanionApp {
         } else if (!newRows) this.resultFilters.applyRow(card);
       }
     }
-    this.resultFilters.freeleechControl.hidden = !(rows.length || cards.length || previous?.total || this.detachedFilterRows.size);
+    this.resultFilters.syncFreeleech(!!(rows.length || cards.length || previous?.total || this.detachedFilterRows.size));
     if (newRows) {
       this.versions?.append(newRows); this.grid?.append(rows);
     } else {
@@ -1352,7 +1374,7 @@ export class CompanionApp {
     const { total, shown, grouped, filtered, removed, revealable } = this.resultCounts;
     const revealed = this.revealingFiltered ? revealable : 0;
     const caption = total || removed ? shown + ' shown' + (grouped ? ' · ' + grouped + ' grouped' : '') +
-      (revealed ? ' · ' + revealed + ' revealed' : ' · ' + filtered + ' filtered') +
+      (revealed ? ' · ' + revealed + ' revealed' : filtered ? ' · ' + filtered + ' filtered' : '') +
       (removed ? ' · ' + removed + ' removed' : '') : '';
     if (this.filterSummary.textContent !== caption) this.filterSummary.textContent = caption;
   }

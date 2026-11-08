@@ -128,7 +128,8 @@ export function mountFilterControls(app) {
     app.controls.get('backfillMode').value === 'all' ? 'All remaining pages on load' :
       (app.controls.get('backfillPages').value || app.settings.backfillPages) +
         (app.controls.get('backfillMode').value === 'pages' ? ' additional pages on load' : ' pages per manual batch') : 'Backfill off');
-  app.panes.filters.replaceChildren(app.node('p', 'Tag lists update as you type. Separate tags with spaces.', 'epc-caption'));
+  app.panes.filters.replaceChildren(app.resultFilters.freeleechControl,
+    app.node('p', 'Tag lists update as you type. Separate tags with spaces.', 'epc-caption'));
   const grid = app.node('div', null, 'epc-rule-grid'); app.panes.filters.append(grid);
   field(grid, 'nseBlacklistTaglistArea', 'Blocked tags');
   field(grid, 'nseWhitelistTaglistArea', 'Allowed tags', 'Allowed matches override ordinary blocks.');
@@ -319,7 +320,7 @@ export function adoptNotificationControls(app) {
   }
 }
 
-export function applyWorkspaceTheme(app, roots = [app.root, app.preview?.element, app.onboarding?.element,
+export function applyWorkspaceTheme(app, roots = [app.root, app.backfill?.footer, app.preview?.element, app.onboarding?.element,
   app.doc.getElementById('nseRCMBox'), ...app.doc.querySelectorAll('.epc-notification-control,.epc-search-feedback,.epc-media-retry')]) {
   const selected = app.storage.get('nseSelectedTheme', null);
   const palettes = {

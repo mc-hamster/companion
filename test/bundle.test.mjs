@@ -258,7 +258,7 @@ test('Grid cues reveal matching tags while detail collapse and responsive layout
   rowHTML(1, { tags: 'fern woodland orchid' }), detail);
   try {
     const cue = f.doc.querySelector('.epc-grid-tag-cue');
-    assert.match(cue.querySelector('summary').textContent, /Caution · orchid · 2 favorites/);
+    assert.match(cue.querySelector('summary').textContent, /Caution · 2 favorites/);
     cue.querySelector('summary').click();
     assert.equal(cue.open, true);
     assert.match(cue.lastElementChild.textContent, /fern, woodland/);
@@ -285,6 +285,9 @@ test('List column choices use heading identity, keep sorting accessible and appl
   const f = await setup({}, header + rowHTML(1));
   try {
     const choice = () => f.doc.querySelector('[data-column-choice=comments]');
+    const options = f.doc.querySelector('[aria-controls=epc-view-options]');
+    options.click();
+    assert.equal(exposed(choice()), true);
     choice().click();
     assert.equal(f.storage.get('ep.settings').listHiddenColumns, 'comments');
     assert.equal(f.doc.querySelectorAll('[data-ep-list-column-hidden]').length, 2);
@@ -293,9 +296,39 @@ test('List column choices use heading identity, keep sorting accessible and appl
     await until(() => f.doc.querySelector('[data-fixture-id="2"] [data-ep-list-column-hidden]'));
     f.doc.querySelector('[data-ep-layout=grid]').click();
     assert.equal(f.doc.querySelectorAll('[data-ep-list-column-hidden]').length, 0);
+    const tags = f.doc.querySelector('[data-view-option=gridShowTags]');
+    assert.equal(options.getAttribute('aria-expanded'), 'true');
+    assert.equal(exposed(tags), true);
+    tags.click();
+    assert.equal(f.storage.get('ep.settings').gridShowTags, true);
+    assert.equal(f.doc.querySelector('.epc-result-grid').dataset.epGridTags, 'true');
+    assert.equal(f.doc.querySelector('[data-setting=gridShowTags]').checked, true);
     f.doc.querySelector('[data-ep-layout=list]').click();
+    assert.equal(exposed(choice()), true);
     assert.equal(choice().checked, false);
     assert.equal(f.doc.querySelectorAll('[data-ep-list-column-hidden]').length, 3);
+  } finally { f.close(); }
+});
+
+test('Grid opens alternate version links inside the representative card and preserves List expansion', async () => {
+  const rows = rowHTML(1, { title: 'Mountain Walk [720p]' }) +
+    rowHTML(2, { title: 'Mountain Walk [1080p]' }) + rowHTML(3, { title: 'Mountain Walk [2160p]' });
+  const f = await setup({}, rows);
+  try {
+    const row = id => f.doc.querySelector('[data-fixture-id="' + id + '"]');
+    row(1).querySelector('.epc-version-control').click();
+    assert.equal(row(2).classList.contains('epc-version-hidden'), false);
+    f.doc.querySelector('[data-ep-layout=grid]').click();
+    const versions = row(1).querySelector('.epc-grid-versions');
+    assert.equal(versions.querySelector('summary').textContent, '3 versions');
+    versions.querySelector('summary').click();
+    assert.equal(versions.open, true);
+    assert.deepEqual([...versions.querySelectorAll('a')].map(link => [link.textContent, new URL(link.href).searchParams.get('id')]),
+      [['1080p', '2'], ['2160p', '3']]);
+    assert.equal(row(2).classList.contains('epc-version-hidden'), true);
+    f.doc.querySelector('[data-ep-layout=list]').click();
+    assert.equal(f.doc.querySelector('.epc-grid-versions'), null);
+    assert.equal(row(2).classList.contains('epc-version-hidden'), false);
   } finally { f.close(); }
 });
 
@@ -583,7 +616,7 @@ function exposed(node) {
 test('the simplified interface shows three task areas and grid preferences and folded cache details', async () => {
   const f = await setup();
   try {
-    assert.deepEqual([...f.doc.querySelectorAll('.epc-navigation button')].map(button => button.textContent), ['Filters', 'Searches', 'Settings']);
+    assert.deepEqual([...f.doc.querySelectorAll('.epc-navigation button[data-pane]')].map(button => button.textContent), ['Searches', 'Settings', 'Filters']);
     assert.notEqual(f.doc.querySelector('.epc-brand').tagName, 'BUTTON');
     f.doc.querySelector('.epc-navigation [data-pane="settings"]').click();
     const pane = f.doc.querySelector('.epc-pane[data-pane="settings"]');
@@ -682,14 +715,15 @@ test('irrelevant toolbar actions are quiet and filtered-result access appears wh
   } finally { f.close(); }
 });
 
-test('Freeleech and Show filtered are directly available beside the layout switch', async () => {
+test('Filters exposes Freeleech and an active chip can clear it without opening the pane', async () => {
   const f = await setup({ nseTaglist: 'blocked' }, rowHTML(1, { tags: 'blocked' }) + rowHTML(2));
   try {
     const context = f.doc.querySelector('.epc-toolbar-context');
-    const reveal = context.querySelector(':scope > [data-ep-reveal]');
-    const freeleech = context.querySelector(':scope > label [data-setting=freeleechView]');
+    const reveal = f.doc.querySelector('[data-ep-reveal]');
+    const filters = context.querySelector('[data-pane=filters]');
+    const freeleech = f.doc.querySelector('[data-setting=freeleechView]');
+    const chip = f.doc.querySelector('.epc-active-filter');
     assert.equal(exposed(context.querySelector('[data-ep-layout=list]')), true);
-    assert.equal(exposed(freeleech), true);
     assert.equal(exposed(reveal), true);
     reveal.click();
     assert.equal(reveal.getAttribute('aria-pressed'), 'true');
@@ -697,6 +731,17 @@ test('Freeleech and Show filtered are directly available beside the layout switc
     reveal.click();
     assert.equal(reveal.getAttribute('aria-pressed'), 'false');
     assert.match(reveal.textContent, /Show filtered/);
+    filters.click();
+    assert.equal(exposed(freeleech), true);
+    freeleech.value = 'sitewide';
+    freeleech.dispatchEvent(new f.win.Event('change', { bubbles: true }));
+    await until(() => !chip.hidden);
+    assert.equal(chip.getAttribute('aria-label'), 'Clear Sitewide freeleech filter');
+    filters.click();
+    chip.click();
+    assert.equal(freeleech.value, 'all');
+    assert.equal(chip.hidden, true);
+    assert.equal(f.doc.activeElement, filters);
   } finally { f.close(); }
 });
 
@@ -790,7 +835,7 @@ test('highlight lists autosave in the folded Filters section without adding prim
     field.dispatchEvent(new f.win.Event('change', { bubbles: true })); await settle(80);
     assert.equal(f.doc.querySelector('.tags a').dataset.epTagTone, 'favorite');
     assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag');
-    assert.equal(f.doc.querySelectorAll('.epc-navigation button').length, 3);
+    assert.equal(f.doc.querySelectorAll('.epc-navigation button[data-pane]').length, 3);
     assert.equal(f.doc.querySelectorAll('.epc-basic-settings input,.epc-basic-settings select').length, 13);
     f.doc.querySelector('[data-setting=groupVersions]').checked = false;
     f.doc.querySelector('[data-setting=groupVersions]').dispatchEvent(new f.win.Event('change', { bubbles: true })); await settle(80);

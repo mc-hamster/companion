@@ -1,3 +1,13 @@
+# Empornium Companion 2.14.1-alpha.1 validation
+
+Updated November 8, 2026.
+
+The build, syntax checks, and all **365 automated tests** pass. The installable userscript and the versioned alpha file are identical. Bundle SHA-256 is `bc4eb5ad8956f513a10e8d6da93419cfe03744b057fb783cee9d4e2e6fed5f39`.
+
+Chrome checks of the redesign used the local demo at desktop and phone widths. View options updated Grid and List, Grid exposed alternate-version links, the Freeleech chip cleared the active filter, and Stop loading kept appended results. The toolbar fit at 320 px with View options open.
+
+---
+
 # Empornium Companion 2.13.3 validation
 
 Updated November 6, 2026.

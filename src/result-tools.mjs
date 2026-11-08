@@ -4,7 +4,7 @@
 
 export function resultTitleLink(row) {
   return [...row.querySelectorAll('td a[href*="torrents.php"]')].find(link => {
-    if (!link.textContent.trim() || link.closest('.tags,.torrent_icon_container,.epc-thumbnail')) return false;
+    if (!link.textContent.trim() || link.closest('.tags,.torrent_icon_container,.epc-thumbnail,.epc-grid-card-actions')) return false;
     try { const url = new URL(link.href); return url.searchParams.has('id') && !url.searchParams.has('action'); }
     catch { return false; }
   });
@@ -41,11 +41,25 @@ export function parseVersionTitle(value) {
     label: [...new Set(hits.map(hit => hit.toUpperCase()))].join(' · ') || 'Other version', hits };
 }
 
+function gridCardActions(app, title) {
+  const existing = title.parentElement.querySelector(':scope > .epc-grid-card-actions');
+  if (existing) return existing;
+  const actions = app.node('div', null, 'epc-grid-card-actions');
+  title.after(actions);
+  return actions;
+}
+
+function removeGridCardAction(control) {
+  const actions = control?.parentElement;
+  control?.remove();
+  if (actions?.classList.contains('epc-grid-card-actions') && !actions.children.length) actions.remove();
+}
+
 export class VersionGroups {
   constructor(app) {
     this.app = app; this.rows = new Map(); this.moves = new Map(); this.controls = new Map();
     this.tables = new WeakMap(); this.nextTable = 0; this.nextRow = 0; this.expanded = new Set(); this.collapsed = 0; this.groups = new Map();
-    this.layouts = new Map(); this.candidates = new Map();
+    this.layouts = new Map(); this.candidates = new Map(); this.gridControls = new Map();
   }
   captureOrder(rows = this.app.doc.querySelectorAll('tr.torrent')) {
     for (const row of rows) if (row.matches('tr.torrent') && !this.rows.has(row)) {
@@ -81,7 +95,8 @@ export class VersionGroups {
     const candidates = this.candidates.get(key);
     if (candidates.length < 2 || !candidates.some(item => item.parsed.hits.length)) return;
     const group = [...candidates].sort((a, b) => a.entry.order - b.entry.order);
-    const [head, ...members] = group, open = this.expanded.has(key);
+    const [head, ...members] = group, grid = this.app.settings.resultsView === 'grid' && !!head.row.closest('#content');
+    const open = !grid && this.expanded.has(key);
     const ids = members.map(({ row, entry }) => {
       if (!row.id) row.id = 'epc-version-row-' + entry.order;
       return row.id;
@@ -100,6 +115,7 @@ export class VersionGroups {
     const labels = [...new Set(group.map(item => item.parsed.label))].join('\n');
     control.title = 'Versions on loaded pages:\n' + labels;
     if (head.link.nextElementSibling !== control) head.link.after(control);
+    if (grid) this.renderGridGroup(head, group);
     let previous = head.row;
     for (const { row } of members) {
       if (!this.moves.has(row)) {
@@ -111,6 +127,34 @@ export class VersionGroups {
       this.toggle(row, 'epc-version-hidden', !open); this.toggle(row, 'epc-version-member', true);
     }
     return group;
+  }
+  renderGridGroup(head, group) {
+    const { app } = this;
+    let entry = this.gridControls.get(head.row);
+    if (!entry) {
+      const details = app.node('details', null, 'epc-root epc-grid-versions');
+      details.append(app.node('summary'), app.node('ul', null, 'epc-grid-version-list'));
+      gridCardActions(app, head.link).append(details);
+      this.gridControls.set(head.row, entry = { details });
+    }
+    const values = group.map(({ parsed, link }) => [parsed.label.replace(/(\d)[PI]\b/g, suffix => suffix.toLowerCase()), link.href, link.textContent.trim()]);
+    const signature = JSON.stringify(values);
+    if (entry.signature === signature) return;
+    entry.signature = signature;
+    const [summary, list] = entry.details.children;
+    summary.textContent = group.length + ' versions';
+    const focus = list.contains(app.doc.activeElement) && app.doc.activeElement.href;
+    list.replaceChildren(...values.map(([label, href, title], index) => {
+      const item = app.node('li');
+      if (!index) item.append(app.node('strong', label), app.node('span', 'Current card'));
+      else {
+        const link = app.node('a', label);
+        link.href = href; link.title = title; link.setAttribute('aria-label', title);
+        item.append(link);
+      }
+      return item;
+    }));
+    if (focus) [...list.querySelectorAll('a')].find(link => link.href === focus)?.focus({ preventScroll: true });
   }
   append(rows) {
     if (!this.app.filtersReady || !this.app.settings.groupVersions) return;
@@ -133,6 +177,9 @@ export class VersionGroups {
       marker.remove(); this.moves.delete(row);
     }
     for (const [row, control] of this.controls) if (!representatives.has(row)) { control.remove(); this.controls.delete(row); }
+    for (const [row, { details }] of this.gridControls) if (!representatives.has(row) || settings.resultsView !== 'grid') {
+      removeGridCardAction(details); this.gridControls.delete(row);
+    }
     for (const [row] of this.rows) {
       if (!members.has(row)) {
         this.toggle(row, 'epc-version-hidden', false); this.toggle(row, 'epc-version-member', false);
@@ -146,6 +193,7 @@ export class VersionGroups {
   toggleGroup(key) {
     const current = this.groups.get(key); if (!current) return;
     const { group, control } = current, open = !this.expanded.has(key);
+    if (group[0].row.closest('.epc-result-grid')) return;
     if (open) this.expanded.add(key); else this.expanded.delete(key);
     for (const { row } of group.slice(1)) this.toggle(row, 'epc-version-hidden', !open);
     const difference = (open ? 1 : -1) * (group.length - 1);
@@ -214,6 +262,8 @@ export class VersionGroups {
       if (!row.isConnected && !this.app.detachedFilterRows.has(row)) this.rows.delete(row);
     }
     for (const control of this.controls.values()) control.remove();
+    for (const { details } of this.gridControls.values()) removeGridCardAction(details);
+    this.gridControls.clear();
     this.controls.clear(); this.groups.clear(); this.candidates.clear(); this.collapsed = 0;
   }
   dispose() { this.clear(); this.rows.clear(); }
@@ -338,17 +388,17 @@ export class TagHighlights {
       else if (this.favorites.has(value)) favorites.add(value);
     }
     let cue = this.cues.get(row);
-    if (!favorites.size && !cautions.size) { cue?.remove(); this.cues.delete(row); return; }
+    if (!favorites.size && !cautions.size) { removeGridCardAction(cue); this.cues.delete(row); return; }
     if (!cue) {
       const title = resultTitleLink(row);
       if (!title) return;
       cue = app.node('details', null, 'epc-root epc-grid-tag-cue');
       cue.append(app.node('summary'), app.node('div', null, 'epc-grid-tag-matches'));
-      title.after(cue); this.cues.set(row, cue);
+      gridCardActions(app, title).prepend(cue); this.cues.set(row, cue);
     }
     const caption = [
-      cautions.size === 1 ? 'Caution · ' + [...cautions][0] : cautions.size ? cautions.size + ' cautions' : '',
-      favorites.size ? favorites.size + (favorites.size === 1 ? ' favorite' : ' favorites') : ''
+      cautions.size === 1 ? 'Caution' : cautions.size ? cautions.size + ' cautions' : '',
+      favorites.size === 1 ? 'Favorite' : favorites.size ? favorites.size + ' favorites' : ''
     ].filter(Boolean).join(' · ');
     if (cue.firstElementChild.textContent !== caption) cue.firstElementChild.textContent = caption;
     const contents = [
@@ -406,7 +456,7 @@ export class TagHighlights {
   }
   forget(root) {
     for (const row of [root, ...root.querySelectorAll('tr.torrent')]) {
-      this.cues.get(row)?.remove(); this.cues.delete(row);
+      removeGridCardAction(this.cues.get(row)); this.cues.delete(row);
     }
     for (const tag of [root, ...root.querySelectorAll('div.tags>a,ul#torrent_tags_list>li>a')]) {
       const value = this.values.get(tag), entries = this.index.get(value);
@@ -458,7 +508,7 @@ export class TagHighlights {
   dispose() {
     for (const tag of this.originals.keys()) this.restore(tag);
     this.index.clear();
-    for (const cue of this.cues.values()) cue.remove();
+    for (const cue of this.cues.values()) removeGridCardAction(cue);
     this.cues.clear(); this.releaseDetailTags();
   }
 }
