@@ -38,14 +38,15 @@ async function setup(initial = {}, rows = rowHTML(1) + rowHTML(2), extra = '', u
   const storage = memoryStorage({ 'ep.settings': { inlineThumbnails: false }, ...initial }), clock = fakeClock();
   const win = f.win;
   win.GM_getValue = storage.get; win.GM_setValue = storage.set; win.GM_listValues = storage.list;
-  win.GM_deleteValue = storage.delete; win.GM_registerMenuCommand = () => {};
+  const menuCommands = [];
+  win.GM_deleteValue = storage.delete; win.GM_registerMenuCommand = name => menuCommands.push(name);
   win.GM_addStyle = css => { const style = win.document.createElement('style'); style.textContent = css; win.document.head.append(style); };
   win.Image = clock.env.Image;
   win.confirm = () => true;
   if (options.fetch) win.fetch = options.fetch;
   for (let i = 0; i < (options.injections ?? 1); i++) win.eval(bundle);
   await until(() => f.doc.querySelector('.epc-workspace[data-ep-ready="true"]'), 'Built userscript readiness');
-  return { ...f, storage, clock };
+  return { ...f, storage, clock, menuCommands };
 }
 test('built artifact is self-contained and restricted to Empornium', () => {
   assert.doesNotMatch(bundle, /@require|GM_download|eval\(/);
@@ -484,7 +485,10 @@ test('filter confirmations and userscript-manager metadata use Companion termino
   assert.equal(f.storage.get('nseTaglist'), 'kept.tag');
   const header = bundle.slice(0, bundle.indexOf('// ==/UserScript=='));
   assert.doesNotMatch(header, branding);
+  assert.match(header, /^\/\/ @name\s+Companion$/m);
   assert.match(header, /@namespace\s+empornium-companion\.local/);
+  assert.equal(f.doc.querySelector('.epc-workspace').getAttribute('aria-label'), 'Companion');
+  assert.ok(f.menuCommands.includes('Companion settings'));
   assert.equal(f.errors.length, 0, f.errors.join('\n')); f.close();
 });
 test('typing filter rules autosaves and updates existing results without navigation', async () => {

@@ -1,5 +1,5 @@
 {
-  "title": "Empornium Companion quality audit",
+  "title": "Companion quality audit",
   "phase": "Local audit complete · extension validation outstanding",
   "focus": "152 automated checks pass in three final runs. 65 local scenarios pass; Chrome/Tampermonkey and Firefox remain blocked.",
   "artifact": {

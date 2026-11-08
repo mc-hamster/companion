@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name         Empornium Companion
+// @name         Companion
 // @namespace    empornium-companion.local
-// @version      2.14.1
+// @version      2.14.2
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion
 // @updateURL    https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.meta.js
 // @downloadURL  https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js
 // @description  Reliable images, alternate versions, tag highlights, filters, and saved searches.
-// @author       Empornium Companion contributors; filtering engine by ceodoe
+// @author       Companion contributors; filtering engine by ceodoe
 // @license      GPL-3.0-or-later
 // @match        https://empornium.sx/*
 // @match        https://www.empornium.sx/*
@@ -2028,7 +2028,7 @@ class OnboardingController {
     const dialog = app.node('dialog', null, 'epc-root epc-onboarding'); this.element = dialog;
     applyWorkspaceTheme(app, [dialog]);
     dialog.setAttribute('aria-labelledby', 'epc-welcome-title');
-    const title = app.node('h2', 'Welcome to Empornium Companion'); title.id = 'epc-welcome-title';
+    const title = app.node('h2', 'Welcome to Companion'); title.id = 'epc-welcome-title';
     const heading = app.node('header', null, 'epc-welcome-heading');
     const mark = app.node('span', null, 'epc-brand-mark'); mark.append(companionIcon(app, 'brand'));
     heading.append(mark, title);
@@ -4753,7 +4753,7 @@ class CompanionApp {
   }
   buildUI() {
     this.root = this.node('section', null, 'epc-root epc-workspace');
-    this.root.setAttribute('aria-label', 'Empornium Companion');
+    this.root.setAttribute('aria-label', 'Companion');
     this.toolbar = this.node('header', null, 'epc-toolbar');
     const main = this.node('div', null, 'epc-toolbar-main');
     const brand = this.node('div', null, 'epc-toolbar-brand');
@@ -5015,7 +5015,7 @@ class CompanionApp {
     backup.append(
       this.node('p', 'Import a Companion backup, a legacy filter export, or an older saved-search backup.'),
       setSettingHelp(this.button('Export everything', () => {
-        this.download('empornium-companion-backup.json', JSON.stringify(this.exportData(), null, 2));
+        this.download('companion-backup.json', JSON.stringify(this.exportData(), null, 2));
       }), 'Download your preferences, filters, and saved searches as JSON. Saved image files are separate.'), picker,
       setSettingHelp(this.button('Restore previous import', () => {
         const previous = this.storage.get('ep.previousImport', null);
@@ -7439,7 +7439,7 @@ const epApp = createApp(window, epStorage, {
   validateNSE: input => validateNSE(input, epSchema)
 }).start();
 document.addEventListener(epRunningEvent, event => event.preventDefault());
-GM_registerMenuCommand('Empornium Companion settings', () => {
+GM_registerMenuCommand('Companion settings', () => {
   epApp.openPane('settings'); epApp.root?.scrollIntoView({ block: 'start' });
 });
 function epNSEEngine(app, bridge) {

@@ -212,7 +212,7 @@ const settings = stripExports(await read('src/nse-settings.mjs'));
 const css = await read('src/companion.css');
 const header = [
   '// ==UserScript==',
-  '// @name         Empornium Companion',
+  '// @name         Companion',
   '// @namespace    empornium-companion.local',
   '// @version      ' + releaseVersion,
   '// @homepageURL  ' + packageInfo.homepage,
@@ -221,7 +221,7 @@ const header = [
   '// @updateURL    ' + downloadBase + 'EmporniumCompanion.meta.js',
   '// @downloadURL  ' + downloadBase + 'EmporniumCompanion.user.js',
   '// @description  Reliable images, alternate versions, tag highlights, filters, and saved searches.',
-  '// @author       Empornium Companion contributors; filtering engine by ceodoe',
+  '// @author       Companion contributors; filtering engine by ceodoe',
   '// @license      GPL-3.0-or-later',
   ...['empornium.sx','empornium.me','empornium.is','empornium.ph','emparadise.rs'].flatMap(host =>
     ['// @match        https://' + host + '/*', '// @match        https://www.' + host + '/*']),
@@ -241,4 +241,4 @@ await writeFile(new URL('dist/EmporniumCompanion.meta.js', root), header + '\n')
 await writeFile(new URL('dist/EmporniumCompanion.user.js', root), artifact);
 await writeFile(new URL('dist/EmporniumCompanion-' + releaseVersion + '.user.js', root), artifact);
 await writeFile(new URL('dist/nse-schema.json', root), JSON.stringify(schema, null, 2) + '\n');
-console.log('Built Empornium Companion; ' + Object.keys(schema).length + ' validated filter preferences.');
+console.log('Built Companion; ' + Object.keys(schema).length + ' validated filter preferences.');

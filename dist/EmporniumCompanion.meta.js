@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name         Empornium Companion
+// @name         Companion
 // @namespace    empornium-companion.local
-// @version      2.14.1
+// @version      2.14.2
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion
 // @updateURL    https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.meta.js
 // @downloadURL  https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js
 // @description  Reliable images, alternate versions, tag highlights, filters, and saved searches.
-// @author       Empornium Companion contributors; filtering engine by ceodoe
+// @author       Companion contributors; filtering engine by ceodoe
 // @license      GPL-3.0-or-later
 // @match        https://empornium.sx/*
 // @match        https://www.empornium.sx/*

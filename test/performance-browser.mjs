@@ -100,5 +100,5 @@ export function performanceHTML(count, baseline = false, fixed = false) {
 
 export function instrumentPerformanceBundle(bundle) {
   return bundle.replace('const epApp = createApp(', 'window.epBench.install({CompanionApp,VersionGroups,TagHighlights,PageMedia,PreviewController});\nconst epApp = createApp(')
-    .replace('GM_registerMenuCommand(\'Empornium Companion settings\'', 'window.epBench.attach(epApp);\nGM_registerMenuCommand(\'Empornium Companion settings\'');
+    .replace('GM_registerMenuCommand(\'Companion settings\'', 'window.epBench.attach(epApp);\nGM_registerMenuCommand(\'Companion settings\'');
 }

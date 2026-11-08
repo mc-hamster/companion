@@ -1,5 +1,7 @@
 # Feature mapping
 
+Version 2.14.2 changes the display name to Companion in Tampermonkey and in the app. The existing update channel and backup format carry over.
+
 Version 2.14.1 groups layout and filter controls in a shorter toolbar. An active Freeleech filter can be cleared from its chip. **Load more** sits below the results, and **Stop loading** stays visible while a batch runs. Grid has edge-to-edge covers, compact Favorite and Caution badges, and links to alternate versions on grouped cards. **View options** adjusts columns in List and card size, spacing, tags, and details in Grid. [List and Grid](GRID-VIEW.md)
 
 Version 2.14.0 puts Freeleech and Show filtered directly in the results toolbar. Show filtered counts results it can reveal in the selected Freeleech view and explains why each revealed result was hidden. Luminance tag import previews the destination for each group and supports undo. Grid cards show Favorite and Caution cues, List lets you choose which columns to show, and detail pages support collapsed tags and responsive tag columns. List and Grid have separate animated cover settings. The load gauge tracks preloading, and playback respects system reduced motion. Settings and Filters have tooltips, and expanded groups in Settings, Filters, and Searches use consistent indentation. [Filters and import](REFERENCE.md) · [List and Grid](GRID-VIEW.md)

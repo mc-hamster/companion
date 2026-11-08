@@ -1,5 +1,5 @@
 {
-  "title": "Empornium Companion quality audit",
+  "title": "Companion quality audit",
   "phase": "Focused audit complete",
   "focus": "301 automated checks pass; collage manual/automatic backfill, row/cover filtering/reveal and simpler Settings verified; actual managers unverified",
   "artifact": {

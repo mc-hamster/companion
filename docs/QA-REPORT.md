@@ -1,4 +1,20 @@
-# Empornium Companion 2.14.1 validation
+# Companion 2.14.2 validation
+
+The build, syntax checks, and all **366 automated tests** pass. The stable and versioned userscripts are identical. Bundle SHA-256 is `b4f31a9476c723b68f72b6d3fe8a2d23fe5f848029c8f485dc6c4f74912fd42c`.
+
+The stable build differs from the alpha verified in Tampermonkey only in the `@version` metadata.
+
+---
+
+# Companion 2.14.2-alpha.1 validation
+
+The build, syntax checks, and all **366 automated tests** pass. The current and versioned userscripts are identical. Bundle SHA-256 is `e13ac8ed76780ca2d4e27b41979f2a7fd1360c830fb230485b6eb3d26e32199e`.
+
+In an isolated Chrome profile, Tampermonkey 5.5.1 updated 2.14.1 in place through **Check for updates**. The dashboard showed a single entry named Companion, and the local fixture retained a saved search, a blocked tag, and the completed setup state. The updated script imported an older backup and offered new exports as `companion-backup.json`. Opening the install URL directly before updating offered a separate installation.
+
+---
+
+# Companion 2.14.1 validation
 
 Updated November 8, 2026.
 
@@ -8,7 +24,7 @@ The stable userscript has the same runtime as the alpha checked in Chrome using 
 
 ---
 
-# Empornium Companion 2.14.1-alpha.1 validation
+# Companion 2.14.1-alpha.1 validation
 
 Updated November 8, 2026.
 
@@ -18,7 +34,7 @@ Chrome checks of the redesign used the local demo at desktop and phone widths. V
 
 ---
 
-# Empornium Companion 2.14.0 validation
+# Companion 2.14.0 validation
 
 Updated November 7, 2026.
 
@@ -28,7 +44,7 @@ The stable build uses the same runtime as the alpha build exercised in local Chr
 
 ---
 
-# Empornium Companion 2.13.3 validation
+# Companion 2.13.3 validation
 
 Updated November 6, 2026.
 
@@ -38,7 +54,7 @@ In a local Chrome fixture, two uncached covers appeared in 48 ms and 75 ms after
 
 ---
 
-# Empornium Companion 2.13.2 validation
+# Companion 2.13.2 validation
 
 Updated November 6, 2026.
 
@@ -48,7 +64,7 @@ Chrome used local collage fixtures with real IndexedDB and a test adapter for us
 
 ---
 
-# Empornium Companion 2.13.1 validation
+# Companion 2.13.1 validation
 
 Updated November 5, 2026.
 
@@ -56,7 +72,7 @@ The build, syntax checks, and all **338 automated tests** pass. The tests cover 
 
 ---
 
-# Empornium Companion 2.13.0 toolbar validation
+# Companion 2.13.0 toolbar validation
 
 Updated November 5, 2026.
 
@@ -66,7 +82,7 @@ Chrome and Firefox checked the compiled build on local fixtures. Browse options 
 
 ---
 
-# Empornium Companion 2.13.0 user audit
+# Companion 2.13.0 user audit
 
 Updated November 5, 2026.
 
@@ -80,7 +96,7 @@ Tampermonkey 5.5.1 in an isolated Chrome for Testing profile installed 2.12.3 an
 
 ---
 
-# Empornium Companion 2.12.2 thumbnail validation
+# Companion 2.12.2 thumbnail validation
 
 Updated November 5, 2026.
 
@@ -88,7 +104,7 @@ Companion starts once per document when the userscript is injected twice. In a l
 
 ---
 
-# Empornium Companion 2.12.1 compact grid validation
+# Companion 2.12.1 compact grid validation
 
 Updated November 3, 2026.
 
@@ -100,7 +116,7 @@ Card spacing was also checked with injected native row/cell minimum heights and 
 
 ---
 
-# Empornium Companion 2.12.0 grid validation
+# Companion 2.12.0 grid validation
 
 Updated November 3, 2026.
 
@@ -112,7 +128,7 @@ Evidence: [desktop grid](qa/grid-2120-desktop.png), [narrow grid](qa/grid-2120-m
 
 ---
 
-# Empornium Companion 2.11.0 quality audit
+# Companion 2.11.0 quality audit
 
 Updated October 30, 2026.
 

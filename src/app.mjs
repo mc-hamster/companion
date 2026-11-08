@@ -304,7 +304,7 @@ export class CompanionApp {
   }
   buildUI() {
     this.root = this.node('section', null, 'epc-root epc-workspace');
-    this.root.setAttribute('aria-label', 'Empornium Companion');
+    this.root.setAttribute('aria-label', 'Companion');
     this.toolbar = this.node('header', null, 'epc-toolbar');
     const main = this.node('div', null, 'epc-toolbar-main');
     const brand = this.node('div', null, 'epc-toolbar-brand');
@@ -566,7 +566,7 @@ export class CompanionApp {
     backup.append(
       this.node('p', 'Import a Companion backup, a legacy filter export, or an older saved-search backup.'),
       setSettingHelp(this.button('Export everything', () => {
-        this.download('empornium-companion-backup.json', JSON.stringify(this.exportData(), null, 2));
+        this.download('companion-backup.json', JSON.stringify(this.exportData(), null, 2));
       }), 'Download your preferences, filters, and saved searches as JSON. Saved image files are separate.'), picker,
       setSettingHelp(this.button('Restore previous import', () => {
         const previous = this.storage.get('ep.previousImport', null);

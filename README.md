@@ -1,8 +1,8 @@
-# Empornium Companion
+# Companion
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install stable Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.14.1](dist/EmporniumCompanion-2.14.1.user.js)**
+**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.14.2](dist/EmporniumCompanion-2.14.2.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -19,11 +19,11 @@ Companion is a small add-on that runs through [Tampermonkey](https://www.tamperm
 ## Install
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) for your browser.
-2. Click **[Install Empornium Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)**, review the permissions, and choose **Install**.
+2. Click **[Install Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)**, review the permissions, and choose **Install**.
 3. Open or reload Empornium. Look for the **Companion** toolbar above the results.
 4. Follow **Getting started** to choose your thumbnail size, previews, and whether to load extra pages. You can change these later in **Settings**.
 
-Already using Companion? Open the same install link to update your existing copy and keep your settings.
+Already using Companion? Use **Check for updates** on your installed script in Tampermonkey to get the rename and keep your settings. Use the install link for a fresh copy.
 
 If you use older scripts for the same features, back up their settings first, then disable them so you don't get duplicate controls. Companion can import NoShitEmpornium filter backups, including backups from mc-hamster's fork.
 
@@ -57,9 +57,9 @@ To curate a collage, open it and click **Pin for quick add** in the Companion to
 
 ## Updates and backups
 
-Tampermonkey can keep Companion up to date when its update checks are enabled. You can also use **Check for updates** in Tampermonkey or open the install link again.
+Tampermonkey can keep Companion up to date when its update checks are enabled. To update manually, find your installed script in the Tampermonkey dashboard and click **Check for updates**.
 
-Your preferences, saved searches, and saved images stay in your browser. Before changing browsers or reinstalling, save a backup under **Settings → Backup & restore**. Backups include your settings and searches; saved images aren't included.
+Your preferences, saved searches, and saved images stay in your browser. Before changing browsers or reinstalling, save a backup under **Settings → Backup & restore**. Backups include your settings and searches, while saved images stay in your browser. Backups made before the rename still import here.
 
 Moving from an older script? See the [import instructions](docs/REFERENCE.md#import-data), including how to bring over saved searches.
 
