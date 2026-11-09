@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Companion
 // @namespace    empornium-companion.local
-// @version      2.14.2-alpha.1
+// @version      2.14.2-alpha.2
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion
@@ -29,6 +29,7 @@
 // @grant        GM_addStyle
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
+// @grant        GM_setClipboard
 // @connect      hamsterimg.net
 // @connect      hamster.is
 // @connect      empornium.sx
@@ -66,6 +67,15 @@ function clamp(value, min, max) {
 
 function isSaveShortcut(event) {
   return event.key.toLowerCase() === 's' && event.ctrlKey !== event.metaKey && !event.altKey && !event.shiftKey;
+}
+
+function emporniumAccountID(root, page) {
+  const href = root.querySelector('#userinfo_username a[href]')?.getAttribute('href');
+  if (!href || !URL.canParse(href, page)) return null;
+  const url = new URL(href, page);
+  const ids = url.searchParams.getAll('id');
+  return url.origin === new URL(page).origin && url.pathname === '/user.php' && !url.searchParams.has('action') &&
+    ids.length === 1 && /^[1-9]\d{0,14}$/.test(ids[0]) ? ids[0] : null;
 }
 
 function validateSettings(input = {}) {
@@ -1794,13 +1804,6 @@ function quickAddPageID(url, pathname) {
     ? ids[0] : null;
 }
 
-function quickAddAccount(root, page) {
-  const href = root.querySelector('#userinfo_username a[href]')?.getAttribute('href');
-  if (!href || !URL.canParse(href, page)) return null;
-  const url = new URL(href, page);
-  return url.origin === page.origin ? quickAddPageID(url, '/user.php') : null;
-}
-
 function quickAddForm(root, collageURL) {
   const form = root.querySelector('#content #addtorrent form');
   if (form?.method !== 'post' || !form.querySelector('input[name="url"]:enabled')) return null;
@@ -1837,7 +1840,7 @@ class CollageQuickAdd {
     if (this.tools || !this.collageID && !this.torrentID) return;
     const { app, page } = this;
     const heading = app.doc.querySelector('#content h2');
-    this.accountID = quickAddAccount(app.doc, page);
+    this.accountID = emporniumAccountID(app.doc, page);
     if (!heading || !this.accountID) return;
 
     if (this.collageID) {
@@ -1946,7 +1949,7 @@ class CollageQuickAdd {
     if (html.length > 8 * 1024 * 1024) throw new Error('The Empornium page was too large to check.');
     const template = this.app.doc.createElement('template');
     template.innerHTML = html;
-    if (quickAddAccount(template.content, url) !== this.accountID) throw new Error('Your Empornium session changed.');
+    if (emporniumAccountID(template.content, url) !== this.accountID) throw new Error('Your Empornium session changed.');
     return template.content;
   }
 
@@ -4464,6 +4467,414 @@ function mountLuminanceImport(app, parent) {
   parent.append(panel);
 }
 
+// EFF Short Wordlist #1, Electronic Frontier Foundation, CC BY 4.0.
+// Dice indices and the hyphenated entry removed.
+// https://www.eff.org/files/2016/09/08/eff_short_wordlist_1.txt
+// https://creativecommons.org/licenses/by/4.0/
+const templatePassphraseWords = `
+acid acorn acre acts afar affix aged agent agile aging agony ahead aide aids aim ajar
+alarm alias alibi alien alike alive aloe aloft aloha alone amend amino ample amuse angel anger
+angle ankle apple april apron aqua area arena argue arise armed armor army aroma array arson
+art ashen ashes atlas atom attic audio avert avoid awake award awoke axis bacon badge bagel
+baggy baked baker balmy banjo barge barn bash basil bask batch bath baton bats blade blank
+blast blaze bleak blend bless blimp blink bloat blob blog blot blunt blurt blush boast boat
+body boil bok bolt boned boney bonus bony book booth boots boss botch both boxer breed
+bribe brick bride brim bring brink brisk broad broil broke brook broom brush buck bud buggy
+bulge bulk bully bunch bunny bunt bush bust busy buzz cable cache cadet cage cake calm
+cameo canal candy cane canon cape card cargo carol carry carve case cash cause cedar chain
+chair chant chaos charm chase cheek cheer chef chess chest chew chief chili chill chip chomp
+chop chow chuck chump chunk churn chute cider cinch city civic civil clad claim clamp clap
+clash clasp class claw clay clean clear cleat cleft clerk click cling clink clip cloak clock
+clone cloth cloud clump coach coast coat cod coil coke cola cold colt coma come comic
+comma cone cope copy coral cork cost cot couch cough cover cozy craft cramp crane crank
+crate crave crawl crazy creme crepe crept crib cried crisp crook crop cross crowd crown crumb
+crush crust cub cult cupid cure curl curry curse curve curvy cushy cut cycle dab dad
+daily dairy daisy dance dandy darn dart dash data date dawn deaf deal dean debit debt
+debug decaf decal decay deck decor decoy deed delay denim dense dent depth derby desk dial
+diary dice dig dill dime dimly diner dingy disco dish disk ditch ditzy dizzy dock dodge
+doing doll dome donor donut dose dot dove down dowry doze drab drama drank draw dress
+dried drift drill drive drone droop drove drown drum dry duck duct dude dug duke duo
+dusk dust duty dwarf dwell eagle early earth easel east eaten eats ebay ebony ebook echo
+edge eel eject elbow elder elf elk elm elope elude elves email emit empty emu enter
+entry envoy equal erase error erupt essay etch evade even evict evil evoke exact exit fable
+faced fact fade fall false fancy fang fax feast feed femur fence fend ferry fetal fetch
+fever fiber fifth fifty film filth final finch fit five flag flaky flame flap flask fled
+flick fling flint flip flirt float flock flop floss flyer foam foe fog foil folic folk
+food fool found fox foyer frail frame fray fresh fried frill frisk from front frost froth
+frown froze fruit gag gains gala game gap gas gave gear gecko geek gem genre gift
+gig gills given giver glad glass glide gloss glove glow glue goal going golf gong good
+gooey goofy gore gown grab grain grant grape graph grasp grass grave gravy gray green greet
+grew grid grief grill grip grit groom grope growl grub grunt guide gulf gulp gummy guru
+gush gut guy habit half halo halt happy harm hash hasty hatch hate haven hazel hazy
+heap heat heave hedge hefty help herbs hers hub hug hula hull human humid hump hung
+hunk hunt hurry hurt hush hut ice icing icon icy igloo image ion iron islam issue
+item ivory ivy jab jam jaws jazz jeep jelly jet jiffy job jog jolly jolt jot
+joy judge juice juicy july jumbo jump junky juror jury keep keg kept kick kilt king
+kite kitty kiwi knee knelt koala kung ladle lady lair lake lance land lapel large lash
+lasso last latch late lazy left legal lemon lend lens lent level lever lid life lift
+lilac lily limb limes line lint lion lip list lived liver lunar lunch lung lurch lure
+lurk lying lyric mace maker malt mama mango manor many map march mardi marry mash match
+mate math moan mocha moist mold mom moody mop morse most motor motto mount mouse mousy
+mouth move movie mower mud mug mulch mule mull mumbo mummy mural muse music musky mute
+nacho nag nail name nanny nap navy near neat neon nerd nest net next niece ninth
+nutty oak oasis oat ocean oil old olive omen onion only ooze opal open opera opt
+otter ouch ounce outer oval oven owl ozone pace pagan pager palm panda panic pants panty
+paper park party pasta patch path patio payer pecan penny pep perch perky perm pest petal
+petri petty photo plank plant plaza plead plot plow pluck plug plus poach pod poem poet
+pogo point poise poker polar polio polka polo pond pony poppy pork poser pouch pound pout
+power prank press print prior prism prize probe prong proof props prude prune pry pug pull
+pulp pulse puma punch punk pupil puppy purr purse push putt quack quake query quiet quill
+quilt quit quota quote rabid race rack radar radio raft rage raid rail rake rally ramp
+ranch range rank rant rash raven reach react ream rebel recap relax relay relic remix repay
+repel reply rerun reset rhyme rice rich ride rigid rigor rinse riot ripen rise risk ritzy
+rival river roast robe robin rock rogue roman romp rope rover royal ruby rug ruin rule
+runny rush rust rut sadly sage said saint salad salon salsa salt same sandy santa satin
+sauna saved savor sax say scale scam scan scare scarf scary scoff scold scoop scoot scope
+score scorn scout scowl scrap scrub scuba scuff sect sedan self send sepia serve set seven
+shack shade shady shaft shaky sham shape share sharp shed sheep sheet shelf shell shine shiny
+ship shirt shock shop shore shout shove shown showy shred shrug shun shush shut shy sift
+silk silly silo sip siren sixth size skate skew skid skier skies skip skirt skit sky
+slab slack slain slam slang slash slate slaw sled sleek sleep sleet slept slice slick slimy
+sling slip slit slob slot slug slum slurp slush small smash smell smile smirk smog snack
+snap snare snarl sneak sneer sniff snore snort snout snowy snub snuff speak speed spend spent
+spew spied spill spiny spoil spoke spoof spool spoon sport spot spout spray spree spur squad
+squat squid stack staff stage stain stall stamp stand stank stark start stash state stays steam
+steep stem step stew stick sting stir stock stole stomp stony stood stool stoop stop storm
+stout stove straw stray strut stuck stud stuff stump stung stunt suds sugar sulk surf sushi
+swab swan swarm sway swear sweat sweep swell swept swim swing swipe swirl swoop swore syrup
+tacky taco tag take tall talon tamer tank taper taps tarot tart task taste tasty taunt
+thank thaw theft theme thigh thing think thong thorn those throb thud thumb thump thus tiara
+tidal tidy tiger tile tilt tint tiny trace track trade train trait trap trash tray treat
+tree trek trend trial tribe trick trio trout truce truck trump trunk try tug tulip tummy
+turf tusk tutor tutu tux tweak tweet twice twine twins twirl twist uncle uncut undo unify
+union unit untie upon upper urban used user usher utter value vapor vegan venue verse vest
+veto vice video view viral virus visa visor vixen vocal voice void volt voter vowel wad
+wafer wager wages wagon wake walk wand wasp watch water wavy wheat whiff whole whoop wick
+widen widow width wife wifi wilt wimp wind wing wink wipe wired wiry wise wish wispy
+wok wolf womb wool woozy word work worry wound woven wrath wreck wrist xerox yahoo yam
+yard year yeast yelp yield yodel yoga yoyo yummy zebra zero zesty zippy zone zoom
+`.trim().split(/\s+/);
+
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+const templateName = 'Companion';
+const templatePassphraseKey = 'ep.templatePassphrase';
+const templateWordCount = 8;
+const templateFormat = 'companion-settings-v1';
+const templateMaxPayload = 1024 * 1024;
+const templatePrivateOptions = '#template optgroup[label="private templates"] option';
+const templateLocalSettings = ['diagnostics', 'persistentImages', 'persistentCacheMB'];
+const templateLocalNSE = new Set(['nseSavedVersion', 'nseCustomCSS', 'nseCustomCSSEnabled',
+  'nseIndividualUploadHidingBlacklist', 'nseIndividualUploadHidingWhitelist']);
+
+function generateTemplatePassphrase(crypto) {
+  const size = templatePassphraseWords.length;
+  const limit = 65536 - 65536 % size;
+  const draw = new Uint16Array(1);
+  const words = [];
+  while (words.length < templateWordCount) {
+    crypto.getRandomValues(draw);
+    if (draw[0] < limit) words.push(templatePassphraseWords[draw[0] % size]);
+  }
+  return words.join(' ');
+}
+
+function normalizeTemplatePassphrase(input) {
+  const words = input.trim().toLowerCase().split(/[\s-]+/);
+  if (words.length !== templateWordCount || words.some(word => !templatePassphraseWords.includes(word))) {
+    throw new Error('Enter all eight words from Copy passphrase on your other device, in the same order.');
+  }
+  return words.join(' ');
+}
+
+function portableTemplateData(app, nseKeys, data) {
+  if (!data?.settings || typeof data.settings !== 'object' || Array.isArray(data.settings) ||
+      !data.nse || typeof data.nse !== 'object' || Array.isArray(data.nse)) {
+    throw new Error('The Companion template contains invalid settings.');
+  }
+  const settings = validateSettings(data.settings);
+  for (const key of templateLocalSettings) delete settings[key];
+  compileConditionalRules(settings.conditionalRules);
+  const nse = {};
+  for (const key of nseKeys) if (Object.hasOwn(data.nse, key)) nse[key] = data.nse[key];
+  return { settings, nse: app.options.validateNSE(nse), searches: validateSearches(data.searches) };
+}
+
+function templateBase64(bytes) {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function templateUnbase64(text) {
+  return Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/')), char => char.charCodeAt(0));
+}
+
+async function deriveTemplateKey(crypto, passphrase, salt, usage) {
+  const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', iterations: 600000, salt }, material,
+    { name: 'AES-GCM', length: 256 }, false, [usage]);
+}
+
+function templateCipherParams(iv, account) {
+  return { name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(templateFormat + ':' + account) };
+}
+
+async function encryptTemplateSettings(crypto, passphrase, account, settings) {
+  const bytes = new TextEncoder().encode(JSON.stringify(settings));
+  if (bytes.length > Math.floor((templateMaxPayload - 100) * 3 / 4)) {
+    throw new Error('These settings are too large for a template. Transfer them using Backup & restore.');
+  }
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveTemplateKey(crypto, passphrase, salt, 'encrypt');
+  const ciphertext = await crypto.subtle.encrypt(templateCipherParams(iv, account), key, bytes);
+  return [templateFormat, templateBase64(salt), templateBase64(iv), templateBase64(new Uint8Array(ciphertext))].join('.');
+}
+
+async function decryptTemplateSettings(crypto, passphrase, account, payload) {
+  const format = /^companion-settings-v1\.([\w-]{22})\.([\w-]{16})\.([\w-]{22,})$/;
+  const fields = payload.length <= templateMaxPayload && format.exec(payload);
+  if (!fields) throw new Error('The private Companion template does not contain a supported settings snapshot. It was left alone.');
+  try {
+    const [salt, iv, ciphertext] = fields.slice(1).map(templateUnbase64);
+    const key = await deriveTemplateKey(crypto, passphrase, salt, 'decrypt');
+    const bytes = await crypto.subtle.decrypt(templateCipherParams(iv, account), key, ciphertext);
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  } catch {
+    throw new Error('Could not unlock the Companion template. Check that you entered the same passphrase used to write it.');
+  }
+}
+
+class EmpTemplate {
+  constructor(app, fetch, signal) {
+    this.doc = app.doc;
+    this.fetch = fetch;
+    this.signal = signal;
+    this.upload = new URL('/upload.php', app.win.location.href);
+    this.account = emporniumAccountID(app.doc, this.upload);
+    if (!this.account) throw new Error('Sign in to Emp before using the Companion template.');
+  }
+
+  async request(url, fields) {
+    let response;
+    try {
+      response = await this.fetch(url.href, {
+        method: fields ? 'POST' : 'GET', body: fields ? new URLSearchParams(fields) : undefined,
+        mode: 'same-origin', credentials: 'same-origin', redirect: 'error', cache: 'no-store', signal: this.signal
+      });
+    } catch {
+      throw new Error('Could not connect to Emp. Check your session and try again.');
+    }
+    if (!response.ok || response.url && response.url !== url.href) {
+      throw new Error('Emp could not open the template. Check that your account can use private upload templates.');
+    }
+    const text = await response.text();
+    if (text.length > 8 * 1024 * 1024) throw new Error('Emp returned a page that was too large to check.');
+    return text;
+  }
+
+  async page(fields) {
+    const template = this.doc.createElement('template');
+    template.innerHTML = await this.request(this.upload, fields);
+    const root = template.content;
+    if (emporniumAccountID(root, this.upload) !== this.account) throw new Error('Your Emp session changed. Sign in and try again.');
+    const select = root.querySelector('select#template[name="template"]');
+    if (!select) throw new Error('Private upload templates are unavailable for this Emp account.');
+    const matches = [...root.querySelectorAll(templatePrivateOptions)].filter(option => option.textContent.trim() === templateName);
+    if (matches.length > 1) throw new Error('Emp has more than one private template named Companion. Review them on the Upload page.');
+    const id = matches[0]?.value || '';
+    if (id && !/^[1-9]\d{0,14}$/.test(id)) throw new Error('Emp returned an invalid template ID.');
+    return { id, select, root };
+  }
+
+  async read(id) {
+    if (!id) throw new Error('No private Companion template yet. Use Write on the device that has your settings.');
+    const page = await this.page({ fill: 'fill from', template: id });
+    const body = page.root.querySelector('textarea#desc[name="desc"]');
+    if (!body || page.id !== id || page.select.value !== id) throw new Error('Emp could not load the private Companion template.');
+    return body.value;
+  }
+
+  async write(id, payload) {
+    let result;
+    try {
+      const saveURL = new URL('/upload.php?action=add_template', this.upload);
+      result = JSON.parse(await this.request(saveURL, {
+        templateID: id || '0', name: templateName, ispublic: '0', title: '', image: '', category: '0', tags: '', body: payload
+      }));
+    } catch {
+      throw new Error('Emp did not confirm the write. Use Read to check the template before trying again.');
+    }
+    if (Array.isArray(result) && result[0] === 0) {
+      throw new Error('Emp declined the save. Check that your account can create and edit private upload templates.');
+    }
+    try {
+      if (!Array.isArray(result) || result[0] !== 1) throw new Error();
+      const saved = await this.page();
+      if ((id && saved.id !== id) || await this.read(saved.id) !== payload) throw new Error();
+    } catch {
+      throw new Error('Emp did not confirm the write. Use Read to check the template before trying again.');
+    }
+  }
+}
+
+function mountTemplateSync(app) {
+  const { win, storage } = app;
+  const { prompt, copyPassphrase, nseSchema, requireTrusted = true } = app.options.empTemplate;
+  const nseKeys = Object.keys(nseSchema).filter(key => !templateLocalNSE.has(key) && nseSchema[key] !== 'array');
+  const fetch = app.options.fetch || win.fetch?.bind(win);
+  const crypto = win.crypto;
+  const group = optionGroup(app, app.panes.settings, 'Experimental', { key: 'experimental', searchable: true });
+  const panel = app.node('div');
+  panel.dataset.optionItem = '';
+  const status = app.node('p', '', 'epc-caption');
+  status.setAttribute('role', 'status');
+  const preview = app.node('div');
+  const secret = () => storage.get(templatePassphraseKey, '');
+  const templateButton = (label, action) => app.button(label, event => {
+    if (event.isTrusted || !requireTrusted) action();
+  });
+  const copy = templateButton('Copy passphrase', () => {
+    try {
+      copyPassphrase(secret());
+      status.textContent = 'Passphrase copied. Enter it in Experimental on your other device.';
+    } catch { status.textContent = 'Could not copy. Use Show or change passphrase to copy or type the words.'; }
+  });
+  const change = templateButton('Show or change passphrase', () => {
+    try {
+      const previous = secret();
+      const entered = prompt('Use the same eight words in the same order on every Companion installation.', previous);
+      if (entered === null) return;
+      const next = normalizeTemplatePassphrase(entered);
+      if (next !== previous) {
+        storage.set(templatePassphraseKey, next);
+        preview.replaceChildren();
+      }
+      status.textContent = 'Passphrase ready on this device.';
+    } catch (error) { status.textContent = error.message; }
+  });
+  const write = templateButton('Write to Companion Template', () => void transfer('write'));
+  const read = templateButton('Read from Companion Template', () => void transfer('read'));
+  const buttons = [copy, change, write, read];
+  const setDisabled = disabled => {
+    for (const button of buttons) button.disabled = disabled;
+    copy.disabled ||= !copyPassphrase;
+    change.disabled ||= !prompt;
+  };
+  const secretActions = app.node('div', null, 'epc-actions');
+  const transferActions = app.node('div', null, 'epc-actions');
+  secretActions.append(copy, change);
+  transferActions.append(write, read);
+  panel.append(app.node('h4', 'Companion settings across devices'),
+    app.node('p', 'On your first device, copy or show the generated passphrase, then choose Write. On your other device, choose Show or change passphrase and enter the same eight words, then choose Read.', 'epc-caption'),
+    secretActions,
+    app.node('p', 'Use the same Emp account and passphrase on every installation. Write saves or replaces the encrypted settings, filter rules, and saved searches in your private Companion upload template. Read previews changes before replacing the settings on this device.', 'epc-caption'),
+    app.node('p', 'Your passphrase, custom CSS, per-torrent history and overrides, collage pins, image cache, and diagnostic data stay on this device. Image retention and diagnostic logging choices stay local too.', 'epc-caption'),
+    transferActions, status, preview);
+  group.append(panel);
+
+  try {
+    if (!fetch || !crypto?.subtle) throw new Error('Template transfer is unavailable in this browser.');
+    if (!secret()) storage.set(templatePassphraseKey, generateTemplatePassphrase(crypto));
+    setDisabled(false);
+  } catch (error) {
+    setDisabled(true);
+    status.textContent = !fetch || !crypto?.subtle ? error.message :
+      'Could not save the passphrase on this device. Reload Companion and try again.';
+  }
+
+  const currentSettings = () => ({ ...app.settings, ...storage.get('ep.settings', {}) });
+  const currentSnapshot = () => {
+    const nse = {};
+    for (const key of nseKeys) {
+      const value = storage.get(key, undefined);
+      if (value !== undefined) nse[key] = value;
+    }
+    return portableTemplateData(app, nseKeys, {
+      settings: currentSettings(), nse, searches: storage.get('ep.searches', app.searches)
+    });
+  };
+  const signature = data => JSON.stringify(data);
+
+  function showPreview(incoming, localChanged = false) {
+    const current = currentSnapshot();
+    preview.replaceChildren();
+    if (signature(current) === signature(incoming)) {
+      status.textContent = 'Your settings already match the Companion template.';
+      return;
+    }
+    status.textContent = localChanged ? 'Local settings changed. Review the updated preview and choose Apply settings again.' :
+      'Review the changes before replacing your settings on this device.';
+    const changes = app.node('ul', null, 'epc-caption');
+    for (const [key, label] of [['settings', 'Companion preferences'], ['nse', 'Filter and theme preferences']]) {
+      const keys = new Set([...Object.keys(current[key]), ...Object.keys(incoming[key])]);
+      const count = [...keys].filter(name => signature(current[key][name]) !== signature(incoming[key][name])).length;
+      if (count) changes.append(app.node('li', `${label} · ${count} to update`));
+    }
+    if (signature(current.searches) !== signature(incoming.searches)) {
+      changes.append(app.node('li', `Saved searches · replace ${current.searches.length} local with ${incoming.searches.length} from Emp`));
+    }
+    const apply = templateButton('Apply settings', () => {
+      if (!app.preferences.flush()) return;
+      try {
+        if (signature(current) !== signature(currentSnapshot())) {
+          showPreview(incoming, true);
+          return;
+        }
+        const settings = { ...currentSettings(), ...incoming.settings };
+        app.importData(JSON.stringify({ format: 'empornium-companion', version: 1, ...incoming, settings }),
+          true, { replaceNSEKeys: nseKeys });
+        status.textContent = 'Settings applied. To undo, use Backup & restore → Restore previous import.';
+        preview.replaceChildren();
+      } catch (error) { status.textContent = error.message; }
+    });
+    preview.append(changes, apply, app.button('Cancel', () => {
+      preview.replaceChildren();
+      status.textContent = 'Import canceled.';
+    }));
+  }
+
+  async function transfer(operation) {
+    if (!app.preferences.flush()) {
+      status.textContent = 'Resolve the unsaved setting before transferring settings.';
+      return;
+    }
+    preview.replaceChildren();
+    setDisabled(true);
+    status.textContent = operation === 'write' ? 'Writing settings to Emp…' : 'Reading settings from Emp…';
+    try {
+      const signal = win.AbortSignal.timeout(20000);
+      const passphrase = secret();
+      if (!passphrase) throw new Error('Set a passphrase before transferring settings.');
+      const remote = new EmpTemplate(app, fetch, signal);
+      const { id } = await remote.page();
+      const readSnapshot = async () => {
+        const decoded = await decryptTemplateSettings(crypto, passphrase, remote.account, await remote.read(id));
+        return portableTemplateData(app, nseKeys, decoded);
+      };
+      if (operation === 'read') {
+        const incoming = await readSnapshot();
+        if (passphrase !== secret()) throw new Error('The passphrase changed. Read the template again.');
+        showPreview(incoming);
+        return;
+      }
+      const local = currentSnapshot();
+      if (id && signature(local) === signature(await readSnapshot())) {
+        status.textContent = 'The Companion template already has these settings.';
+        return;
+      }
+      const payload = await encryptTemplateSettings(crypto, passphrase, remote.account, local);
+      if (passphrase !== secret() || emporniumAccountID(app.doc, remote.upload) !== remote.account) {
+        throw new Error('Your Emp session or passphrase changed. Review it before writing again.');
+      }
+      await remote.write(id, payload);
+      status.textContent = 'Saved and verified the private Companion template on Emp.';
+    } catch (error) { status.textContent = error.message; }
+    finally { setDisabled(false); }
+  }
+}
+
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 const SETTINGS_KEY = 'ep.settings';
@@ -5026,6 +5437,7 @@ class CompanionApp {
     );
     for(const item of backup.querySelectorAll('button,input'))item.dataset.optionItem='';
     mountLuminanceImport(this, backup);
+    if (this.options.empTemplate) mountTemplateSync(this);
     const setupHelp=setSettingHelp(this.button('Getting started',()=>this.onboarding.show()),
       'Reopen the setup guide to review common browsing and image choices.');
     setupHelp.classList.add('epc-settings-help');this.panes.settings.append(setupHelp);
@@ -5363,7 +5775,7 @@ class CompanionApp {
     return { format: 'empornium-companion', version: 1, createdAt: new Date().toISOString(),
       settings: this.settings, searches: this.searches, searchDrawerOpen: this.activePane === 'searches', nse };
   }
-  importData(text, keepUndo = true, { completeOnboarding = false, mergePreferences = false } = {}) {
+  importData(text, keepUndo = true, { completeOnboarding = false, mergePreferences = false, replaceNSEKeys = null } = {}) {
     let parsed;
     try { parsed = JSON.parse(text); }
     catch { throw new SyntaxError('The backup file is not valid JSON.'); }
@@ -5379,7 +5791,7 @@ class CompanionApp {
       }
       if (!mergePreferences) searches = validateSearches(parsed.searches);
       nse = this.options.validateNSE?.(parsed.nse || {}) || parsed.nse;
-      if (!mergePreferences) drawer = !!parsed.searchDrawerOpen;
+      if (!mergePreferences && !replaceNSEKeys) drawer = !!parsed.searchDrawerOpen;
     } else if ('empSavedSearches' in parsed) {
       let legacy = parsed.empSavedSearches;
       if (typeof legacy === 'string') {
@@ -5410,20 +5822,26 @@ class CompanionApp {
     if (searches) changes.set(SEARCH_KEY, searches);
     if (drawer !== undefined) changes.set('ep.searchDrawerOpen', drawer);
     if (nse) {
-      if (!mergePreferences) for (const key of this.storage.list()) if (/^nse/.test(key)) changes.set(key, undefined);
+      if (!mergePreferences) {
+        for (const key of replaceNSEKeys ?? this.storage.list().filter(key => /^nse/.test(key))) changes.set(key, undefined);
+      }
       for (const [key, value] of Object.entries(nse)) changes.set(key, value);
     }
     if (!changes.size) throw new Error('No compatible settings were found.');
     this.preferences.cancel();
     const previous = this.exportData();
+    if (keepUndo && replaceNSEKeys) {
+      previous.settings = validateSettings({ ...previous.settings, ...this.storage.get(SETTINGS_KEY, {}) });
+      previous.searches = validateSearches(this.storage.get(SEARCH_KEY, previous.searches));
+    }
     if (mergePreferences) {
       const stored = this.storage.get(SETTINGS_KEY, {});
       changes.set('ep.preferenceUndo', { time: Date.now(), settings: { ...previous.settings, ...stored }, nse: previous.nse });
     }
-    const old = new Map(Array.from(changes.keys(), key => [key, this.storage.get(key, undefined)]));
+    const writes = keepUndo ? new Map([['ep.previousImport', previous], ...changes]) : changes;
+    const old = new Map(Array.from(writes.keys(), key => [key, this.storage.get(key, undefined)]));
     try {
-      if (keepUndo) this.storage.set('ep.previousImport', previous);
-      for (const [key, value] of changes) value === undefined ? this.storage.delete(key) : this.storage.set(key, value);
+      for (const [key, value] of writes) value === undefined ? this.storage.delete(key) : this.storage.set(key, value);
     } catch (error) {
       for (const [key, value] of old) {
         try { value === undefined ? this.storage.delete(key) : this.storage.set(key, value); } catch {}
@@ -7427,6 +7845,11 @@ function epRunNSE(app) {
 const epApp = createApp(window, epStorage, {
   waitForFilters: true, startNSE: epRunNSE,
   requestImage: typeof GM_xmlhttpRequest === 'function' ? details => GM_xmlhttpRequest(details) : null,
+  empTemplate: epHost ? {
+    nseSchema: epSchema,
+    prompt: window.prompt?.bind(window),
+    copyPassphrase: typeof GM_setClipboard === 'function' ? text => GM_setClipboard(text, 'text') : null
+  } : null,
   localImageCache: !!epFixture,
   newRows: (root, rows) => epBridge.newRows?.(root, rows),
   flushNSE: () => epBridge.flush?.(),

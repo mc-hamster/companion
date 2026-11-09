@@ -26,6 +26,15 @@ export function isSaveShortcut(event) {
   return event.key.toLowerCase() === 's' && event.ctrlKey !== event.metaKey && !event.altKey && !event.shiftKey;
 }
 
+export function emporniumAccountID(root, page) {
+  const href = root.querySelector('#userinfo_username a[href]')?.getAttribute('href');
+  if (!href || !URL.canParse(href, page)) return null;
+  const url = new URL(href, page);
+  const ids = url.searchParams.getAll('id');
+  return url.origin === new URL(page).origin && url.pathname === '/user.php' && !url.searchParams.has('action') &&
+    ids.length === 1 && /^[1-9]\d{0,14}$/.test(ids[0]) ? ids[0] : null;
+}
+
 export function validateSettings(input = {}) {
   const result = { ...DEFAULTS };
   for (const [key, value] of Object.entries(input)) {

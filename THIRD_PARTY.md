@@ -55,3 +55,7 @@ Reviewed visual categories, priority, category deduplication and contextual edit
 ## Development dependency
 
 jsdom 26.1.0 and fake-indexeddb 6.2.5 are MIT-licensed and used only for tests, not bundled into the userscript.
+
+## Passphrase word list
+
+Electronic Frontier Foundation's [EFF Short Wordlist #1](https://www.eff.org/files/2016/09/08/eff_short_wordlist_1.txt) is included under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Companion removes the dice indices and one hyphenated entry so spaces and hyphens can both separate the generated words.

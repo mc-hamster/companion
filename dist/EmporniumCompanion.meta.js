@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Companion
 // @namespace    empornium-companion.local
-// @version      2.14.2-alpha.1
+// @version      2.14.2-alpha.2
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion
@@ -29,6 +29,7 @@
 // @grant        GM_addStyle
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
+// @grant        GM_setClipboard
 // @connect      hamsterimg.net
 // @connect      hamster.is
 // @connect      empornium.sx

@@ -14,6 +14,7 @@ import { ResultGrid, gridCardSizeChoices } from './grid-view.mjs';
 import { ResultFilters } from './result-filters.mjs';
 import { compileConditionalRules } from './conditional-rules.mjs';
 import { mountLuminanceImport } from './luminance-import.mjs';
+import { mountTemplateSync } from './template-sync.mjs';
 import { mountSettingTooltips, setSettingHelp, settingHelp } from './setting-help.mjs';
 import { coalesceScanRoots, presentationMutation, mutationChangesResults } from './scheduling.mjs';
 
@@ -577,6 +578,7 @@ export class CompanionApp {
     );
     for(const item of backup.querySelectorAll('button,input'))item.dataset.optionItem='';
     mountLuminanceImport(this, backup);
+    if (this.options.empTemplate) mountTemplateSync(this);
     const setupHelp=setSettingHelp(this.button('Getting started',()=>this.onboarding.show()),
       'Reopen the setup guide to review common browsing and image choices.');
     setupHelp.classList.add('epc-settings-help');this.panes.settings.append(setupHelp);
@@ -914,7 +916,7 @@ export class CompanionApp {
     return { format: 'empornium-companion', version: 1, createdAt: new Date().toISOString(),
       settings: this.settings, searches: this.searches, searchDrawerOpen: this.activePane === 'searches', nse };
   }
-  importData(text, keepUndo = true, { completeOnboarding = false, mergePreferences = false } = {}) {
+  importData(text, keepUndo = true, { completeOnboarding = false, mergePreferences = false, replaceNSEKeys = null } = {}) {
     let parsed;
     try { parsed = JSON.parse(text); }
     catch { throw new SyntaxError('The backup file is not valid JSON.'); }
@@ -930,7 +932,7 @@ export class CompanionApp {
       }
       if (!mergePreferences) searches = validateSearches(parsed.searches);
       nse = this.options.validateNSE?.(parsed.nse || {}) || parsed.nse;
-      if (!mergePreferences) drawer = !!parsed.searchDrawerOpen;
+      if (!mergePreferences && !replaceNSEKeys) drawer = !!parsed.searchDrawerOpen;
     } else if ('empSavedSearches' in parsed) {
       let legacy = parsed.empSavedSearches;
       if (typeof legacy === 'string') {
@@ -961,20 +963,26 @@ export class CompanionApp {
     if (searches) changes.set(SEARCH_KEY, searches);
     if (drawer !== undefined) changes.set('ep.searchDrawerOpen', drawer);
     if (nse) {
-      if (!mergePreferences) for (const key of this.storage.list()) if (/^nse/.test(key)) changes.set(key, undefined);
+      if (!mergePreferences) {
+        for (const key of replaceNSEKeys ?? this.storage.list().filter(key => /^nse/.test(key))) changes.set(key, undefined);
+      }
       for (const [key, value] of Object.entries(nse)) changes.set(key, value);
     }
     if (!changes.size) throw new Error('No compatible settings were found.');
     this.preferences.cancel();
     const previous = this.exportData();
+    if (keepUndo && replaceNSEKeys) {
+      previous.settings = validateSettings({ ...previous.settings, ...this.storage.get(SETTINGS_KEY, {}) });
+      previous.searches = validateSearches(this.storage.get(SEARCH_KEY, previous.searches));
+    }
     if (mergePreferences) {
       const stored = this.storage.get(SETTINGS_KEY, {});
       changes.set('ep.preferenceUndo', { time: Date.now(), settings: { ...previous.settings, ...stored }, nse: previous.nse });
     }
-    const old = new Map(Array.from(changes.keys(), key => [key, this.storage.get(key, undefined)]));
+    const writes = keepUndo ? new Map([['ep.previousImport', previous], ...changes]) : changes;
+    const old = new Map(Array.from(writes.keys(), key => [key, this.storage.get(key, undefined)]));
     try {
-      if (keepUndo) this.storage.set('ep.previousImport', previous);
-      for (const [key, value] of changes) value === undefined ? this.storage.delete(key) : this.storage.set(key, value);
+      for (const [key, value] of writes) value === undefined ? this.storage.delete(key) : this.storage.set(key, value);
     } catch (error) {
       for (const [key, value] of old) {
         try { value === undefined ? this.storage.delete(key) : this.storage.set(key, value); } catch {}

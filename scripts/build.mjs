@@ -196,12 +196,14 @@ const app = stripExports((await read('src/app.mjs')).replace(/import \{[\s\S]*?\
 const workspace = stripExports((await read('src/workspace.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const preferences = stripExports((await read('src/preferences.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const backfill = stripExports((await read('src/backfill.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
-const collageQuickAdd = stripExports(await read('src/collage-quick-add.mjs'));
+const collageQuickAdd = stripExports((await read('src/collage-quick-add.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const onboarding = stripExports((await read('src/onboarding.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const imageCache = stripExports((await read('src/image-cache.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const searchEditor = stripExports((await read('src/search-editor.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const resultTools = stripExports(await read('src/result-tools.mjs'));
 const luminanceImport = stripExports((await read('src/luminance-import.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
+const templateWords = stripExports(await read('src/template-passphrase-words.mjs'));
+const templateSync = stripExports((await read('src/template-sync.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
 const tooltips = stripExports(await read('src/setting-help.mjs'));
 const conditionalRules = stripExports(await read('src/conditional-rules.mjs'));
 const conditionalRuleEditor = stripExports((await read('src/conditional-rule-editor.mjs')).replace(/import \{[\s\S]*?\} from '\.\/[^']+';\n/g, ''));
@@ -227,7 +229,7 @@ const header = [
     ['// @match        https://' + host + '/*', '// @match        https://www.' + host + '/*']),
   '// @run-at       document-start',
   '// @noframes',
-  ...['GM_getValue','GM_setValue','GM_listValues','GM_deleteValue','GM_addStyle','GM_registerMenuCommand','GM_xmlhttpRequest'].map(grant => '// @grant        ' + grant),
+  ...['GM_getValue','GM_setValue','GM_listValues','GM_deleteValue','GM_addStyle','GM_registerMenuCommand','GM_xmlhttpRequest','GM_setClipboard'].map(grant => '// @grant        ' + grant),
   ...IMAGE_CACHE_HOSTS.map(host => '// @connect      ' + host),
   '// ==/UserScript=='
 ].join('\n');
@@ -236,7 +238,7 @@ const bootstrap = (await read('src/bootstrap.inc.js'))
   .replace('/*COMPANION_CSS*/', JSON.stringify(css))
   .replace('/*NSE_BODY*/', nse);
 await mkdir(new URL('dist/', root), { recursive: true });
-const artifact = header + '\n\n(function () {\n"use strict";\n' + core + '\n' + imageCache + '\n' + preferences + '\n' + backfill + '\n' + collageQuickAdd + '\n' + onboarding + '\n' + searchEditor + '\n' + resultTools + '\n' + gridView + '\n' + scheduling + '\n' + tooltips + '\n' + workspace + '\n' + conditionalRules + '\n' + conditionalRuleEditor + '\n' + resultFilters + '\n' + luminanceImport + '\n' + app + '\n' + settings + '\n' + bootstrap + '\n})();\n';
+const artifact = header + '\n\n(function () {\n"use strict";\n' + core + '\n' + imageCache + '\n' + preferences + '\n' + backfill + '\n' + collageQuickAdd + '\n' + onboarding + '\n' + searchEditor + '\n' + resultTools + '\n' + gridView + '\n' + scheduling + '\n' + tooltips + '\n' + workspace + '\n' + conditionalRules + '\n' + conditionalRuleEditor + '\n' + resultFilters + '\n' + luminanceImport + '\n' + templateWords + '\n' + templateSync + '\n' + app + '\n' + settings + '\n' + bootstrap + '\n})();\n';
 await writeFile(new URL('dist/EmporniumCompanion.meta.js', root), header + '\n');
 await writeFile(new URL('dist/EmporniumCompanion.user.js', root), artifact);
 await writeFile(new URL('dist/EmporniumCompanion-' + releaseVersion + '.user.js', root), artifact);

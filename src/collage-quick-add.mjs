@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { emporniumAccountID } from './core.mjs';
 
 const quickAddID = /^[1-9]\d{0,14}$/;
 const quickAddCollagePath = /^\/collage\/([1-9]\d{0,14})\/?$/;
@@ -8,13 +9,6 @@ function quickAddPageID(url, pathname) {
   const ids = url.searchParams.getAll('id');
   return url.pathname === pathname && !url.searchParams.has('action') && ids.length === 1 && quickAddID.test(ids[0])
     ? ids[0] : null;
-}
-
-function quickAddAccount(root, page) {
-  const href = root.querySelector('#userinfo_username a[href]')?.getAttribute('href');
-  if (!href || !URL.canParse(href, page)) return null;
-  const url = new URL(href, page);
-  return url.origin === page.origin ? quickAddPageID(url, '/user.php') : null;
 }
 
 function quickAddForm(root, collageURL) {
@@ -53,7 +47,7 @@ export class CollageQuickAdd {
     if (this.tools || !this.collageID && !this.torrentID) return;
     const { app, page } = this;
     const heading = app.doc.querySelector('#content h2');
-    this.accountID = quickAddAccount(app.doc, page);
+    this.accountID = emporniumAccountID(app.doc, page);
     if (!heading || !this.accountID) return;
 
     if (this.collageID) {
@@ -162,7 +156,7 @@ export class CollageQuickAdd {
     if (html.length > 8 * 1024 * 1024) throw new Error('The Empornium page was too large to check.');
     const template = this.app.doc.createElement('template');
     template.innerHTML = html;
-    if (quickAddAccount(template.content, url) !== this.accountID) throw new Error('Your Empornium session changed.');
+    if (emporniumAccountID(template.content, url) !== this.accountID) throw new Error('Your Empornium session changed.');
     return template.content;
   }
 

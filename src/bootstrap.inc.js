@@ -27,6 +27,11 @@ function epRunNSE(app) {
 const epApp = createApp(window, epStorage, {
   waitForFilters: true, startNSE: epRunNSE,
   requestImage: typeof GM_xmlhttpRequest === 'function' ? details => GM_xmlhttpRequest(details) : null,
+  empTemplate: epHost ? {
+    nseSchema: epSchema,
+    prompt: window.prompt?.bind(window),
+    copyPassphrase: typeof GM_setClipboard === 'function' ? text => GM_setClipboard(text, 'text') : null
+  } : null,
   localImageCache: !!epFixture,
   newRows: (root, rows) => epBridge.newRows?.(root, rows),
   flushNSE: () => epBridge.flush?.(),
