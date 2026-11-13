@@ -1586,6 +1586,10 @@ export class PageMedia {
       this.win.requestAnimationFrame(() => {
         this.demandPending = false;
         if (this.disposed) return;
+        if (this.thumbnailLayoutChanged) {
+          this.thumbnailLayoutChanged = false;
+          this.invalidateLayout();
+        }
         for (const [target, callback] of this.near) if (this.visible(target, true)) callback();
         this.prepareThumbnails();
         this.planAutomaticRecovery();
@@ -1666,6 +1670,7 @@ export class PageMedia {
           entry.target = null;
         }
         record.image.removeAttribute('src'); delete record.image.dataset.epImageSource;
+        record.element.style.removeProperty('--epc-thumb-height-ratio');
         record.gifPoster?.remove(); record.gifPoster = null;
         record.lastEntry = null; record.state = 'deferred'; record.element.dataset.state = 'deferred';
         record.failedAt = null; record.autoRecoveryAttempted = false;
@@ -2072,10 +2077,22 @@ export class PageMedia {
     this.win.clearTimeout(this.historyTimer);this.historyTimer=null;
     try{this.app.storage.set('ep.thumbnailHistory',[...this.thumbnailHistory]);}catch{}
   }
+  updateThumbnailRatio(record, image, property) {
+    if (!record.row) return;
+    const { naturalWidth, naturalHeight } = image;
+    const ratio = String(naturalWidth && naturalHeight ? Math.min(1, naturalHeight / naturalWidth) : 1);
+    if (record.element.style.getPropertyValue(property) === ratio) return;
+    record.element.style.setProperty(property, ratio);
+    if (!record.row.closest('.epc-result-grid')) {
+      this.thumbnailLayoutChanged = true;
+      this.demandListener();
+    }
+  }
   showThumbnail(record, entry) {
     const displayURL = entry.displayURL || entry.actualURL;
     if (record.image.getAttribute('src') !== displayURL) record.image.src = displayURL;
     record.image.dataset.epImageSource = entry.actualURL;
+    this.updateThumbnailRatio(record, entry.image, '--epc-thumb-height-ratio');
     record.status.hidden = true;
     if (record.coverArt || record.row.closest('.epc-result-grid') || this.listCoverAutoplay(record.row)) this.drawGridGifPoster(record, entry);
   }
@@ -2168,6 +2185,7 @@ export class PageMedia {
       image.classList.add('epc-grid-gif-playback'); image.alt = ''; image.draggable = false;
       record.image.after(image);
       record.element.setAttribute('data-ep-grid-playing', '');
+      this.updateThumbnailRatio(record, item.image, '--epc-playback-height-ratio');
     };
     if (movable) {
       // Keep the loaded node in the card without letting a popup move it.
@@ -2192,6 +2210,10 @@ export class PageMedia {
     const { image, owner } = playback;
     if (!image) return;
     record.element.removeAttribute('data-ep-grid-playing');
+    if (record.element.style.removeProperty('--epc-playback-height-ratio') && !record.row?.closest('.epc-result-grid')) {
+      this.thumbnailLayoutChanged = true;
+      this.demandListener();
+    }
     image.classList.remove('epc-grid-gif-playback');
     image.remove();
     if (owner) {

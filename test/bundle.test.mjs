@@ -648,21 +648,20 @@ test('the simplified interface shows three task areas and keeps Grid preferences
   } finally { f.close(); }
 });
 
-test('per-result hide buttons can be turned off while bulk hide still works', async () => {
+test('per-result hide buttons default to off while bulk hide still works', async () => {
   const f = await setup();
   try {
     const control = f.doc.querySelector('[data-setting=showResultHideButton]');
     const button = f.doc.querySelector('.nseToggleHideButton');
-    control.checked = false;
-    control.dispatchEvent(new f.win.Event('change', { bubbles: true }));
-    await until(() => f.win.getComputedStyle(button).display === 'none', 'Per-result button hidden');
-    assert.equal(f.storage.get('ep.settings').showResultHideButton, false);
+    assert.equal(control.checked, false);
+    assert.equal(f.win.getComputedStyle(button).display, 'none');
     f.doc.querySelector('.epc-navigation [data-pane="filters"]').click();
     [...f.doc.querySelectorAll('.epc-pane button')].find(b => b.textContent === 'Hide visible results').click();
     await until(() => f.storage.get('nseIndividualUploadHidingBlacklist', []).length === 2, 'Bulk hide saved both results');
     control.checked = true;
     control.dispatchEvent(new f.win.Event('change', { bubbles: true }));
-    await until(() => !f.doc.documentElement.hasAttribute('data-ep-hide-result-buttons'), 'Per-result buttons restored');
+    await until(() => !f.doc.documentElement.hasAttribute('data-ep-hide-result-buttons'), 'Per-result buttons shown');
+    assert.equal(f.storage.get('ep.settings').showResultHideButton, true);
   } finally { f.close(); }
 });
 

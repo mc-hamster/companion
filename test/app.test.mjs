@@ -189,6 +189,31 @@ test('old two-slot default migrates and small thumbnails are preferred for suppo
   assert.equal(entry.timeoutMs, 4500); assert.equal(entry.lane, 'thumbnail');
   f.close();
 });
+test('List reserves a square then fits wide images and caps portrait height', async () => {
+  const f = await setup(overlayHTML(1, 'https://hamsterimg.net/images/example.gif'), { inlineThumbnails: true });
+  try {
+    const thumbnail = f.doc.querySelector('.epc-thumbnail');
+    const heightRatio = () => thumbnail.style.getPropertyValue('--epc-thumb-height-ratio');
+    assert.equal(heightRatio(), '');
+    assert.match(f.c.images[0].src, /example\.th\.gif$/);
+    f.c.images[0].succeed(100, 100);
+    assert.equal(heightRatio(), '1');
+
+    const source = f.app.controls.get('thumbnailMode');
+    source.value = 'original';
+    source.dispatchEvent(new f.win.Event('change', { bubbles: true }));
+    await until(() => f.c.images.some(image => image.src.endsWith('/example.gif')), 'Original image requested');
+    assert.equal(heightRatio(), '');
+    f.c.images.find(image => image.src.endsWith('/example.gif')).succeed(1600, 900);
+    assert.equal(heightRatio(), '0.5625');
+  } finally { f.close(); }
+
+  const portrait = await setup(overlayHTML(1, 'https://x.test/portrait.jpg'), { inlineThumbnails: true });
+  try {
+    portrait.c.images[0].succeed(600, 900);
+    assert.equal(portrait.doc.querySelector('.epc-thumbnail').style.getPropertyValue('--epc-thumb-height-ratio'), '1');
+  } finally { portrait.close(); }
+});
 test('pinning an in-flight preview hands off its subscription without restarting it', async () => {
   const f = await setup(overlayHTML(1, 'https://x.test/a.jpg'));
   const link = f.doc.querySelector('.fixture-title');
