@@ -1,8 +1,26 @@
+# Companion 2.14.2 validation
+
+The build, syntax checks, and all **366 automated tests** pass. The stable and versioned userscripts are identical. Bundle SHA-256 is `b4f31a9476c723b68f72b6d3fe8a2d23fe5f848029c8f485dc6c4f74912fd42c`.
+
+The stable build differs from the alpha verified in Tampermonkey only in the `@version` metadata.
+
+---
+
 # Companion 2.14.2-alpha.1 validation
 
 The build, syntax checks, and all **366 automated tests** pass. The current and versioned userscripts are identical. Bundle SHA-256 is `e13ac8ed76780ca2d4e27b41979f2a7fd1360c830fb230485b6eb3d26e32199e`.
 
 In an isolated Chrome profile, Tampermonkey 5.5.1 updated 2.14.1 in place through **Check for updates**. The dashboard showed a single entry named Companion, and the local fixture retained a saved search, a blocked tag, and the completed setup state. The updated script imported an older backup and offered new exports as `companion-backup.json`. Opening the install URL directly before updating offered a separate installation.
+
+---
+
+# Companion 2.14.1 validation
+
+Updated November 8, 2026.
+
+The build, syntax checks, and all **365 automated tests** pass. The stable and versioned userscripts are identical. Tested bundle SHA-256 is `5e1e1a73757221f6c2e1088e94bbabb6de64f0df8a3bda77be75f76db0bcc837`.
+
+The stable userscript has the same runtime as the alpha checked in Chrome using local fixtures at desktop and phone widths.
 
 ---
 
@@ -13,6 +31,16 @@ Updated November 8, 2026.
 The build, syntax checks, and all **365 automated tests** pass. The installable userscript and the versioned alpha file are identical. Bundle SHA-256 is `bc4eb5ad8956f513a10e8d6da93419cfe03744b057fb783cee9d4e2e6fed5f39`.
 
 Chrome checks of the redesign used the local demo at desktop and phone widths. View options updated Grid and List, Grid exposed alternate-version links, the Freeleech chip cleared the active filter, and Stop loading kept appended results. The toolbar fit at 320 px with View options open.
+
+---
+
+# Companion 2.14.0 validation
+
+Updated November 7, 2026.
+
+The build, syntax checks, and all **363 automated tests** pass. The stable and versioned userscripts are identical. Tested bundle SHA-256 is `d3f32267414249d43f06f53c9944109368ed1cba78bbb9cfe2a1391f1334df9b`.
+
+The stable build uses the same runtime as the alpha build exercised in local Chromium fixtures. Those checks covered Freeleech and filter reasons, List columns, Grid tag cues, responsive and collapsed detail tags, Luminance import and undo, cover playback and reduced motion, and setting help. The fixtures used sample records and loopback image requests.
 
 ---
 

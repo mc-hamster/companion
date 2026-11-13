@@ -44,13 +44,15 @@ PASS: $TA{sample} OR $TI{preview clip}
 
 **Filters → Seen & Ignored** stores up to 2,000 seen torrents in this browser. Choose how to display previously opened torrents. The **Hide this result** button sets individual ignores. The per-result buttons are off by default. Turn on **Show “Hide this result” buttons** under **Settings → Browsing** to use them. Under **Review history**, use **Mark unseen** or **Unignore** to reverse an entry. Seen history is stored separately from exported preferences, and open result pages pick up other tabs’ entries when they regain focus.
 
+In 2.14.3, List thumbnails reserve a square frame while loading and shorten to fit wide images. Grid settings appear when Grid is selected and are also available through Settings search.
+
 ## Import data
 
 **Older filter exports:** NoShitEmpornium exports are supported through **Companion → Settings → Backup & restore**. Restored preferences apply immediately. Reset filter preferences clears filtering data only and retains its confirmation. Existing lists and preferences from Companion 1.0 are retained.
 
 **Luminance Tag Highlighter+:** Copy the JSON from **LTH → Import/Export → Export Settings**. In Companion, open **Settings → Backup & restore → Import from Luminance**, then paste the JSON and choose **Preview import** or select a saved export file. Review the destination for each group. **Block** requires a selection. The **Useless** group can be mapped to **Collapse on details**. Existing rules take precedence over conflicting imports. Use **Undo changes** to reverse the import while keeping saved searches. After reviewing your tags, disable Luminance and reload.
 
-**Experimental transfer through Emp (alpha):** In **Settings → Experimental**, copy the generated passphrase and choose **Write to Companion Template** on the device with your settings. On the other device, sign in to the same Emp account, choose **Show or change passphrase**, enter the same eight words in order, and choose **Read from Companion Template**. Review and apply the snapshot. A write creates or replaces one encrypted private upload template named **Companion**. Your Emp account needs access to private upload templates. **Backup & restore → Restore previous import** reverses the import locally.
+**Experimental transfer through Emp:** In **Settings → Experimental**, copy the generated passphrase and choose **Write to Companion Template** on the device with your settings. On the other device, sign in to the same Emp account, choose **Show or change passphrase**, enter the same eight words in order, and choose **Read from Companion Template**. Review and apply the snapshot. A write creates or replaces one encrypted private upload template named **Companion**. Your Emp account needs access to private upload templates. **Backup & restore → Restore previous import** reverses the import locally.
 
 The snapshot carries portable settings, filter rules, theme colors, and saved searches. The passphrase stays in userscript storage. Custom CSS and its switch, seen history and individual allow/ignore lists, pinned collages, diagnostic logs and their logging switch, persistent image data and retention choices, and local UI and recovery state stay on each device.
 
