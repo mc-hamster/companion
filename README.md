@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.14.2 Alpha 2](dist/EmporniumCompanion-2.14.2-alpha.2.user.js)**
+**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.14.2 Alpha 3](dist/EmporniumCompanion-2.14.2-alpha.3.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
