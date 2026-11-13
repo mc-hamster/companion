@@ -6,7 +6,7 @@ export const DEFAULTS = Object.freeze({
   thumbnailSize: 100, previewWidth: 440, hoverDelay: 140, hideDelay: 240,
   resultsView: 'list', gridCardWidth: 320, gridSpacing: 'standard', gridAutoplayGifs: false, listAutoplayGifs: false,
   gridShowDetails: false, gridShowTags: false, gridTagCues: true, adaptiveDetailTags: false,
-  listHiddenColumns: '', collapsedDetailTags: '',
+  listHiddenColumns: '', collapsedDetailTags: '', showResultHideButton: true,
   concurrency: 8, maxRetries: 2, stallMs: 8000, timeoutMs: 24000, thumbnailTimeoutMs: 4500,
   cacheEntries: 24, cacheMegapixels: 48, preloadScreens: 0.8,
   persistentImages: true, persistentCacheMB: 512,

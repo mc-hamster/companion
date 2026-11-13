@@ -535,7 +535,10 @@ test('Appearance can apply saved Grid options to results currently shown as List
     pane(f, 'settings');
     const settings = f.doc.querySelector('.epc-pane[data-pane=settings]');
     assert.equal(f.doc.querySelector('.epc-result-grid'), null);
+    const spacing = settings.querySelector('[data-setting=gridSpacing]');
+    assert.equal(spacing.closest('label').hidden, true);
     const button = clickText(settings, 'Switch to Grid');
+    assert.equal(spacing.closest('label').hidden, false);
     assert.equal(f.store.get('ep.settings').resultsView, 'grid');
     assert.equal(f.doc.querySelector('.epc-result-grid').dataset.epGridSpacing, 'compact');
     assert.equal(button.hidden, true);

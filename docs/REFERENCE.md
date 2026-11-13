@@ -42,7 +42,7 @@ PASS: $TA{sample} OR $TI{preview clip}
 
 `HIDE` and `SHOW` follow the ordinary block and allow rules. `PASS` takes Hard Pass precedence, and explicit per-torrent overrides retain priority. Right-click a result tag and choose **Hide this tag for [uploader]** to add a rule for that combination. Conditional rules are included in preference Undo and backups.
 
-**Filters → Seen & Ignored** stores up to 2,000 seen torrents in this browser. Choose how to display previously opened torrents. The **Hide this result** eye control sets individual ignores. Under **Review history**, use **Mark unseen** or **Unignore** to reverse an entry. Seen history is stored separately from exported preferences, and open result pages pick up other tabs’ entries when they regain focus.
+**Filters → Seen & Ignored** stores up to 2,000 seen torrents in this browser. Choose how to display previously opened torrents. The **Hide this result** button sets individual ignores. To hide the per-result buttons, turn off **Show “Hide this result” buttons** under **Settings → Browsing**. Under **Review history**, use **Mark unseen** or **Unignore** to reverse an entry. Seen history is stored separately from exported preferences, and open result pages pick up other tabs’ entries when they regain focus.
 
 ## Import data
 

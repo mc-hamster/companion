@@ -221,6 +221,7 @@ export class ResultGrid {
     const grid = this.app.settings.resultsView === 'grid';
     for (const [value, button] of this.layoutButtons) button.setAttribute('aria-pressed', String(this.app.settings.resultsView === value));
     if (this.settingsSwitch) this.settingsSwitch.hidden = this.layout.hidden || grid;
+    if (this.settingsGridNote) this.settingsGridNote.hidden = !grid;
     this.gridOptions.hidden = !grid;
     this.viewOptionsButton.hidden = this.layout.hidden || !grid && this.columnOptions.hidden;
     if (this.viewOptionsButton.hidden) this.closeViewOptions();
@@ -233,7 +234,8 @@ export class ResultGrid {
       this.layoutButtons.get('grid').click();
       if (this.settingsSwitch.hidden) app.controls.get('resultsView').focus();
     }), 'Apply the Grid layout to the current results so you can see your card settings.');
-    help.append(app.node('p', 'Grid spacing also applies to the site’s Cover Art grid. Cover playback has separate settings for Grid and List.'), this.settingsSwitch);
+    this.settingsGridNote = app.node('p', 'Grid spacing also applies to the site’s Cover Art grid.');
+    help.append(this.settingsGridNote, this.settingsSwitch);
     this.syncControls();
     return help;
   }

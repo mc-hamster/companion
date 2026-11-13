@@ -493,7 +493,8 @@ export class CompanionApp {
       ['backfillEnabled', 'Show Load more action', 'checkbox'],
       ['backfillMode', 'Load more pages', ['off', 'pages', 'all']],
       ['backfillPages', 'Additional pages per batch', 'number', 1, 15],
-      ['groupVersions', 'Group alternate video versions', 'checkbox']
+      ['groupVersions', 'Group alternate video versions', 'checkbox'],
+      ['showResultHideButton', 'Show “Hide this result” buttons', 'checkbox']
     ];
     for (const [key, label, type, min, max] of schema) {
       const row = this.node('label', null, 'epc-setting');
@@ -522,7 +523,7 @@ export class CompanionApp {
       control.dataset.setting = key; this.controls.set(key, control); row.append(control);
       setSettingHelp(caption, settingHelp[key], control);
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
-      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridSpacing','gridAutoplayGifs','listAutoplayGifs','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions'].includes(key)?browsing :
+      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridSpacing','gridAutoplayGifs','listAutoplayGifs','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions','showResultHideButton'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
         ['gridTagCues', 'adaptiveDetailTags'].includes(key) ? this.optionGroups.appearance :
         key === 'diagnostics' ? this.optionGroups.diagnostics : ['keyboardShortcuts', 'navigationScope'].includes(key) ? this.optionGroups.interaction :
@@ -697,6 +698,11 @@ export class CompanionApp {
     const row=pages.closest('[data-option-item]');row.querySelector('span').textContent=mode==='off'?'Pages per click':'Additional pages';
     const searching=!!this.settingsSearch?.value.trim();if(!searching)row.hidden=mode==='all';
     if(mode==='all'&&!pages.checkValidity())pages.value=this.settings.backfillPages;
+    const list = this.controls.get('resultsView').value === 'list';
+    if (!searching) for (const key of ['gridCardWidth', 'gridSpacing', 'gridAutoplayGifs', 'gridShowDetails', 'gridShowTags', 'gridTagCues']) {
+      this.controls.get(key).closest('label').hidden = list;
+    }
+    this.doc.documentElement.toggleAttribute('data-ep-hide-result-buttons', !this.settings.showResultHideButton);
     this.controls.get('navigationScope').disabled = !this.controls.get('keyboardShortcuts').checked;
     this.syncCoverMotionControls();
     if(!this.cacheStatsPinned&&this.cacheUsage?.hidden){this.win.clearTimeout(this.cacheUsageClock);this.cacheUsageClock=null;}
@@ -861,7 +867,7 @@ export class CompanionApp {
     const other = new Set(['groupVersions', 'favoriteTags', 'cautionTags', 'backfillEnabled', 'backfillPages', 'backfillMode',
       'keyboardShortcuts', 'navigationScope', 'globalArrowNavigation', 'diagnostics', 'persistentImages', 'persistentCacheMB',
       'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView', 'collapsedDetailTags',
-      'adaptiveDetailTags', 'gridTagCues', 'listHiddenColumns']);
+      'adaptiveDetailTags', 'gridTagCues', 'listHiddenColumns', 'showResultHideButton']);
     if (!Object.keys(this.settings).some(key => !other.has(key) && previous[key] !== this.settings[key])) return;
     if (previous.enabled !== this.settings.enabled) {
       this.restartMedia(); return;

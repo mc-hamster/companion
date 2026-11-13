@@ -205,7 +205,7 @@ export class ResultFilters {
     this.historyNext = app.button('Next entries', () => { this.historyPage++; this.renderHistory(); });
     paging.append(this.historyPrev, this.historyNext);
     const help = app.node('p', 'Opening a torrent’s details marks it seen in this browser. Choose ', 'epc-caption');
-    help.append(app.node('strong', 'Hide this result'), ' (the eye icon) to ignore a torrent.');
+    help.append(app.node('strong', 'Hide this result'), ' on a result to ignore that torrent.');
     section.append(help, label,
       listLabel, this.historyCount, this.historyList, paging);
     section.addEventListener('toggle', () => { if (section.open) this.refreshSeen(); });
