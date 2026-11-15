@@ -100,7 +100,7 @@ test('saving highlight-only preferences leaves media and version membership inta
 });
 
 test('queued and completed thumbnails leave scroll observation while new results still warm', async () => {
-  const f = await setup(undefined, overlayHTML(1, 'https://x.test/a.jpg') + overlayHTML(2, 'https://x.test/b.jpg'), { inlineThumbnails: true });
+  const f = await setup(undefined, overlayHTML(1, 'https://x.test/a.jpg') + overlayHTML(2, 'https://x.test/b.jpg'), { thumbnailMode: 'supplied', inlineThumbnails: true });
   try {
     assert.equal(f.app.media.near.size, 0); assert.equal(f.clock.images.length, 2);
     for (const image of f.clock.images) image.succeed();

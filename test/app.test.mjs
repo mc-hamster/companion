@@ -126,7 +126,7 @@ test('collage covers share the pool and follow a changed background source', asy
   f.close();
 });
 test('dynamic rows get one thumbnail and keyboard preview shares its transfer', async () => {
-  const f = await setup(overlayHTML(1, 'https://x.test/a.jpg'), { inlineThumbnails: true });
+  const f = await setup(overlayHTML(1, 'https://x.test/a.jpg'), { thumbnailMode: 'supplied', inlineThumbnails: true });
   assert.equal(f.doc.querySelectorAll('.epc-thumbnail').length, 1);
   f.app.schedule(f.doc.body); await settle();
   assert.equal(f.doc.querySelectorAll('.epc-thumbnail').length, 1); assert.equal(f.c.images.length, 1);
@@ -189,7 +189,7 @@ test('old two-slot default migrates and small thumbnails are preferred for suppo
   assert.equal(entry.timeoutMs, 4500); assert.equal(entry.lane, 'thumbnail');
   f.close();
 });
-test('List reserves a square then fits wide images and caps portrait height', async () => {
+test('List sizes landscape and portrait thumbnails by their image proportions', async () => {
   const f = await setup(overlayHTML(1, 'https://hamsterimg.net/images/example.gif'), { inlineThumbnails: true });
   try {
     const thumbnail = f.doc.querySelector('.epc-thumbnail');
@@ -199,19 +199,19 @@ test('List reserves a square then fits wide images and caps portrait height', as
     f.c.images[0].succeed(100, 100);
     assert.equal(heightRatio(), '1');
 
-    const source = f.app.controls.get('thumbnailMode');
-    source.value = 'original';
-    source.dispatchEvent(new f.win.Event('change', { bubbles: true }));
-    await until(() => f.c.images.some(image => image.src.endsWith('/example.gif')), 'Original image requested');
-    assert.equal(heightRatio(), '');
-    f.c.images.find(image => image.src.endsWith('/example.gif')).succeed(1600, 900);
+    assert.equal(f.c.images.length, 1, 'only the small variant is loaded before hover');
+    const button = thumbnail.querySelector('button');
+    button.dispatchEvent(new f.win.MouseEvent('pointerenter', { clientX: 40, clientY: 40 }));
+    await until(() => f.c.images.length === 2, 'Hover requests the original');
+    assert.match(f.c.images[1].src, /\/example\.gif$/);
+    f.c.images[1].succeed(1600, 900);
     assert.equal(heightRatio(), '0.5625');
   } finally { f.close(); }
 
-  const portrait = await setup(overlayHTML(1, 'https://x.test/portrait.jpg'), { inlineThumbnails: true });
+  const portrait = await setup(overlayHTML(1, 'https://hamsterimg.net/images/portrait.jpg'), { inlineThumbnails: true });
   try {
     portrait.c.images[0].succeed(600, 900);
-    assert.equal(portrait.doc.querySelector('.epc-thumbnail').style.getPropertyValue('--epc-thumb-height-ratio'), '1');
+    assert.equal(portrait.doc.querySelector('.epc-thumbnail').style.getPropertyValue('--epc-thumb-height-ratio'), '1.5');
   } finally { portrait.close(); }
 });
 test('pinning an in-flight preview hands off its subscription without restarting it', async () => {
@@ -242,7 +242,7 @@ test('invalid filter imports report plain filter terminology without leaking int
   f.close();
 });
 test('size changes keep loaded thumbnails and current transfers intact', async () => {
-  const f = await setup(overlayHTML(1, 'https://x.test/a.jpg'), { inlineThumbnails: true });
+  const f = await setup(overlayHTML(1, 'https://x.test/a.jpg'), { thumbnailMode: 'supplied', inlineThumbnails: true });
   const pool = f.app.media.pool, image = f.doc.querySelector('.epc-thumbnail img');
   f.c.images[0].succeed();
   f.app.controls.get('thumbnailSize').value = '84';
@@ -544,6 +544,7 @@ test('imports and changes from another tab update primary shortcuts, including t
 });
 test('thumbnail hover shows a preview while keeping its trigger clickable', async () => {
   const f = await setup(overlayHTML(1, 'https://x.test/a.jpg'), { inlineThumbnails: true, hoverDelay: 0 });
+  assert.equal(f.c.images.length, 0, 'a missing small variant does not trigger an original request');
   const button = f.doc.querySelector('.epc-thumb-button');
   button.dispatchEvent(new f.win.MouseEvent('pointerenter', { clientX: 40, clientY: 40 })); await settle(10);
   assert.equal(f.app.preview.open, true); assert.equal(f.app.preview.element.style.pointerEvents, 'none');
@@ -606,7 +607,8 @@ test('repeated hover returns retain the thumbnail without spending retries or ad
     f.c.images[0].succeed(160, 90);
     Object.defineProperty(record.image, 'naturalWidth', { get: () => 160 });
     await afterFrames(f.win);
-    const attempts = f.app.media.pool.budget.get(record.source).attempts;
+    const thumbnailBudget = f.app.media.pool.budget.get(f.c.images[0].src);
+    const attempts = thumbnailBudget.attempts;
     const scan = f.app.media.scan.bind(f.app.media); let scans = 0;
     f.app.media.scan = (...args) => { scans++; return scan(...args); };
     const button = record.element.querySelector('button');
@@ -618,7 +620,8 @@ test('repeated hover returns retain the thumbnail without spending retries or ad
       assert.equal(f.app.media.pool.active, 1);
     }
     assert.equal(f.c.images.length, 2, 'eight rehovers share one original request');
-    assert.equal(f.app.media.pool.budget.get(record.source).attempts, attempts + 1);
+    assert.equal(thumbnailBudget.attempts, attempts);
+    assert.equal(f.app.media.pool.budget.get(record.source).attempts, 1);
     assert.equal(scans, 0);
     assert.equal(f.errors.length, 0, f.errors.join('\n'));
   } finally { f.close(); }
@@ -699,7 +702,7 @@ test('pointer movement outside both images clears a transient enlargement after 
   } finally { f.close(); }
 });
 test('one automatic recovery pass repairs a failed thumbnail and an already-open preview', async () => {
-  const f = await setup(overlayHTML(1, 'https://x.test/a.jpg'), { inlineThumbnails: false, maxRetries: 1 });
+  const f = await setup(overlayHTML(1, 'https://x.test/a.jpg'), { thumbnailMode: 'supplied', inlineThumbnails: false, maxRetries: 1 });
   Object.assign(f.app.media.pool.env, f.c.env);
   f.app.settings.inlineThumbnails = true; f.app.media.scan(f.doc.body);
   f.c.images[0].fail(); f.c.tick(700); f.c.images[1].fail();
@@ -731,7 +734,7 @@ test('undoing preferences keeps searches saved after the automatic restore point
   assert.equal(f.app.searches[0].title, 'keep this search'); f.close();
 });
 test('filtered-out image failures do not ask for attention during ordinary browsing', async () => {
-  const f = await setup(overlayHTML(1, 'https://x.test/a.jpg'), { inlineThumbnails: true, maxRetries: 0 });
+  const f = await setup(overlayHTML(1, 'https://x.test/a.jpg'), { thumbnailMode: 'supplied', inlineThumbnails: true, maxRetries: 0 });
   f.c.images[0].fail(); assert.equal(f.app.media.loadCounts().thumbnail.failed, 1);
   const row = f.doc.querySelector('tr.torrent'); row.classList.add('hidden');
   f.app.updateHealth();

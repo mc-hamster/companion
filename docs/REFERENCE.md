@@ -44,7 +44,7 @@ PASS: $TA{sample} OR $TI{preview clip}
 
 **Filters → Seen & Ignored** stores up to 2,000 seen torrents in this browser. Choose how to display previously opened torrents. The **Hide this result** button sets individual ignores. The per-result buttons are off by default. Turn on **Show “Hide this result” buttons** under **Settings → Browsing** to use them. Under **Review history**, use **Mark unseen** or **Unignore** to reverse an entry. Seen history is stored separately from exported preferences, and open result pages pick up other tabs’ entries when they regain focus.
 
-In 2.14.3, List thumbnails reserve a square frame while loading and shorten to fit wide images. Grid settings appear when Grid is selected and are also available through Settings search.
+List thumbnails reserve a square frame while loading and then fit the image’s aspect ratio within the configured size. Grid settings appear when Grid is selected and are also available through Settings search.
 
 ## Import data
 
@@ -90,7 +90,7 @@ Unknown hosts start with two small-thumbnail requests and can grow to six after 
 
 If normal attempts fail, a visible image gets one fresh automatic recovery attempt after a 31-second cooldown or when connectivity returns. This extra attempt does not loop. Setting automatic retries to zero disables it. Hidden/filtered failures do not demand attention, and ordinary status stays quiet after loading succeeds. Detailed counters and technical tuning remain under advanced options.
 
-Auto thumbnails prefer page-provided or previously successful small variants, then make at most one small-name guess on recognized hosts. Page preview and Full original are explicit alternatives. A failed small URL falls back into the large-image lane while respecting its destination host’s pacing.
+Auto thumbnails prefer page-provided or previously successful small variants, then make at most one small-name guess on recognized hosts. Page preview and Full original are explicit alternatives. In List, Small first leaves originals for the enlarged preview. Thumbnail frames fit within the configured size using the available image proportions.
 
 Thumbnail requests continue through the current results page as slots finish, without waiting for scrolling, hovering or IntersectionObserver events. Visible rows lead, nearby rows follow, then distance orders the rest. Filters run first; hidden or removed queued rows are skipped. Revealing results resumes their queue automatically. New offscreen rows join the queue, and a background tab pauses new requests until it becomes visible. Preparing the whole list starts image requests for rows you may never reach, including large fallbacks if small variants fail. Automatic thumbnail preparation does not fetch other result pages or unopened galleries. Backfill explicitly fetches following result-page HTML when clicked. Advanced nearby-image tuning affects priority and page-image recovery distance, rather than gating inline thumbnails.
 

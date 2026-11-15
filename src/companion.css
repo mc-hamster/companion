@@ -42,7 +42,7 @@
 .epc-saved-row{display:flex;gap:3px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--epc-line);padding-top:5px}
 .epc-search-name{flex:1;min-width:130px;text-align:left}
 .epc-thumbnail{display:inline-flex;float:left;position:relative;margin:0 8px 5px 0;vertical-align:top}
-.epc-thumb-button{display:flex;position:relative;justify-content:center;align-items:center;width:var(--epc-thumb-size);height:calc(var(--epc-thumb-size) * var(--epc-playback-height-ratio,var(--epc-thumb-height-ratio,1)));padding:0;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle);overflow:hidden;cursor:zoom-in}
+.epc-thumb-button{display:flex;position:relative;justify-content:center;align-items:center;--epc-image-ratio:var(--epc-playback-height-ratio,var(--epc-thumb-height-ratio,1));width:calc(var(--epc-thumb-size) / max(1,var(--epc-image-ratio)));height:calc(var(--epc-thumb-size) * min(1,var(--epc-image-ratio)));padding:0;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle);overflow:hidden;cursor:zoom-in}
 .epc-thumb-button>img{display:block;width:100%;height:100%;object-fit:contain;border:0;margin:0}
 .epc-thumb-status{position:absolute;inset:auto 2px 2px;background:#17213ae8;color:#fff;font:11px/1.3 system-ui,sans-serif;text-align:center;padding:2px;border-radius:3px}
 .epc-thumb-button>img:not([src]){visibility:hidden}

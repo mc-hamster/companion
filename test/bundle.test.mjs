@@ -56,7 +56,7 @@ test('built artifact is self-contained and restricted to Empornium', () => {
   assert.ok(matches.every(line => /(?:empornium\.(?:sx|me|is|ph)|emparadise\.rs)/.test(line)));
 });
 test('duplicate userscript injection renders only one thumbnail per result', async () => {
-  const f = await setup({ 'ep.settings': { inlineThumbnails: true } }, rowHTML(1), '', undefined, { injections: 2 });
+  const f = await setup({ 'ep.settings': { inlineThumbnails: true } }, rowHTML(1), overlayHTML(1, 'https://x.test/a.jpg', 'https://x.test/a-small.jpg'), undefined, { injections: 2 });
   try {
     const row = f.doc.querySelector('tr.torrent');
     assert.equal(row.querySelectorAll('.epc-thumbnail').length, 1);

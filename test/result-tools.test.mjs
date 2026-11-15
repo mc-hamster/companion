@@ -127,7 +127,7 @@ test('[FLT-08] revealing a filtered version leaves unfiltered versions grouped a
 
 test('collapsed alternate thumbnails stay unrequested and expand through the existing pool', async () => {
   const f = await setup(rowHTML(1, { title: 'Mountain Walk [720p]' }) + rowHTML(2, { title: 'Mountain Walk [1080p]' }),
-    { 'ep.settings': { inlineThumbnails: true } });
+    { 'ep.settings': { thumbnailMode: 'supplied', inlineThumbnails: true } });
   try {
     assert.equal(f.clock.images.length, 1); assert.equal(f.clock.images[0].src, 'https://x.test/1.jpg');
     f.doc.querySelector('.epc-version-control').click();

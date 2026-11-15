@@ -1658,7 +1658,7 @@ export class PageMedia {
       const listAutoplay = this.listCoverAutoplay(row);
       const listPlaybackChanged = !grid && row.matches('tr.torrent') && settings.listAutoplayGifs !== previous.listAutoplayGifs;
       const layoutNeedsReload = changedLayout && (!usable || grid && (!entry ||
-        !this.thumbnailOptions(record.source, null, 'grid')?.candidates.includes(canonicalImageURL(entry.actualURL))));
+        !this.thumbnailOptions(record.source, null, 'small-only')?.candidates.includes(canonicalImageURL(entry.actualURL))));
       if (layoutNeedsReload || listPlaybackChanged && (!usable || !listAutoplay) ||
           !grid && !listAutoplay && settings.thumbnailMode !== previous.thumbnailMode) {
         record.unsubscribe?.(); record.unsubscribe = null; this.pool.abandon(entry);
@@ -2046,21 +2046,21 @@ export class PageMedia {
     if (!matching.size) this.thumbnailsByOriginal.delete(record.original);
   }
   thumbnailOptions(source, rescueEntry, mode = this.app.settings.thumbnailMode, preferred) {
-    const grid = mode === 'grid', original = fullSizeURL(canonicalImageURL(source));
+    const smallOnly = mode === 'small-only', original = fullSizeURL(canonicalImageURL(source));
     const smallCandidates = (rescueEntry ? [...rescueEntry.smallCandidates] :
       [this.thumbnailHistory.get(canonicalImageURL(source))?.src, preferred,
         ...Array.from(this.knownVariants.get(fullSizeURL(source)) || [])].filter(Boolean))
-      .filter(candidate => mode !== 'auto' && !grid || canonicalImageURL(candidate) !== original);
+      .filter(candidate => mode !== 'auto' && !smallOnly || canonicalImageURL(candidate) !== original);
     let candidates = rescueEntry ? [canonicalImageURL(rescueEntry.actualURL)] :
-      thumbnailCandidates(source, grid ? 'auto' : mode, smallCandidates);
-    if (grid) {
+      thumbnailCandidates(source, smallOnly ? 'auto' : mode, smallCandidates);
+    if (smallOnly) {
       candidates = candidates.map(canonicalImageURL).filter(candidate => candidate !== original);
       if (!candidates.length) return null;
     }
-    const smallFirst = grid || /\.(?:th|md)\.[^/.?]+(?:\?|$)/i.test(candidates[0]) ||
+    const smallFirst = smallOnly || /\.(?:th|md)\.[^/.?]+(?:\?|$)/i.test(candidates[0]) ||
       candidates[0] !== original && smallCandidates.includes(candidates[0]);
-    return { candidates, smallCandidates: grid ? candidates : smallCandidates, smallFirst, cacheMode: 'thumbnail',
-      strictCandidates: grid,
+    return { candidates, smallCandidates: smallOnly ? candidates : smallCandidates, smallFirst, cacheMode: 'thumbnail',
+      strictCandidates: smallOnly,
       lane: mode === 'original' || !smallFirst ? 'large' : 'thumbnail',
       tier: 'thumbnail:' + mode,
       timeoutMs: this.app.settings.thumbnailTimeoutMs, fullTimeoutMs: this.app.settings.timeoutMs };
@@ -2080,7 +2080,7 @@ export class PageMedia {
   updateThumbnailRatio(record, image, property) {
     if (!record.row) return;
     const { naturalWidth, naturalHeight } = image;
-    const ratio = String(naturalWidth && naturalHeight ? Math.min(1, naturalHeight / naturalWidth) : 1);
+    const ratio = String(naturalWidth && naturalHeight ? naturalHeight / naturalWidth : 1);
     if (record.element.style.getPropertyValue(property) === ratio) return;
     record.element.style.setProperty(property, ratio);
     if (!record.row.closest('.epc-result-grid')) {
@@ -2261,9 +2261,10 @@ export class PageMedia {
   loadThumbnail(record, force = false, rescue = false) {
     if (this.useLoadedOriginal(record) || !force && record.state !== 'deferred') return;
     if (!this.app.filtersReady || this.disposed || !this.thumbnailsEnabled(record.row) || this.doc.hidden || !this.displayed(record.element, record)) return;
-    const smallOnly = () => !!record.row.closest('.epc-result-grid') || this.listCoverAutoplay(record.row);
+    const smallOnly = () => this.app.settings.thumbnailMode === 'auto' ||
+      !!record.row.closest('.epc-result-grid') || this.listCoverAutoplay(record.row);
     const strict = smallOnly();
-    const options = this.thumbnailOptions(record.source, rescue ? record.lastEntry : null, strict ? 'grid' : this.app.settings.thumbnailMode);
+    const options = this.thumbnailOptions(record.source, rescue ? record.lastEntry : null, strict ? 'small-only' : this.app.settings.thumbnailMode);
     if (!options) {
       record.state = 'failed'; record.element.dataset.state = 'failed';
       record.status.textContent = 'Thumbnail unavailable'; record.status.hidden = false;
@@ -2367,7 +2368,7 @@ export class PageMedia {
         !(record.coverArt ? this.displayed(record.element, record) : this.visible(record.element, true)) || this.doc.hidden) return;
     const viewportPlayback = record.coverArt && this.app.settings.gridAutoplayGifs;
     const options = record.coverArt ? this.thumbnailOptions(record.originalSource, rescue ? record.lastEntry : null,
-      viewportPlayback ? 'grid' : undefined, record.preferredThumbnail) : { lane: 'large' };
+      viewportPlayback ? 'small-only' : undefined, record.preferredThumbnail) : { lane: 'large' };
     if (!options) {
       record.state = 'failed'; record.status.textContent = 'Thumbnail unavailable'; record.status.hidden = false;
       this.app.scheduleHealth(); return;
@@ -2774,8 +2775,9 @@ export class PreviewController {
     }
     const readyThumbnail = thumbnail?.lastEntry && ['ready', 'partial'].includes(thumbnail.lastEntry.status);
     if (titleHover && readyThumbnail && !options.force) this.app.media.pool.recordMemoryHit(thumbnail.lastEntry);
-    const smallTitle = titleHover && row && (row.closest('.epc-result-grid') || this.app.media.listCoverAutoplay(row));
-    const requestOptions = titleHover ? this.app.media.thumbnailOptions(source, null, smallTitle ? 'grid' : undefined) : {
+    const smallTitle = titleHover && row && (thumbnail?.lastEntry?.strictCandidates ||
+      row.closest('.epc-result-grid') || this.app.media.listCoverAutoplay(row));
+    const requestOptions = titleHover ? this.app.media.thumbnailOptions(source, null, smallTitle ? 'small-only' : undefined) : {
       lane: 'large', keepAlive: true,
       cacheMode: thumbnail?.image.naturalWidth && !/\.gif(?:\?|$)/i.test(source) ? 'network' : 'lookup',
       candidates: Array.from(new Set([source, item.metadata.src]))
