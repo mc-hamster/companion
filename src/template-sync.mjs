@@ -202,7 +202,7 @@ export function mountTemplateSync(app) {
     } catch (error) { status.textContent = error.message; }
   });
   const write = templateButton('Write to Companion Template', () => void transfer('write'));
-  const read = templateButton('Read from Companion Template', () => void transfer('read'));
+  const read = templateButton('Preview restore from Emp', () => void transfer('read'));
   const buttons = [copy, change, write, read];
   const setDisabled = disabled => {
     for (const button of buttons) button.disabled = disabled;
@@ -214,9 +214,9 @@ export function mountTemplateSync(app) {
   secretActions.append(copy, change);
   transferActions.append(write, read);
   panel.append(app.node('h4', 'Companion settings across devices'),
-    app.node('p', 'On your first device, copy or show the generated passphrase, then choose Write. On your other device, choose Show or change passphrase and enter the same eight words, then choose Read.', 'epc-caption'),
+    app.node('p', 'On your first device, copy or show the generated passphrase, then choose Write. On your other device, choose Show or change passphrase and enter the same eight words, then choose Preview restore from Emp.', 'epc-caption'),
     secretActions,
-    app.node('p', 'Use the same Emp account and passphrase on every installation. Write saves or replaces the encrypted settings, filter rules, and saved searches in your private Companion upload template. Read previews changes before replacing the settings on this device.', 'epc-caption'),
+    app.node('p', 'Use the same Emp account and passphrase on every installation. Write saves or replaces the encrypted settings, filter rules, and saved searches in your private Companion upload template.', 'epc-caption'),
     app.node('p', 'Your passphrase, custom CSS, per-torrent history and overrides, collage pins, image cache, and diagnostic data stay on this device. Image retention and diagnostic logging choices stay local too.', 'epc-caption'),
     transferActions, status, preview);
   group.append(panel);
@@ -251,19 +251,28 @@ export function mountTemplateSync(app) {
       status.textContent = 'Your settings already match the Companion template.';
       return;
     }
-    status.textContent = localChanged ? 'Local settings changed. Review the updated preview and choose Apply settings again.' :
-      'Review the changes before replacing your settings on this device.';
+    status.textContent = localChanged ? 'Local settings changed. Review the updated preview, then choose Restore from Emp again.' :
+      'Preview only. Choose Restore from Emp below to apply the changes on this device.';
     const changes = app.node('ul', null, 'epc-caption');
     for (const [key, label] of [['settings', 'Companion preferences'], ['nse', 'Filter and theme preferences']]) {
       const keys = new Set([...Object.keys(current[key]), ...Object.keys(incoming[key])]);
       const count = [...keys].filter(name => signature(current[key][name]) !== signature(incoming[key][name])).length;
       if (count) changes.append(app.node('li', `${label} · ${count} to update`));
     }
-    if (signature(current.searches) !== signature(incoming.searches)) {
-      changes.append(app.node('li', `Saved searches · replace ${current.searches.length} local with ${incoming.searches.length} from Emp`));
+    const searchesChanged = signature(current.searches) !== signature(incoming.searches);
+    const searchCount = incoming.searches.length;
+    const searchLabel = searchCount === 1 ? 'saved search' : 'saved searches';
+    if (searchesChanged) {
+      const summary = current.searches.length
+        ? `Saved searches · replace ${current.searches.length} local with ${searchCount} from Emp`
+        : `Saved searches · add ${searchCount} from Emp`;
+      changes.append(app.node('li', summary));
     }
-    const apply = templateButton('Apply settings', () => {
-      if (!app.preferences.flush()) return;
+    const apply = templateButton('Restore from Emp', () => {
+      if (!app.preferences.flush()) {
+        status.textContent = 'Resolve the unsaved setting, then choose Restore from Emp again.';
+        return;
+      }
       try {
         if (signature(current) !== signature(currentSnapshot())) {
           showPreview(incoming, true);
@@ -272,10 +281,14 @@ export function mountTemplateSync(app) {
         const settings = { ...currentSettings(), ...incoming.settings };
         app.importData(JSON.stringify({ format: 'empornium-companion', version: 1, ...incoming, settings }),
           true, { replaceNSEKeys: nseKeys });
-        status.textContent = 'Settings applied. To undo, use Backup & restore → Restore previous import.';
+        const searchResult = searchesChanged
+          ? searchCount ? ` Restored ${searchCount} ${searchLabel} to Searches.` : ' Cleared saved searches.'
+          : '';
+        status.textContent = `Settings restored.${searchResult} To undo, use Backup & restore → Restore previous import.`;
         preview.replaceChildren();
       } catch (error) { status.textContent = error.message; }
     });
+    apply.classList.add('epc-primary');
     preview.append(changes, apply, app.button('Cancel', () => {
       preview.replaceChildren();
       status.textContent = 'Import canceled.';
