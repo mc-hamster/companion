@@ -102,7 +102,7 @@ export class ResultGrid {
     app.toolbarContext.append(this.viewOptions);
     this.gridOptionFields = new Map();
     for (const [key, label] of [['gridCardWidth', 'Card size'], ['gridSpacing', 'Spacing'],
-      ['gridShowTags', 'Show tags'], ['gridShowDetails', 'Show details']]) {
+      ['gridTruncateTitles', 'Truncate titles'], ['gridShowTags', 'Show tags'], ['gridShowDetails', 'Show details']]) {
       const field = app.controls.get(key).cloneNode(true);
       field.removeAttribute('data-setting');
       field.removeAttribute('data-numeric');
@@ -252,6 +252,7 @@ export class ResultGrid {
         if (!table || !grid) continue;
         app.versions?.releaseLayout(table);
         table.classList.add('epc-result-grid');
+        table.dataset.epGridTruncateTitles = String(app.settings.gridTruncateTitles);
         table.dataset.epGridDetails = String(app.settings.gridShowDetails);
         table.dataset.epGridTags = String(app.settings.gridShowTags);
         table.dataset.epGridSpacing = app.settings.gridSpacing;
@@ -317,6 +318,7 @@ export class ResultGrid {
   }
   release(table) {
     table.classList.remove('epc-result-grid'); table.style.removeProperty('--epc-grid-width'); this.tables.delete(table);
+    delete table.dataset.epGridTruncateTitles;
     delete table.dataset.epGridDetails;
     delete table.dataset.epGridTags;
     delete table.dataset.epGridSpacing;

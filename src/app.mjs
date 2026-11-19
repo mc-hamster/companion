@@ -461,6 +461,7 @@ export class CompanionApp {
       ['resultsView', 'Results layout', ['list', 'grid']],
       ['gridCardWidth', 'Grid card size', [240, 320, 420, 540]],
       ['gridSpacing', 'Grid spacing', ['standard', 'compact']],
+      ['gridTruncateTitles', 'Truncate titles in Grid', 'checkbox'],
       ['gridAutoplayGifs', 'Play animated covers in Grid', 'checkbox'],
       ['listAutoplayGifs', 'Play animated covers in List', 'checkbox'],
       ['gridShowDetails', 'Show details in grid cards', 'checkbox'],
@@ -525,7 +526,7 @@ export class CompanionApp {
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
       const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridSpacing','gridAutoplayGifs','listAutoplayGifs','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions','showResultHideButton'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
-        ['gridTagCues', 'adaptiveDetailTags'].includes(key) ? this.optionGroups.appearance :
+        ['gridTruncateTitles', 'gridTagCues', 'adaptiveDetailTags'].includes(key) ? this.optionGroups.appearance :
         key === 'diagnostics' ? this.optionGroups.diagnostics : ['keyboardShortcuts', 'navigationScope'].includes(key) ? this.optionGroups.interaction :
         imageKeys.has(key) ? this.optionGroups.images : this.optionGroups.loading;
       parent.append(row);
@@ -699,7 +700,7 @@ export class CompanionApp {
     const searching=!!this.settingsSearch?.value.trim();if(!searching)row.hidden=mode==='all';
     if(mode==='all'&&!pages.checkValidity())pages.value=this.settings.backfillPages;
     const list = this.controls.get('resultsView').value === 'list';
-    if (!searching) for (const key of ['gridCardWidth', 'gridSpacing', 'gridAutoplayGifs', 'gridShowDetails', 'gridShowTags', 'gridTagCues']) {
+    if (!searching) for (const key of ['gridCardWidth', 'gridSpacing', 'gridTruncateTitles', 'gridAutoplayGifs', 'gridShowDetails', 'gridShowTags', 'gridTagCues']) {
       this.controls.get(key).closest('label').hidden = list;
     }
     this.doc.documentElement.toggleAttribute('data-ep-hide-result-buttons', !this.settings.showResultHideButton);

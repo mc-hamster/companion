@@ -369,7 +369,8 @@ tr[isnsehidden="1"] .nseToggleIcon:before,.nseToggleIcon.nseIndividuallyBlacklis
 #content .epc-result-grid tr.torrent>td[data-ep-grid-cell=title]{order:0;flex:0 0 100%;padding:var(--epc-card-inset);font-size:14px;line-height:1.5}
 #content .epc-result-grid [data-ep-grid-cell=title]>br{display:none}
 #content .epc-result-grid [data-ep-grid-cell=title]>a{font-weight:650}
-#content .epc-result-grid [data-ep-grid-title]{display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;min-height:3em;max-height:3em;line-height:1.5;overflow-wrap:anywhere}
+#content .epc-result-grid [data-ep-grid-title]{display:block!important;white-space:normal;line-height:1.5;overflow-wrap:anywhere}
+#content .epc-result-grid[data-ep-grid-truncate-titles=true] [data-ep-grid-title]{display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;min-height:3em;max-height:3em}
 #content .epc-result-grid [data-ep-grid-cell=title] .tags{margin-top:8px;font-size:12px;line-height:1.7}
 #content .epc-result-grid:not([data-ep-grid-tags=true]) tr.torrent .tags{display:none!important}
 #content .epc-result-grid [data-ep-grid-cell=title] .tags>a{display:inline-block;margin-inline-end:5px;max-width:100%;overflow-wrap:anywhere}

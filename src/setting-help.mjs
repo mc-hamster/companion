@@ -12,6 +12,7 @@ export const settingHelp = Object.freeze({
   resultsView: 'Choose List for the site’s table or Grid for image cards. You can also switch from the results toolbar.',
   gridCardWidth: 'Choose the target card width. Smaller cards fit more across the page, and cards shrink to fit a narrow screen.',
   gridSpacing: 'Compact reduces the gaps and padding in Grid. It also tightens spacing in the site’s Cover Art view.',
+  gridTruncateTitles: 'Limit titles to two lines in Grid. Turn this off to show full titles.',
   gridAutoplayGifs: 'Preload full-size covers so animated images can play when Grid cards are visible. This can use extra data, including for still images.',
   listAutoplayGifs: 'Preload full-size covers so animated images can play on visible List rows. This shows inline covers even if Inline thumbnails is off and can use extra data.',
   gridShowDetails: 'Show the category and metadata such as size, seeds, and uploader on each Grid card.',

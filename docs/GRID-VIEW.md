@@ -7,13 +7,13 @@ Use **List** or **Grid** in the toolbar to set your results layout. Companion re
 
 The grid styles the native table rows in place. Titles, tags, category information, warnings, download/bookmark links, uploader links and visibility controls retain their original behavior. Metadata uses native column headings where available. Sorting links stay accessible; static column headings are omitted. A grouped card lists its alternate releases under **Versions**. List expands the original rows. Show filtered and Hard Pass restoration use the existing filter state. Newly backfilled rows join the same grid.
 
-Version 2.12.1 limits grid title links to two visible lines without changing their full text, destination or hover preview. Stats, uploader and category cells are hidden by default. **Settings → Appearance → Show details in grid cards** restores that whole block and remembers the choice across pages and sessions. List presentation retains its native title and metadata display.
+Grid title links show up to two lines by default. Turn off **View options → Truncate titles** to let titles wrap to their full length. Stats, uploader and category cells are hidden by default. **Settings → Appearance → Show details in grid cards** restores that whole block and remembers the choice across pages and sessions. List presentation retains its native title and metadata display.
 
 Tags are hidden by default in Grid. **Settings → Appearance → Show tags in grid cards** independently restores the native tag links. This only changes their presentation: tag filters, highlights and saved rules still apply. The preference persists across pages and sessions and participates in backup/restore. List tags retain their native display.
 
 With the full tag list hidden, Grid shows a compact disclosure on cards with Favorite or Caution matches. Open it to see the matching tags. The cue can be turned off under **Settings → Advanced settings → Appearance**.
 
-Use **View options** beside the List and Grid switches. In Grid it offers card size, spacing, tags, and details. In List it shows the column choices for tables with recognized column headings. Hidden sortable columns retain a **Sort** link. Changes apply immediately and are included in backups.
+Use **View options** beside the List and Grid switches. In Grid it offers card size, spacing, title truncation, tags, and details. In List it shows the column choices for tables with recognized column headings. Hidden sortable columns retain a **Sort** link. Changes apply immediately and are included in backups.
 
 Covers fill the card width in both spacing modes. Open an image preview to see the full image. **View options → Spacing → Compact** sets the gap to 10 px in Companion’s Grid and also reduces the borders and gaps in Empornium’s native Cover Art grid. When results are in List view, **Switch to Grid** in Appearance applies the grid settings to those results.
 

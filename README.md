@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.14.5](dist/EmporniumCompanion-2.14.5.user.js)**
+**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.14.6](dist/EmporniumCompanion-2.14.6.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -41,13 +41,13 @@ In **Filters → Conditional rules**, choose **Add a rule** to combine tags, tit
 
 Enable **Use keyboard shortcuts** during setup, or find the toggle and key mappings under **Settings → Advanced settings → Keyboard & menus**.
 
-Click **Grid** above the results to switch to thumbnail cards. **List** switches back. Open **View options** beside the layout switch to choose the card size, spacing, tags, and details in Grid or the visible columns in List. Hover over a thumbnail or click its preview button to load the larger image. Use the versions button on a grouped card to open alternate releases. Your layout is remembered across visits.
+Click **Grid** above the results to switch to thumbnail cards. **List** switches back. Open **View options** beside the layout switch to choose the card size, spacing, title truncation, tags, and details in Grid or the visible columns in List. Hover over a thumbnail or click its preview button to load the larger image. Use the versions button on a grouped card to open alternate releases. Your layout is remembered across visits.
 
 Grid covers fill the card width. Set **View options → Spacing → Compact** to bring cards closer together. Turn on **Play animated covers in Grid** or **Play animated covers in List** to preload covers, including off-screen results, and play animations as they come into view. List playback shows inline covers. Companion uses its image cache and respects your system's reduced-motion preference. These options are also in **Getting started**.
 
 Hover over, focus, or tap the small gauge beside the Companion name to see load progress for thumbnails, cover playback, previews, other images, and additional result pages. The percentage counts finished items. The breakdown separates ready, partial, and failed loads and marks tasks whose totals are unknown.
 
-Grid titles are limited to two lines. Stats, uploader and category information are hidden by default; enable **Settings → Appearance → Show details in grid cards** to display them again.
+Grid titles show up to two lines by default. Turn off **View options → Truncate titles** to show full titles. Stats, uploader, and category information are hidden by default. Enable **Settings → Appearance → Show details in grid cards** to display them.
 
 Tags are also hidden by default in grid view. **Settings → Appearance → Show tags in grid cards** controls them separately from the details block. Both choices are remembered; tag filtering and highlighting continue to work.
 

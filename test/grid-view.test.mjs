@@ -573,11 +573,24 @@ test('grid size presets save numeric widths and retain a custom width through ot
   } finally { f.close(); }
 });
 
-test('layout and card size survive navigation, a new storage session and switching back to list', async () => {
+test('grid view options survive navigation, a new storage session and switching back to list', async () => {
   let store = strictStorage({ 'ep.settings': { inlineThumbnails: false } });
-  let f = await boot({}, { store, url: 'https://www.empornium.sx/torrents.php?searchtext=first&page=1' });
+  const title = 'A long result title that wraps onto more than two lines '.repeat(8).trim();
+  let f = await boot({}, { store, rows: rowHTML(1, { title }), url: 'https://www.empornium.sx/torrents.php?searchtext=first&page=1' });
   try {
     clickText(f.doc.querySelector('.epc-toolbar'), 'Grid'); await field(f, '[data-setting=gridCardWidth]', 540);
+    clickText(f.doc.querySelector('.epc-toolbar'), 'View options');
+    const truncate = f.doc.querySelector('[data-view-option=gridTruncateTitles]');
+    const link = f.doc.querySelector('.fixture-title');
+    assert.equal(truncate.checked, true);
+    assert.equal(f.win.getComputedStyle(link).maxHeight, '3em');
+    truncate.click();
+    assert.equal(store.get('ep.settings').gridTruncateTitles, false);
+    assert.notEqual(f.win.getComputedStyle(link).maxHeight, '3em');
+    assert.equal(link.textContent, title);
+    truncate.click();
+    assert.equal(f.win.getComputedStyle(link).maxHeight, '3em');
+    truncate.click();
     assert.equal(f.win.getComputedStyle(f.doc.querySelector('tr.torrent .tags')).display, 'none');
     await field(f, '[data-setting=gridShowDetails]', true);
     assert.equal(f.win.getComputedStyle(f.doc.querySelector('tr.torrent .tags')).display, 'none');
@@ -592,6 +605,7 @@ test('layout and card size survive navigation, a new storage session and switchi
     assert.equal(f.doc.querySelector('[data-setting=gridCardWidth]').value, '540');
     assert.equal(f.doc.querySelector('table.torrent_table').dataset.epGridDetails, 'true');
     assert.equal(f.doc.querySelector('table.torrent_table').dataset.epGridTags, 'true');
+    assert.equal(f.doc.querySelector('table.torrent_table').dataset.epGridTruncateTitles, 'false');
   } finally { f.close(); }
   // Fresh manager/storage object and window, as after restarting the browser.
   store = strictStorage(Object.fromEntries(Object.entries(store.snapshot()).map(([key, value]) => [key, JSON.parse(value)])));
@@ -601,8 +615,12 @@ test('layout and card size survive navigation, a new storage session and switchi
     assert.equal(f.doc.querySelector('[data-setting=gridCardWidth]').value, '540');
     assert.equal(f.doc.querySelector('[data-setting=gridShowDetails]').checked, true);
     assert.equal(f.doc.querySelector('[data-setting=gridShowTags]').checked, true);
+    const truncate = f.doc.querySelector('[data-view-option=gridTruncateTitles]');
+    assert.equal(truncate.checked, false);
     assert.notEqual(f.win.getComputedStyle(f.doc.querySelector('tr.torrent .tags')).display, 'none');
     clickText(f.doc.querySelector('.epc-toolbar'), 'List');
+    assert.equal(truncate.closest('.epc-grid-options').hidden, true);
+    assert.equal(f.doc.querySelector('table.torrent_table').hasAttribute('data-ep-grid-truncate-titles'), false);
   } finally { f.close(); }
   f = await boot({}, { store });
   try {
