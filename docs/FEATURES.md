@@ -1,5 +1,9 @@
 # Feature mapping
 
+Version 2.14.7 adds **Settings → Appearance → Reformat torrent detail pages**. The opt-in layout fits the detail content to the window and adds sticky jump links to the description, file list, tags, and discussion. It uses the site's existing description and controls.
+
+Companion now starts on supported browsing pages. Pinned cache statistics and Companion's page shortcuts are available on those pages. [Supported pages and detail layout](REFERENCE.md)
+
 Version 2.14.2 changes the display name to Companion in Tampermonkey and in the app. The existing update channel and backup format carry over.
 
 Version 2.14.1 groups layout and filter controls in a shorter toolbar. An active Freeleech filter can be cleared from its chip. **Load more** sits below the results, and **Stop loading** stays visible while a batch runs. Grid has edge-to-edge covers, compact Favorite and Caution badges, and links to alternate versions on grouped cards. **View options** adjusts columns in List and card size, spacing, tags, and details in Grid. [List and Grid](GRID-VIEW.md)

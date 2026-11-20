@@ -11,6 +11,7 @@ import { PersistentImageCache, cacheBytes, cacheActivityWindows } from './image-
 import { createSavedSearchEditor } from './search-editor.mjs';
 import { VersionGroups, TagHighlights } from './result-tools.mjs';
 import { ResultGrid, gridCardSizeChoices } from './grid-view.mjs';
+import { DetailLayout } from './detail-layout.mjs';
 import { ResultFilters } from './result-filters.mjs';
 import { compileConditionalRules } from './conditional-rules.mjs';
 import { mountLuminanceImport } from './luminance-import.mjs';
@@ -174,6 +175,7 @@ export class CompanionApp {
     this.cacheUsageUnsubscribe=this.imageCache.subscribe?.(()=>this.scheduleCacheUsage());
     this.versions = new VersionGroups(this); this.tags = new TagHighlights(this);
     this.grid = new ResultGrid(this);
+    this.detailLayout = new DetailLayout(this);
     this.media = new PageMedia(this);
     this.preview = new PreviewController(this);
     this.backfill = new BackfillController(this);
@@ -290,6 +292,7 @@ export class CompanionApp {
         this.batchDOM(() => { for (const root of roots) this.options.newRows?.(root); });
         this.syncGridFilters(false);
       }
+      this.detailLayout.sync();
       for (const root of roots) {
         this.tags.refresh(root);
         if (this.settings.enabled) {
@@ -372,7 +375,7 @@ export class CompanionApp {
     this.panes.filters.append(this.node('p', 'Loading filter preferences…', 'epc-filter-placeholder'));
     this.panes.searches.append(this.node('p', 'Click a name to run its search. More lets you edit saved criteria here.', 'epc-caption'));
     const displaySection=this.node('section',null,'epc-settings-section');displaySection.dataset.settingsGroup='Appearance';
-    displaySection.append(setSettingHelp(this.node('h3','Appearance'), 'Choose how results, thumbnails, and previews look.'));
+    displaySection.append(setSettingHelp(this.node('h3','Appearance'), 'Choose how results, detail pages, thumbnails, and previews look.'));
     const settings = this.node('div', null, 'epc-basic-settings');displaySection.append(settings);
     this.basicAppearance = this.node('div'); settings.append(this.basicAppearance);
     const browsingSection=this.node('section',null,'epc-settings-section');browsingSection.dataset.settingsGroup='Browsing';browsingSection.append(setSettingHelp(this.node('h3','Browsing'), 'Choose how Companion loads extra pages and groups alternate versions.'));
@@ -390,7 +393,7 @@ export class CompanionApp {
     setSettingHelp(resetUsage, 'Reset activity and savings in every time window. Saved images stay in the cache.');
     this.cacheStatsPinned = false;
     this.cachePinButton = this.button('Pin statistics', () => this.toggleCacheStatsPin());
-    setSettingHelp(this.cachePinButton, 'Show image cache statistics below the Companion toolbar on every page.');
+    setSettingHelp(this.cachePinButton, 'Show image cache statistics below the Companion toolbar on supported pages.');
     this.cachePinButton.dataset.optionItem = '';
     this.cachePinButton.setAttribute('aria-controls', 'epc-cache-statistics');
     cacheHeading.append(setSettingHelp(this.node('strong','Image cache'), 'See saved image usage and control how much space Companion uses in this browser.'), this.cachePinButton);this.cacheUsage.append(cacheHeading);
@@ -458,6 +461,7 @@ export class CompanionApp {
       ['categoryDisplay', 'Category icons', ['keep', 'overlay', 'hide']],
       ['thumbnailMode', 'Thumbnail source', ['auto', 'supplied', 'original']],
       ['thumbnailSize', 'Thumbnail width', 'number', 48, 300],
+      ['reformatDetailPages', 'Reformat torrent detail pages', 'checkbox'],
       ['resultsView', 'Results layout', ['list', 'grid']],
       ['gridCardWidth', 'Grid card size', [240, 320, 420, 540]],
       ['gridSpacing', 'Grid spacing', ['standard', 'compact']],
@@ -505,7 +509,7 @@ export class CompanionApp {
       if (Array.isArray(type)) {
         for (const value of type) {
           const label = key === 'thumbnailMode' ? ({ auto: 'Small first', supplied: 'Page preview', original: 'Full original' })[value] :
-            key === 'navigationScope' ? ({ off: 'Off', results: 'Results only', site: 'Across site' })[value] :
+            key === 'navigationScope' ? ({ off: 'Off', results: 'Results only', site: 'All supported pages' })[value] :
             key === 'backfillMode' ? ({ off: 'When I click Backfill', pages: 'Automatically load a few pages', all: 'Automatically load all pages' })[value] :
             key === 'resultsView' ? ({ list: 'List', grid: 'Grid' })[value] :
             key === 'gridSpacing' ? ({ standard: 'Standard', compact: 'Compact' })[value] : value;
@@ -524,7 +528,7 @@ export class CompanionApp {
       control.dataset.setting = key; this.controls.set(key, control); row.append(control);
       setSettingHelp(caption, settingHelp[key], control);
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
-      const parent = ['thumbnailSize','previews','resultsView','gridCardWidth','gridSpacing','gridAutoplayGifs','listAutoplayGifs','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions','showResultHideButton'].includes(key)?browsing :
+      const parent = ['thumbnailSize','previews','reformatDetailPages','resultsView','gridCardWidth','gridSpacing','gridAutoplayGifs','listAutoplayGifs','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions','showResultHideButton'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
         ['gridTruncateTitles', 'gridTagCues', 'adaptiveDetailTags'].includes(key) ? this.optionGroups.appearance :
         key === 'diagnostics' ? this.optionGroups.diagnostics : ['keyboardShortcuts', 'navigationScope'].includes(key) ? this.optionGroups.interaction :
@@ -673,7 +677,7 @@ export class CompanionApp {
     this.cacheStatsPinned = pinned;
     this.cachePinned.hidden = !pinned;
     this.cachePinButton.textContent = pinned ? 'Unpin statistics' : 'Pin statistics';
-    setSettingHelp(this.cachePinButton, pinned ? 'Return the statistics to Settings.' : 'Show image cache statistics below the Companion toolbar on every page.');
+    setSettingHelp(this.cachePinButton, pinned ? 'Return the statistics to Settings.' : 'Show image cache statistics below the Companion toolbar on supported pages.');
     if (pinned) {
       this.cacheStatistics.hidden = false;
       this.cachePinned.append(this.cacheStatistics);
@@ -852,6 +856,7 @@ export class CompanionApp {
   }
   updateMediaPreferences(previous) {
     this.syncSettingsUI();
+    if (previous.reformatDetailPages !== this.settings.reformatDetailPages) this.detailLayout.sync();
     gridCardSizeChoices(this.controls.get('gridCardWidth'), this.settings.gridCardWidth);
     if (previous.resultsView === this.settings.resultsView) this.grid?.refresh();
     this.backfill?.sync();
@@ -868,7 +873,7 @@ export class CompanionApp {
     const other = new Set(['groupVersions', 'favoriteTags', 'cautionTags', 'backfillEnabled', 'backfillPages', 'backfillMode',
       'keyboardShortcuts', 'navigationScope', 'globalArrowNavigation', 'diagnostics', 'persistentImages', 'persistentCacheMB',
       'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView', 'collapsedDetailTags',
-      'adaptiveDetailTags', 'gridTagCues', 'listHiddenColumns', 'showResultHideButton']);
+      'adaptiveDetailTags', 'gridTagCues', 'listHiddenColumns', 'showResultHideButton', 'reformatDetailPages']);
     if (!Object.keys(this.settings).some(key => !other.has(key) && previous[key] !== this.settings[key])) return;
     if (previous.enabled !== this.settings.enabled) {
       this.restartMedia(); return;
@@ -1528,6 +1533,7 @@ export class CompanionApp {
     this.imageCache?.close();
     this.versions?.dispose(); this.tags?.dispose();
     this.grid?.dispose();
+    this.detailLayout?.dispose();
     this.preferences.cancel(); this.win.clearTimeout(this.toastTimer); this.win.clearTimeout(this.filterRefreshTimer);
     if (this.healthFrame) this.win.cancelAnimationFrame(this.healthFrame);
     this.customStyle?.remove();
@@ -1543,6 +1549,8 @@ export class CompanionApp {
 export class PageMedia {
   constructor(app) {
     this.app = app; this.win = app.win; this.doc = app.doc;
+    // Reading viewport geometry can trigger layout and start native cover requests.
+    this.syncCoverGate();
     this.definitions = new Map(); this.scriptText = new WeakMap(); this.knownVariants = new Map();
     this.records = new Map(); this.thumbnails = new Map(); this.thumbnailsByOriginal = new Map(); this.near = new Map();
     this.gridGifs = new Map();
@@ -1556,7 +1564,6 @@ export class PageMedia {
     this.layoutVersion = 0;
     this.viewportTop = this.win.scrollY; this.viewportHeight = this.win.innerHeight;
     this.nativeTimers = new Set(); this.disposed = false;
-    this.syncCoverGate();
     this.pool = new MediaPool({
       Image: app.options.Image || this.win.Image, now: () => Date.now(),
       imageCache: app.imageCache,

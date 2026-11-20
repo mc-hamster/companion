@@ -31,6 +31,40 @@ export function fixtureHTML(rows = rowHTML(1) + rowHTML(2), extra = '') {
     '<a class="pager_prev" href="/torrents.php?page=1">Previous</a><a class="pager_next" href="/torrents.php?page=3">Next</a>' +
     '</div></div></body></html>';
 }
+export function detailFixtureHTML({ collages = true, comments = true } = {}) {
+  const fileRow = (id, quality) => `<tr class="group_torrent"><td>${quality}</td></tr><tr class="torrentdetails"><td>
+    <div class="linkbox"><a href="#" onclick="show_files('${id}');return false;">View Filelist</a></div>
+    <div class="hidden" id="files_${id}"><table class="filelist"><tr><th>File</th><th>Size</th></tr>
+    <tr><td>Moonlit-Coast-${quality}-Original-Field-Recording.mp4</td><td>240 MiB</td></tr></table></div></td></tr>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="ep-companion-fixture" content="local-test-only"><title>Moonlit Coast — detail page fixture</title>
+    <style>.hidden,[hidden]{display:none!important}</style></head><body id="torrents"><div id="content"><div class="details thin">
+    <h2>Moonlit Coast | Night Photography and Field Recording | 4K</h2>
+    <div class="linkbox"><a href="#bookmark" id="bookmarklink_torrent_42">Bookmark</a> · <a href="#report">Report</a></div>
+    <div class="linkbox"><div class="top_info"><table class="boxstat"><tr><td>Size</td><td>240 MiB</td>
+    <td>Seeders</td><td>18</td><td>Uploaded</td><td>20 November 2026</td></tr></table></div></div>
+    <div class="linkbox"><span class="torrent_buttons"><span class="torrent_buttons"><a class="button" href="#download">Download</a></span></span>
+    <span style="float:right"><a class="button" id="slide_button">Hide Info</a></span><br style="clear:both"></div>
+    <div id="details_top"><div class="sidebar"><div class="head"><strong>Cover</strong></div>
+    <div class="box box_albumart" id="coverimage"><img src="/coast-cover.svg" alt="Coastal cliffs under a moonlit sky" width="480" height="360"></div>
+    <a id="tags"></a><div class="head"><strong>Tags</strong></div><div class="box box_tags" id="tag_container">
+    <ul id="torrent_tags_list" class="stats nobullet"><li><a href="#field-recording">field.recording</a></li><li><a href="#coast">coast</a></li></ul></div></div>
+    <div class="middle_column"><div class="head"><strong>Torrent information</strong></div>
+    <table class="torrent_table">${fileRow(41, '1080p')}${fileRow(42, '2160p')}</table>
+    ${collages ? '<div class="head"><strong>Collages</strong></div><table id="personal_collages"><tr><td><a href="/collage/8">Coastal walks</a></td></tr></table>' : ''}
+    </div><div style="clear:both"></div></div>
+    <div class="main_column"><div class="head" id="native-description"><strong>Description</strong> <a id="desctoggle" href="#">Hide</a></div>
+    <div class="box"><div id="descbox"><div class="body"><p>Low tide along the headlands, recorded after moonrise.</p>
+    <button id="reveal-example" type="button">Show contact sheet</button><blockquote class="hidden spoiler" id="contact-sheet">
+    <img data-src="/coast-contact-sheet.svg" width="900" alt="Contact sheet"></blockquote>
+    <table class="bbcode" style="width:840px"><tr><td>Camera notes</td><td>UHD, 24 fps, stereo</td></tr></table>
+    <div id="torrentsigbox">Uploader signature</div></div></div></div>
+    <div class="head">Thanks</div><div class="box pad center"><form id="thanksform"><button type="button">Say thanks</button></form></div>
+    <div class="linkbox pager"></div>${comments ? '<table id="post100" class="forum_post"><tr><td>Example comment</td></tr></table>' : ''}
+    <table id="quickreplypreview" class="forum_post hidden"><tr><td>Preview</td></tr></table>
+    <div class="head">Post reply</div><div class="box pad shadow"><form id="quickpostform"><textarea name="body"></textarea></form></div></div>
+    </div></div></body></html>`;
+}
 export function memoryStorage(initial = {}) {
   const data = new Map(Object.entries({'ep.onboardingDone':true,...initial}));
   return { data, get: (k, d) => data.has(k) ? data.get(k) : d, set: (k, v) => data.set(k, v),

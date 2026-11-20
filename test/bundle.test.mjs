@@ -55,6 +55,55 @@ test('built artifact is self-contained and restricted to Empornium', () => {
   assert.ok(matches.length >= 6);
   assert.ok(matches.every(line => /(?:empornium\.(?:sx|me|is|ph)|emparadise\.rs)/.test(line)));
 });
+test('userscript metadata matches browsing pages on each mirror and skips unrelated URLs', () => {
+  const matches = [...bundle.matchAll(/^\/\/ @match\s+(\S+)$/gm)].map(([, pattern]) =>
+    new RegExp('^' + pattern.split('*').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$'));
+  for (const domain of ['empornium.sx', 'empornium.me', 'empornium.is', 'empornium.ph', 'emparadise.rs']) {
+    for (const prefix of ['', 'www.']) {
+      const origin = 'https://' + prefix + domain;
+      for (const path of ['/torrents.php', '/torrents.php?id=1', '/torrents.php?action=advanced&page=2',
+        '/top10.php?type=torrents', '/bookmarks.php?type=torrents', '/collages.php', '/collage/42?page=2',
+        '/requests.php', '/user.php?action=notify', '/user.php?id=10&action=notify']) {
+        assert.ok(matches.some(pattern => pattern.test(origin + path)), origin + path);
+      }
+      for (const path of ['/', '/index.php', '/login.php', '/register.php', '/forums.php', '/user.php?id=10', '/torrents.php.old']) {
+        assert.ok(!matches.some(pattern => pattern.test(origin + path)), origin + path);
+      }
+    }
+  }
+});
+test('the built script leaves logged-out screens and pages without browsing features untouched', async t => {
+  const landing = '<main><h1>Welcome</h1><a href="/">Home</a> <a href="/login.php">Login</a></main>';
+  const signIn = '<main id="content"><h2>Sign in</h2><form action="/login.php"><input type="password"></form></main>';
+  const pages = [
+    ['/', landing], ['/login.php', signIn], ['/forums.php', fixtureHTML()], ['/user.php?id=10', fixtureHTML()],
+    ['/user.php?action=edit', fixtureHTML()], ['/torrents.php?id=1&action=edit', fixtureHTML()],
+    ['/torrents.php?action=download&id=1', fixtureHTML()], ['/torrents.php?action=advanced&action=download', fixtureHTML()],
+    ['/collage/42/manage', fixtureHTML()], ['/top10.php?type=users', fixtureHTML()], ['/bookmarks.php?type=artist', fixtureHTML()],
+    ['/torrents.php', landing, true],
+    ['/torrents.php?page=2', '<form id="search_form"></form>' + signIn, true]
+  ];
+  for (const [path, html, beforeBody] of pages) await t.test(path, async () => {
+    const f = domFixture(html, 'https://empornium.sx' + path);
+    try {
+      const body = f.doc.body;
+      if (beforeBody) body.remove();
+      const effects = [];
+      const storage = memoryStorage();
+      Object.assign(f.win, {
+        GM_getValue(key, fallback) { effects.push('storage read'); return storage.get(key, fallback); },
+        GM_setValue: () => effects.push('storage write'), GM_listValues: storage.list, GM_deleteValue: storage.delete,
+        GM_addStyle: () => effects.push('stylesheet'), GM_registerMenuCommand: () => effects.push('menu command')
+      });
+      f.doc.addEventListener('ep-companion:running', () => effects.push('startup event'));
+      f.win.eval(bundle);
+      if (beforeBody) f.doc.documentElement.append(body);
+      await until(() => f.doc.readyState === 'complete');
+      assert.deepEqual(effects, []);
+      assert.equal(f.doc.querySelector('.epc-workspace'), null);
+    } finally { f.close(); }
+  });
+});
 test('duplicate userscript injection renders only one thumbnail per result', async () => {
   const f = await setup({ 'ep.settings': { inlineThumbnails: true } }, rowHTML(1), overlayHTML(1, 'https://x.test/a.jpg', 'https://x.test/a-small.jpg'), undefined, { injections: 2 });
   try {
@@ -449,7 +498,7 @@ test('open visible action works with right-click management disabled', async () 
 test('notification rule imports use Companion controls and the current textarea value', async () => {
   const f = await setup({ nseWhitelist: 'allowed.tag' }, '',
     '<div><textarea class="long" name="tags"></textarea><p></p></div>',
-    'https://www.empornium.sx/user.php?action=notify');
+    'https://www.empornium.sx/user.php?page=1&action=notify');
   const button = f.doc.querySelector('.epc-notification-control [role="button"]');
   assert.equal(button.textContent, 'Use allowed tag rules');
   f.doc.getElementById('nseWhitelistTaglistArea').value = 'updated.tag';
@@ -625,9 +674,10 @@ test('the simplified interface shows three task areas and keeps Grid preferences
     f.doc.querySelector('.epc-navigation [data-pane="settings"]').click();
     const pane = f.doc.querySelector('.epc-pane[data-pane="settings"]');
     const visible = [...pane.querySelectorAll('input,select,textarea')].filter(exposed);
-    assert.equal(visible.length, 10);
+    assert.equal(visible.length, 11);
     assert.ok(visible.some(control => control.id === 'nseThemeDropdown'));
     assert.ok(visible.some(control => control.dataset.setting === 'thumbnailSize'));
+    assert.ok(visible.some(control => control.dataset.setting === 'reformatDetailPages' && !control.checked));
     assert.ok(!visible.some(control => control.dataset.setting === 'gridCardWidth'));
     assert.ok(!visible.some(control => control.dataset.setting === 'gridSpacing'));
     assert.ok(!visible.some(control => control.dataset.setting === 'gridAutoplayGifs'));
@@ -865,7 +915,7 @@ test('highlight lists autosave in the folded Filters section without adding prim
     assert.equal(f.doc.querySelector('.tags a').dataset.epTagTone, 'favorite');
     assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag');
     assert.equal(f.doc.querySelectorAll('.epc-navigation button[data-pane]').length, 3);
-    assert.equal(f.doc.querySelectorAll('.epc-basic-settings input,.epc-basic-settings select').length, 14);
+    assert.equal(f.doc.querySelectorAll('.epc-basic-settings input,.epc-basic-settings select').length, 15);
     f.doc.querySelector('[data-setting=groupVersions]').checked = false;
     f.doc.querySelector('[data-setting=groupVersions]').dispatchEvent(new f.win.Event('change', { bubbles: true })); await settle(80);
     assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag');

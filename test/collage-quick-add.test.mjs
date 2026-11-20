@@ -47,8 +47,8 @@ test('built quick add pins only eligible collages and shows add only on real tor
   const listing = page(`<table class="torrent_table">${rowHTML(42)}</table>`);
   const search = await open(t, '/torrents.php', listing, storage);
   const listWithID = await open(t, torrent, listing, storage);
-  const edit = await open(t, torrent + '&action=edit', details(), storage);
-  for (const f of [locked, search, listWithID, edit]) assert.equal(f.tools, null);
+  const viewWithAction = await open(t, torrent + '&action=view', details(), storage);
+  for (const f of [locked, search, listWithID, viewWithAction]) assert.equal(f.tools, null);
   const detail = await open(t, torrent, details(), storage);
   assert.equal(detail.button.textContent, 'Add to Collection');
   assert.equal(detail.select.hidden, true);

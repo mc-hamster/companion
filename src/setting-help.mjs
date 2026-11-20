@@ -19,6 +19,7 @@ export const settingHelp = Object.freeze({
   gridShowTags: 'Show the full tag list on each Grid card. Tags still count toward filters when the list is hidden.',
   gridTagCues: 'When the full tag list is hidden, show a short cue on Grid cards with Favorite or Caution matches. Open it to see the matching tags.',
   adaptiveDetailTags: 'Let the tag list on a torrent detail page wrap into columns when there’s room. Narrow screens use one column.',
+  reformatDetailPages: 'Fit torrent detail pages to the window and add jump links to the description, file list, tags, and discussion.',
   previewWidth: 'Set the target width of enlarged previews in pixels. Previews still fit within the browser window.',
   hoverDelay: 'Wait this many milliseconds before showing a preview when you hover over a title. Increase it if previews open while you scan the list.',
   hideDelay: 'Give yourself this many milliseconds to move from the trigger into the preview before it closes. A pinned preview stays open.',

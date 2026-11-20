@@ -321,7 +321,7 @@ export function adoptNotificationControls(app) {
 }
 
 export function applyWorkspaceTheme(app, roots = [app.root, app.backfill?.footer, app.preview?.element, app.onboarding?.element,
-  app.doc.getElementById('nseRCMBox'), ...app.doc.querySelectorAll('.epc-notification-control,.epc-search-feedback,.epc-media-retry')]) {
+  app.detailLayout?.nav, app.doc.getElementById('nseRCMBox'), ...app.doc.querySelectorAll('.epc-notification-control,.epc-search-feedback,.epc-media-retry')]) {
   const selected = app.storage.get('nseSelectedTheme', null);
   const palettes = {
     nseThemeLegacy: ['#23395a', '#eef4ff', '#91c5ff', '#526b8e'],

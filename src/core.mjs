@@ -6,7 +6,7 @@ export const DEFAULTS = Object.freeze({
   thumbnailSize: 100, previewWidth: 440, hoverDelay: 140, hideDelay: 240,
   resultsView: 'list', gridCardWidth: 320, gridSpacing: 'standard', gridAutoplayGifs: false, listAutoplayGifs: false,
   gridTruncateTitles: true, gridShowDetails: false, gridShowTags: false, gridTagCues: true, adaptiveDetailTags: false,
-  listHiddenColumns: '', collapsedDetailTags: '', showResultHideButton: false,
+  listHiddenColumns: '', collapsedDetailTags: '', showResultHideButton: false, reformatDetailPages: false,
   concurrency: 8, maxRetries: 2, stallMs: 8000, timeoutMs: 24000, thumbnailTimeoutMs: 4500,
   cacheEntries: 24, cacheMegapixels: 48, preloadScreens: 0.8,
   persistentImages: true, persistentCacheMB: 512,
@@ -191,13 +191,38 @@ export function editableTarget(target) {
   return !!target?.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="combobox"]');
 }
 
+export const COMPANION_HOSTS = ['empornium.sx', 'empornium.me', 'empornium.is', 'empornium.ph', 'emparadise.rs']
+  .flatMap(host => [host, 'www.' + host]);
+
+const companionPageActions = new Map([
+  ['/torrents.php', ['', 'advanced', 'basic', 'search', 'view', 'notify']],
+  ['/bookmarks.php', ['', 'view']],
+  ['/top10.php', ['']],
+  ['/requests.php', ['', 'search', 'view']],
+  ['/collages.php', ['', 'browse', 'search', 'view']],
+  ['/collage', ['', 'browse', 'search', 'view']],
+  ['/user.php', ['notify']]
+]);
+
+// Match the PHP path and its query separately so suffixes of that path stay out of scope.
+export const COMPANION_MATCH_PATHS = [...companionPageActions.keys()].flatMap(path => path === '/user.php'
+  ? [path + '?action=notify*', path + '?*&action=notify*'] : [path, path + '?*']).concat('/collage/*');
+
+export function isCompanionPage({ pathname, searchParams }) {
+  const actions = searchParams.getAll('action');
+  if (actions.length > 1) return false;
+  if (pathname === '/top10.php' || pathname === '/bookmarks.php') {
+    const types = searchParams.getAll('type');
+    if (types.length > 1 || (types[0] && types[0] !== 'torrents')) return false;
+  }
+  const allowedActions = companionPageActions.get(pathname === '/collage/' ? '/collage' : pathname) ||
+    (/^\/collage\/[1-9]\d*\/?$/.test(pathname) ? ['', 'view'] : []);
+  return allowedActions.includes(actions[0] || '');
+}
+
 export function isNSEPage(location) {
   const url = new URL(location);
-  if (url.pathname === '/torrents.php') return true;
-  if (/^\/collage(?:s\.php|\/)/.test(url.pathname)) return true;
-  if (url.pathname === '/requests.php') return true;
-  if (url.pathname === '/user.php') return url.searchParams.get('action') === 'notify';
-  return url.pathname === '/top10.php' && !['users', 'tags', 'taggers'].includes(url.searchParams.get('type'));
+  return url.pathname !== '/bookmarks.php' && isCompanionPage(url);
 }
 
 export const SEARCH_NAMES = /^(?:searchtext|title|sizeall|sizerange|filelist|taglist|filter_freeleech|limit_matches|order_by|order_way|sizeunit|sizeselect|sizeunits|sizetype|autocomplete_toggle|searchstr|filter_cat\[\d+\])$/;

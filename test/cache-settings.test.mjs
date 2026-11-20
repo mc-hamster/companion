@@ -75,7 +75,7 @@ test('pinned cache statistics stay visible outside Settings and persist across p
     assert.ok(app.cacheUsageClock);
   } finally { first.close(); }
 
-  const second = await setup({store, html:'<!doctype html><main id="content">Profile</main>', url:'https://www.empornium.sx/user.php?id=10'});
+  const second = await setup({store, html:fixtureHTML(''), url:'https://www.empornium.sx/bookmarks.php?type=torrents'});
   try {
     const { app } = second;
     assert.equal(app.panel.hidden, true);

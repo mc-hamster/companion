@@ -222,6 +222,92 @@ a.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;poi
 #content ul#torrent_tags_list[data-ep-adaptive-tags]{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr));align-items:start;gap:6px 12px;float:none!important;width:auto!important}
 #content ul#torrent_tags_list[data-ep-adaptive-tags]>li{float:none!important;width:auto!important;min-width:0;box-sizing:border-box;margin:0;padding:4px 6px;overflow-wrap:anywhere}
 .epc-detail-tag-actions{margin:4px 0}
+
+/* Torrent details keep their native panels and controls in place. */
+#content:has(> .details[data-ep-detail-layout]){
+  box-sizing:border-box;inline-size:min(100% - clamp(12px,4vw,48px),1300px);min-inline-size:0;max-inline-size:100%;
+  margin-inline:auto;padding-inline:clamp(10px,2vw,24px);overflow:visible
+}
+#content .details[data-ep-detail-layout]{
+  --epc-detail-line:color-mix(in srgb,currentColor 23%,transparent);
+  --epc-detail-surface:color-mix(in srgb,currentColor 7%,transparent);
+  --epc-detail-gap:clamp(12px,2vw,24px);--epc-detail-rail:clamp(12rem,27%,17rem);
+  --epc-detail-font:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  inline-size:100%;min-inline-size:0;max-inline-size:100%;margin-inline:auto;overflow-wrap:anywhere
+}
+#content [data-ep-detail-layout]>h2{
+  margin:0;padding:clamp(10px,2vw,22px) 0;text-align:start;font:700 clamp(22px,3vw,34px)/1.18 var(--epc-detail-font);
+  letter-spacing:-.025em;white-space:normal
+}
+#content [data-ep-detail-layout]>h2>.arrow{font-size:.6em;vertical-align:middle}
+#content [data-ep-detail-layout]>.linkbox{
+  box-sizing:border-box;inline-size:100%;min-inline-size:0;margin:0;padding:6px 12px;text-align:start;
+  border:1px solid var(--epc-detail-line);border-radius:9px;font:13px/1.5 var(--epc-detail-font)
+}
+#content [data-ep-detail-layout]>.linkbox:has(+.linkbox){border-end-start-radius:0;border-end-end-radius:0}
+#content [data-ep-detail-layout]>.linkbox+.linkbox{border-block-start:0;border-start-start-radius:0;border-start-end-radius:0}
+#content [data-ep-detail-layout]>.linkbox:has(>.top_info){overflow-x:auto}
+#content [data-ep-detail-layout] .top_info{inline-size:auto;max-inline-size:100%;margin:0}
+#content [data-ep-detail-layout]>.linkbox:has(>.torrent_buttons):not([hidden],.hidden){
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 12px;
+  background:var(--epc-detail-surface)
+}
+#content [data-ep-detail-layout]>.linkbox>.torrent_buttons{
+  display:flex;align-items:center;flex-wrap:wrap;gap:6px;max-inline-size:100%
+}
+#content [data-ep-detail-layout]>.linkbox>.torrent_buttons>.torrent_buttons{margin:0}
+#content [data-ep-detail-layout]>.linkbox:has(>.torrent_buttons)>br{display:none}
+#content [data-ep-detail-layout]>.epc-detail-nav{
+  position:sticky;inset-block-start:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:4px;
+  margin-block:12px 16px;padding:5px;border:1px solid var(--epc-line);border-radius:var(--epc-radius);
+  background:var(--epc-bg);box-shadow:0 2px 5px #0001
+}
+#content .epc-detail-nav>a{
+  padding:6px 9px;border-radius:var(--epc-control-radius);color:var(--epc-fg);font-weight:600;
+  line-height:1.45;text-decoration:none
+}
+#content .epc-detail-nav>a:is(:hover,:focus-visible){background:var(--epc-soft);color:var(--epc-accent)}
+#content [data-ep-detail-target]{scroll-margin-block-start:4rem}
+#content [data-ep-detail-layout] #details_top::after{content:"";display:block;clear:both}
+#content [data-ep-detail-layout] #details_top>.sidebar{
+  float:inline-end;inline-size:var(--epc-detail-rail);max-inline-size:100%;min-inline-size:0;margin:0
+}
+#content [data-ep-detail-layout] #details_top>.middle_column{
+  float:none;inline-size:auto;min-inline-size:0;margin:0;margin-inline-end:calc(var(--epc-detail-rail) + var(--epc-detail-gap));
+  overflow-x:auto
+}
+#content [data-ep-detail-layout]>.main_column{
+  float:none;inline-size:100%;min-inline-size:0;margin:var(--epc-detail-gap) 0 0
+}
+#content [data-ep-detail-layout] :is(.sidebar,.middle_column,.main_column)>.head{
+  box-sizing:border-box;margin:14px 0 0;padding:9px 12px;border:1px solid var(--epc-detail-line);
+  border-radius:9px 9px 0 0;background:var(--epc-detail-surface);color:inherit;font:650 14px/1.45 var(--epc-detail-font)
+}
+#content [data-ep-detail-layout] :is(.sidebar,.middle_column,.main_column)>.head:first-child{margin-block-start:0}
+#content [data-ep-detail-layout] :is(#coverimage,#tag_container){box-sizing:border-box;inline-size:auto;max-inline-size:100%;margin:0}
+#content [data-ep-detail-layout] #coverimage img{
+  display:block;max-inline-size:100%;max-block-size:min(52vh,22rem);block-size:auto;margin-inline:auto;object-fit:contain
+}
+#content [data-ep-detail-layout] :is(.middle_column>.torrent_table,.middle_column>#collages,.middle_column>#personal_collages){
+  inline-size:100%;margin:0;border-radius:0 0 9px 9px
+}
+#content [data-ep-detail-layout] #details_top .torrentdetails [id^="files_"]{max-block-size:min(65vh,36rem);overflow:auto}
+#content [data-ep-detail-layout] .main_column>.box:has(>#descbox){
+  box-sizing:border-box;max-inline-size:100%;margin:0;padding:clamp(10px,2vw,22px);
+  border:1px solid var(--epc-detail-line);border-block-start:0;border-radius:0 0 9px 9px
+}
+#content [data-ep-detail-layout] #descbox{overflow-x:auto;font-size:14px;line-height:1.6}
+#content [data-ep-detail-layout] #descbox table.bbcode{max-inline-size:100%}
+#content [data-ep-detail-layout] #descbox img{max-inline-size:100%;block-size:auto}
+#content [data-ep-detail-layout] :is(#descbox,.forum_post) pre{max-inline-size:100%;overflow-x:auto}
+#content [data-ep-detail-layout] .main_column>.forum_post{inline-size:100%;table-layout:fixed}
+#content [data-ep-detail-layout] #quickpostform :is(input,textarea,table){box-sizing:border-box;max-inline-size:100%}
+@media(max-width:760px){
+  #content [data-ep-detail-layout] #details_top>.sidebar{float:none;inline-size:100%;margin-block-end:var(--epc-detail-gap)}
+  #content [data-ep-detail-layout] #details_top>.middle_column{margin-inline-end:0}
+  #content [data-ep-detail-target]{scroll-margin-block-start:7rem}
+}
+
 .epc-luminance-import{margin-top:10px;border-top:1px solid var(--epc-line);padding:5px 0;max-width:680px}
 .epc-luminance-group{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start;padding:4px 0;border-top:1px solid var(--epc-line)}
 .epc-luminance-group summary,.epc-luminance-tags,.epc-luminance-conflicts{overflow-wrap:anywhere}

@@ -1,5 +1,7 @@
 # Validation
 
+Version 2.14.7 passes 389 automated checks, including opt-in and reversal, native file-list navigation, and page matching. The detail layout was also exercised at 1280px and 360px in Chromium using local fixtures. [Detail layout and supported pages](REFERENCE.md)
+
 Version 2.11.0 passes 301 checks. Eight new cases cover collage URL identity, deduplicated row/cover appends, filter-gated image activation/reveal, safe cover sizing/sanitization and rollback, automatic collage loading with retry, common Settings structure, in-context backfill autosave, and global search/disclosure restoration. Existing interface assertions were updated for six common preferences plus search; metric tests explicitly open the collapsed detail section.
 
 Read-only inspection of the supplied live collage confirmed the pretty URL, 50-row table, paired grid cards, native SVG spacer and `#discog_table` pagination anchor. Native neutral fixtures load two extra pages into six unique rows/covers, hide/reveal both together, persist All mode and load automatically on refresh. Final Settings displays full labels at 360px, hides irrelevant page count, and restores folded cache/advanced details after search. Final cached reloads show no image requests. [Suite](qa/2.11.0-full.xml), [browser observations](qa/collage-settings-2110-browser.json), [Settings](qa/settings-2110.png), [collage](qa/collage-backfill-2110.png). Actual Tampermonkey remains unverified; no production-site mutation or torrent download occurred.

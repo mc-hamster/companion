@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.14.6](dist/EmporniumCompanion-2.14.6.user.js)**
+**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.14.7](dist/EmporniumCompanion-2.14.7.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -20,7 +20,7 @@ Companion is a small add-on that runs through [Tampermonkey](https://www.tamperm
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) for your browser.
 2. Click **[Install Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)**, review the permissions, and choose **Install**.
-3. Open or reload Empornium. Look for the **Companion** toolbar above the results.
+3. Sign in to Empornium and open a torrent results page. Look for the **Companion** toolbar above the results.
 4. Follow **Getting started** to choose your thumbnail size, previews, and whether to load extra pages. You can change these later in **Settings**.
 
 Already using Companion? Use **Check for updates** on your installed script in Tampermonkey to get the rename and keep your settings. Use the install link for a fresh copy.
@@ -55,6 +55,8 @@ To add more results yourself, click **Load more** below the results. This brings
 
 To curate a collage, open it and click **Pin for quick add** in the Companion toolbar. Open a torrent's details page and click **Add to [collage name]**. If you pin several collages, use the selector next to the button to switch destinations. You can unpin a collage from its own page.
 
+Enable **Settings → Appearance → Reformat torrent detail pages** for a responsive layout and jump links to the description, files, tags, and discussion.
+
 ## Updates and backups
 
 Tampermonkey can keep Companion up to date when its update checks are enabled. To update manually, find your installed script in the Tampermonkey dashboard and click **Check for updates**.
@@ -65,7 +67,7 @@ Moving from an older script? See the [import instructions](docs/REFERENCE.md#imp
 
 ## Need help?
 
-- **Nothing appears on Empornium?** Check that Tampermonkey and Companion are enabled, then reload the page. Chrome may also need **Allow User Scripts** enabled; follow [Tampermonkey's instructions](https://www.tampermonkey.net/faq.php?q=Q209).
+- **Nothing appears above your results?** Check that Tampermonkey and Companion are enabled, then reload the results page. Chrome may also need **Allow User Scripts** enabled; follow [Tampermonkey's instructions](https://www.tampermonkey.net/faq.php?q=Q209).
 - **The install link shows code instead of an install button?** Follow [Tampermonkey's manual installation guide](https://www.tampermonkey.net/faq.php?q=Q102).
 - **An image still won't load?** Try **Retry** if it's offered. Companion can't restore a deleted image or fix an image website that's offline.
 - **Two thumbnails beside each result?** In Tampermonkey, keep one copy of Companion enabled and disable any separate thumbnail script, such as **whatcd gazelle direct thumbnails**. Reload the results page.
