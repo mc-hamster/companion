@@ -1,5 +1,57 @@
 # Feature mapping
 
+Version 2.15.0 adds an opt-in detail layout with a cover-first gallery, compact tags and collages, and a collapsible file list. Set **Reformat details** in the detail toolbar or Getting started. The results toolbar has persistent **Animated Covers** and **Show filtered** switches. [Detail layout and toolbar](REFERENCE.md)
+
+Version 2.14.32 keeps decorative studio headers and their matching banners in the original description so covers, screenshots, and contact sheets can pack into a shorter gallery. [Detail layout](REFERENCE.md)
+
+Version 2.14.31 adds a shared **Animated Covers** switch to the List and Grid toolbar. It defaults to off, remembers your choice, and carries forward either previous opt-in. [List and Grid](GRID-VIEW.md)
+
+Version 2.14.30 adds side padding to tag entries and controls in the reformatted detail view.
+
+Version 2.14.29 adds vertical padding to Tags in the reformatted detail view.
+
+Version 2.14.28 recognizes existing Quick Add pins on the bare and www addresses for the same Empornium account.
+
+Version 2.14.27 uses the site's original styles for the detail-page metadata and action rows. [Detail layout](REFERENCE.md)
+
+Version 2.14.26 keeps links and images under “Please check my other uploads” in the original description. [Detail layout](REFERENCE.md)
+
+Version 2.14.25 keeps screenshot labels with their spoiler controls and preserves the Personal Collages status row. [Detail layout](REFERENCE.md)
+
+Version 2.14.24 uses the site's content width and title styling in the reformatted detail view. [Detail layout](REFERENCE.md)
+
+Version 2.14.23 shows a cover once when the gallery and original description use the same image. [Detail layout](REFERENCE.md)
+
+Version 2.14.22 places the collapsed **File list** below Tags and aligns the Add tag form to the right. [Detail layout](REFERENCE.md)
+
+Version 2.14.21 gives Tags and Collages equal table widths in one panel and restores the site's original discussion layout. [Detail layout](REFERENCE.md)
+
+Version 2.14.20 places Tags, Collages, and Discussion in one column below the gallery. Section dividers guide the reader, tag votes use a quieter style, and supported collage tables show each torrent count beside its name. [Detail layout](REFERENCE.md)
+
+Version 2.14.19 gives Tags and Collages matching panels on reformatted detail pages. Tag sorting, voting, and entry use a shared layout, and collage names and torrent counts are visually distinct. [Detail layout](REFERENCE.md)
+
+Version 2.14.18 puts **Show filtered** beside Settings as a persistent switch. Saved searches align to the right beneath the toolbar on result and detail pages. [Toolbar and filters](REFERENCE.md)
+
+Version 2.14.17 arranges reformatted detail tags in aligned columns with a divider below each entry and voting controls on the right. [Detail layout](REFERENCE.md)
+
+Version 2.14.16 groups reformatted detail tags and their voting controls into compact chips. Long tag lists scroll within the Tags section. [Detail layout](REFERENCE.md)
+
+Version 2.14.15 puts the cover first in the detail gallery and moves the file list into the summary. The **Reformat details** switch returns to the original page. [Detail layout](REFERENCE.md)
+
+Version 2.14.14 sizes galleries of one to three images using their proportions and the space available in the detail column. [Detail layout](REFERENCE.md)
+
+Version 2.14.13 gives a lone detail-gallery image a larger preview that fits the page. [Detail layout](REFERENCE.md)
+
+Version 2.14.12 skips the site's decorative description banners and gives small detail galleries a compact footprint. [Detail layout](REFERENCE.md)
+
+Version 2.14.11 adds hover previews and a larger click-to-open viewer to the reformatted detail gallery. Section headings fit their labels and preserve the site's theme colors. [Detail layout](REFERENCE.md)
+
+Version 2.14.10 packs detail gallery images into compact rows that wrap at their displayed widths. [Detail layout](REFERENCE.md)
+
+Version 2.14.9 shows full image galleries when the reformatted detail page opens. [Detail layout](REFERENCE.md)
+
+Version 2.14.8 adds a persistent **Reformat details** switch to the Companion toolbar and removes the section bar and results controls from detail pages. The opt-in layout puts previews below the torrent actions, with **Show all images** for longer galleries and access to spoilers, embeds, and links. **Show original description** reveals the uploader's full write-up. [Detail layout](REFERENCE.md)
+
 Version 2.14.7 adds **Settings → Appearance → Reformat torrent detail pages**. The opt-in layout fits the detail content to the window and adds sticky jump links to the description, file list, tags, and discussion. It uses the site's existing description and controls.
 
 Companion now starts on supported browsing pages. Pinned cache statistics and Companion's page shortcuts are available on those pages. [Supported pages and detail layout](REFERENCE.md)

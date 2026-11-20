@@ -4,9 +4,9 @@ export const DEFAULTS = Object.freeze({
   enabled: true, previews: true, inlineThumbnails: true,
   thumbnailPlacement: 'title', categoryDisplay: 'keep', thumbnailMode: 'auto',
   thumbnailSize: 100, previewWidth: 440, hoverDelay: 140, hideDelay: 240,
-  resultsView: 'list', gridCardWidth: 320, gridSpacing: 'standard', gridAutoplayGifs: false, listAutoplayGifs: false,
+  resultsView: 'list', gridCardWidth: 320, gridSpacing: 'standard', animatedCovers: false,
   gridTruncateTitles: true, gridShowDetails: false, gridShowTags: false, gridTagCues: true, adaptiveDetailTags: false,
-  listHiddenColumns: '', collapsedDetailTags: '', showResultHideButton: false, reformatDetailPages: false,
+  listHiddenColumns: '', collapsedDetailTags: '', showResultHideButton: false, reformatDetailPages: false, showFilteredResults: false,
   concurrency: 8, maxRetries: 2, stallMs: 8000, timeoutMs: 24000, thumbnailTimeoutMs: 4500,
   cacheEntries: 24, cacheMegapixels: 48, preloadScreens: 0.8,
   persistentImages: true, persistentCacheMB: 512,
@@ -40,6 +40,9 @@ export function validateSettings(input = {}) {
   for (const [key, value] of Object.entries(input)) {
     if (!(key in DEFAULTS)) continue;
     if (typeof DEFAULTS[key] === 'boolean' && typeof value === 'boolean') result[key] = value;
+  }
+  if (typeof input.animatedCovers !== 'boolean') {
+    result.animatedCovers = input.gridAutoplayGifs === true || input.listAutoplayGifs === true;
   }
   const ranges = {
     thumbnailSize: [48, 300], gridCardWidth: [240, 600], previewWidth: [240, 800], hoverDelay: [0, 1500],

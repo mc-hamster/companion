@@ -4,7 +4,7 @@ import { DEFAULTS, validateSettings, escapeHTML, safeImageURL, canonicalImageURL
   imageState, editableTarget, isSaveShortcut, SEARCH_NAMES, validateSearches, MediaPool } from './core.mjs';
 import { mountFilterControls, adoptRuleMenu, styleRowControls, applyWorkspaceTheme, adoptNotificationControls, optionGroup, setupSettingsSearch, keyboardShortcutList, companionIcon, toolbarPageName } from './workspace.mjs';
 import { PreferencesController, captureFilterBaseline, restoreFilterBaseline } from './preferences.mjs';
-import { BackfillController, torrentID } from './backfill.mjs';
+import { BackfillController, backfillURL, torrentID } from './backfill.mjs';
 import { CollageQuickAdd } from './collage-quick-add.mjs';
 import { OnboardingController } from './onboarding.mjs';
 import { PersistentImageCache, cacheBytes, cacheActivityWindows } from './image-cache.mjs';
@@ -24,6 +24,8 @@ const SEARCH_KEY = 'ep.searches';
 const CACHE_STATS_PIN_KEY = 'ep.cacheStatsPinned';
 const DIAGNOSTIC_LIMIT = 3000;
 const OWN = '.epc-root,.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback,.epc-media-retry,.epc-engine,.epc-version-control,.epc-version-columns,.epc-grid-card-actions,#nseOuter,#nseFloatyBoi';
+const hiddenMedia = '.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden,[data-ep-detail-original-hidden]';
+const galleryImageSelector = '.epc-detail-preview-images img';
 // Image URLs can be extensionless, and formats such as WebP can carry animation.
 const coverMayAnimate = source => !/\.(?:jpe?g|bmp|ico)$/i.test(new URL(source).pathname);
 const loadLabels = {
@@ -87,6 +89,8 @@ export function applySearch(form, saved, append = false) {
 }
 
 export class CompanionApp {
+  get revealingFiltered() { return this.settings.showFilteredResults && !this.detailLayout?.torrentID; }
+
   constructor(win, storage, options = {}) {
     this.win = win; this.doc = win.document; this.storage = storage; this.options = options;
     const storedSettings = storage.get(SETTINGS_KEY, {});
@@ -307,6 +311,7 @@ export class CompanionApp {
     (this.win.requestAnimationFrame || (fn => this.win.setTimeout(fn, 16))).call(this.win, run);
   }
   buildUI() {
+    const detailPage = !!this.detailLayout.torrentID;
     this.root = this.node('section', null, 'epc-root epc-workspace');
     this.root.setAttribute('aria-label', 'Companion');
     this.toolbar = this.node('header', null, 'epc-toolbar');
@@ -334,7 +339,7 @@ export class CompanionApp {
       const button = this.button(title, () => this.openPane(key));
       button.dataset.pane = key; button.setAttribute('aria-controls', pane.id); button.setAttribute('aria-expanded', 'false');
       this.paneButtons.set(key, button); this.panes[key] = pane;
-      if (key !== 'images') {
+      if (key !== 'images' && !(detailPage && key === 'filters')) {
         button.prepend(companionIcon(this, key));
         (key === 'filters' ? resultActions : navigation).append(button);
       }
@@ -350,27 +355,15 @@ export class CompanionApp {
     this.filterSummary = this.node('span', '', 'epc-result-summary');
     this.notice = this.node('p', '', 'epc-notice'); this.notice.setAttribute('role', 'status');
     this.health = this.node('span', '', 'epc-health'); this.health.hidden = true;
-    this.toolbarStatus.append(this.filterSummary, this.health);
+    if (!detailPage) this.toolbarStatus.append(this.filterSummary);
+    this.toolbarStatus.append(this.health);
     footer.append(this.toolbarStatus, this.toolbarUtilities);
     this.toolbar.append(main, this.toolbarContext, footer);
-    const filteredLabel = this.node('span', 'Show filtered');
-    this.filteredCount = this.node('span', '', 'epc-filtered-count');
-    this.filteredCount.setAttribute('aria-hidden', 'true');
-    this.toggleFiltered = this.button('', () => {
-      this.revealingFiltered = !this.revealingFiltered;
-      this.toggleFiltered.setAttribute('aria-pressed', String(this.revealingFiltered));
-      this.syncGridFilters(); this.media.demandListener?.();
-    });
-    this.filteredLabel = filteredLabel;
-    this.toggleFiltered.dataset.epReveal = '';
-    this.toggleFiltered.hidden = true;
-    this.toggleFiltered.setAttribute('aria-pressed', 'false');
-    this.toggleFiltered.append(companionIcon(this, 'eye'), filteredLabel, this.filteredCount);
     this.controls = new Map();
     this.grid.mount();
     this.resultFilters.mountFreeleech();
-    this.toolbarStatus.append(this.toggleFiltered);
-    this.toolbarContext.append(resultActions, this.contextActions);
+    if (!detailPage) this.toolbarContext.append(resultActions);
+    this.toolbarContext.append(this.contextActions);
     this.backfill.mount();
     this.panes.filters.append(this.node('p', 'Loading filter preferences…', 'epc-filter-placeholder'));
     this.panes.searches.append(this.node('p', 'Click a name to run its search. More lets you edit saved criteria here.', 'epc-caption'));
@@ -462,12 +455,12 @@ export class CompanionApp {
       ['thumbnailMode', 'Thumbnail source', ['auto', 'supplied', 'original']],
       ['thumbnailSize', 'Thumbnail width', 'number', 48, 300],
       ['reformatDetailPages', 'Reformat torrent detail pages', 'checkbox'],
+      ['animatedCovers', 'Animated Covers', 'checkbox'],
+      ['showFilteredResults', 'Show filtered', 'checkbox'],
       ['resultsView', 'Results layout', ['list', 'grid']],
       ['gridCardWidth', 'Grid card size', [240, 320, 420, 540]],
       ['gridSpacing', 'Grid spacing', ['standard', 'compact']],
       ['gridTruncateTitles', 'Truncate titles in Grid', 'checkbox'],
-      ['gridAutoplayGifs', 'Play animated covers in Grid', 'checkbox'],
-      ['listAutoplayGifs', 'Play animated covers in List', 'checkbox'],
       ['gridShowDetails', 'Show details in grid cards', 'checkbox'],
       ['gridShowTags', 'Show tags in grid cards', 'checkbox'],
       ['gridTagCues', 'Show Favorite and Caution cues in Grid', 'checkbox'],
@@ -502,6 +495,8 @@ export class CompanionApp {
       ['showResultHideButton', 'Show “Hide this result” buttons', 'checkbox']
     ];
     for (const [key, label, type, min, max] of schema) {
+      const resultsSwitch = key === 'showFilteredResults' || key === 'animatedCovers';
+      if (detailPage && resultsSwitch) continue;
       const row = this.node('label', null, 'epc-setting');
       const caption = this.node('span', label);
       row.dataset.optionItem = ''; row.append(caption);
@@ -528,7 +523,33 @@ export class CompanionApp {
       control.dataset.setting = key; this.controls.set(key, control); row.append(control);
       setSettingHelp(caption, settingHelp[key], control);
       if(type==='checkbox')row.classList.add('epc-setting-toggle');
-      const parent = ['thumbnailSize','previews','reformatDetailPages','resultsView','gridCardWidth','gridSpacing','gridAutoplayGifs','listAutoplayGifs','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions','showResultHideButton'].includes(key)?browsing :
+      if (resultsSwitch || detailPage && key === 'reformatDetailPages') {
+        if (detailPage) {
+          caption.textContent = 'Reformat details';
+          this.detailLayout.toggleRow = row;
+        } else if (key === 'showFilteredResults') {
+          control.dataset.epReveal = '';
+          this.toggleFiltered = control;
+          this.filteredCount = this.node('span', '', 'epc-filtered-count');
+          this.filteredCount.setAttribute('aria-hidden', 'true');
+          this.filteredCount.hidden = true;
+          row.append(this.filteredCount);
+        } else {
+          this.coverMotionNote = this.node('p', 'Animated covers are unavailable while reduced motion is on in your system settings.',
+            'epc-caption epc-cover-motion-note');
+          this.coverMotionNote.id = 'epc-cover-motion-toolbar';
+          this.coverMotionNote.hidden = true;
+          this.coverMotionNote.setAttribute('role', 'status');
+          main.after(this.coverMotionNote);
+        }
+        control.setAttribute('role', 'switch');
+        row.classList.add('epc-toolbar-switch');
+        row.prepend(control);
+        row.hidden = true;
+        this.paneButtons.get('settings').before(row);
+        continue;
+      }
+      const parent = ['thumbnailSize','previews','reformatDetailPages','resultsView','gridCardWidth','gridSpacing','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions','showResultHideButton'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
         ['gridTruncateTitles', 'gridTagCues', 'adaptiveDetailTags'].includes(key) ? this.optionGroups.appearance :
         key === 'diagnostics' ? this.optionGroups.diagnostics : ['keyboardShortcuts', 'navigationScope'].includes(key) ? this.optionGroups.interaction :
@@ -536,12 +557,9 @@ export class CompanionApp {
       parent.append(row);
       if(type==='checkbox'&&(parent===settings||parent===browsing))row.prepend(control);
     }
-    this.coverMotionNote = this.createCoverMotionNote('epc-cover-motion-settings');
     this.grid.mountViewOptions();
-    this.controls.get('listAutoplayGifs').closest('label').after(this.coverMotionNote);
     settings.append(this.controls.get('previews').closest('label'));
     settings.append(this.grid.settingsHelp());
-    settings.append(this.node('p', 'Preload full-size covers, including off-screen results. List playback shows inline covers. This can use more data.', 'epc-caption'));
     const shortcuts = keyboardShortcutList(this);
     shortcuts.dataset.optionItem = '';
     this.optionGroups.interaction.append(shortcuts);
@@ -614,6 +632,9 @@ export class CompanionApp {
     this.root.addEventListener('change', event => {
       if(event.target.dataset.setting==='backfillMode')this.controls.get('backfillEnabled').checked=true;
       this.syncSettingsUI();this.markDirty(event.target,event);
+      if (event.target.matches('.epc-toolbar-switch input') && !this.preferences.flush()) {
+        event.target.checked = this.settings[event.target.dataset.setting];
+      }
     });
     this.root.addEventListener('focusout', event => {
       const input = event.target;
@@ -704,7 +725,7 @@ export class CompanionApp {
     const searching=!!this.settingsSearch?.value.trim();if(!searching)row.hidden=mode==='all';
     if(mode==='all'&&!pages.checkValidity())pages.value=this.settings.backfillPages;
     const list = this.controls.get('resultsView').value === 'list';
-    if (!searching) for (const key of ['gridCardWidth', 'gridSpacing', 'gridTruncateTitles', 'gridAutoplayGifs', 'gridShowDetails', 'gridShowTags', 'gridTagCues']) {
+    if (!searching) for (const key of ['gridCardWidth', 'gridSpacing', 'gridTruncateTitles', 'gridShowDetails', 'gridShowTags', 'gridTagCues']) {
       this.controls.get(key).closest('label').hidden = list;
     }
     this.doc.documentElement.toggleAttribute('data-ep-hide-result-buttons', !this.settings.showResultHideButton);
@@ -712,27 +733,15 @@ export class CompanionApp {
     this.syncCoverMotionControls();
     if(!this.cacheStatsPinned&&this.cacheUsage?.hidden){this.win.clearTimeout(this.cacheUsageClock);this.cacheUsageClock=null;}
   }
-  createCoverMotionNote(id) {
-    const note = this.node('p', 'Animated covers are unavailable while reduced motion is on in your system settings.', 'epc-caption epc-cover-motion-note');
-    note.id = id; note.hidden = true;
-    note.setAttribute('role', 'status');
-    return note;
-  }
   syncCoverMotionControls() {
+    const control = this.controls?.get('animatedCovers');
+    if (!control) return;
     const reduced = !!this.media.reducedMotion?.matches;
-    const groups = [
-      [this.coverMotionNote, [this.controls?.get('gridAutoplayGifs'), this.controls?.get('listAutoplayGifs')]],
-      [this.onboarding?.coverMotionNote, [this.onboarding?.gridAutoplayGifs, this.onboarding?.listAutoplayGifs]]
-    ];
-    for (const [note, controls] of groups) {
-      if (!note) continue;
-      note.hidden = !reduced || controls.every(control => control.closest('label').hidden);
-      for (const control of controls) {
-        control.disabled = reduced;
-        if (reduced) control.setAttribute('aria-describedby', note.id);
-        else control.removeAttribute('aria-describedby');
-      }
-    }
+    const note = this.coverMotionNote;
+    note.hidden = !reduced || control.closest('label').hidden;
+    control.disabled = reduced;
+    if (reduced) control.setAttribute('aria-describedby', note.id);
+    else control.removeAttribute('aria-describedby');
   }
   scheduleCacheUsage(){
     if(!this.cacheUsageVisible()||this.cacheUsageTimer)return;
@@ -857,13 +866,17 @@ export class CompanionApp {
   updateMediaPreferences(previous) {
     this.syncSettingsUI();
     if (previous.reformatDetailPages !== this.settings.reformatDetailPages) this.detailLayout.sync();
+    const revealChanged = previous.showFilteredResults !== this.settings.showFilteredResults;
     gridCardSizeChoices(this.controls.get('gridCardWidth'), this.settings.gridCardWidth);
-    if (previous.resultsView === this.settings.resultsView) this.grid?.refresh();
+    if (!revealChanged && previous.resultsView === this.settings.resultsView) this.grid?.refresh();
     this.backfill?.sync();
     this.backfill?.maybeAutomatic();
     if(previous.persistentCacheMB!==this.settings.persistentCacheMB)void this.imageCache.prune(this.imageCache.limit());
     if (previous.seenMode !== this.settings.seenMode) this.resultFilters.seen = null;
-    if (previous.resultsView !== this.settings.resultsView || previous.groupVersions !== this.settings.groupVersions || previous.seenMode !== this.settings.seenMode ||
+    if (revealChanged) {
+      this.syncGridFilters();
+      this.media.demandListener?.();
+    } else if (previous.resultsView !== this.settings.resultsView || previous.groupVersions !== this.settings.groupVersions || previous.seenMode !== this.settings.seenMode ||
         previous[this.resultFilters.freeleechKey] !== this.settings[this.resultFilters.freeleechKey]) {
       this.resultFilters.refreshView();
     }
@@ -873,7 +886,7 @@ export class CompanionApp {
     const other = new Set(['groupVersions', 'favoriteTags', 'cautionTags', 'backfillEnabled', 'backfillPages', 'backfillMode',
       'keyboardShortcuts', 'navigationScope', 'globalArrowNavigation', 'diagnostics', 'persistentImages', 'persistentCacheMB',
       'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView', 'collapsedDetailTags',
-      'adaptiveDetailTags', 'gridTagCues', 'listHiddenColumns', 'showResultHideButton', 'reformatDetailPages']);
+      'adaptiveDetailTags', 'gridTagCues', 'listHiddenColumns', 'showResultHideButton', 'reformatDetailPages', 'showFilteredResults']);
     if (!Object.keys(this.settings).some(key => !other.has(key) && previous[key] !== this.settings[key])) return;
     if (previous.enabled !== this.settings.enabled) {
       this.restartMedia(); return;
@@ -1051,7 +1064,7 @@ export class CompanionApp {
       this.quickSaveSearch = this.button('Save search', () => this.saveCurrentSearch());
       this.quickSaveSearch.className = 'epc-quiet epc-quick-search';
       this.quickSaveSearch.prepend(companionIcon(this, 'add'));
-      this.toolbarUtilities.append(this.quickSaveSearch);
+      this.toolbarUtilities.prepend(this.quickSaveSearch);
     }
     this.quickSaveSearch.hidden = !form;
     if (form && changed) {
@@ -1296,6 +1309,10 @@ export class CompanionApp {
     }
   }
   syncGridFilters(refreshTags = true, appended) {
+    if (this.detailLayout.torrentID) {
+      if (refreshTags) this.tags?.refresh();
+      return;
+    }
     const previous = appended && !this.resultsDirty ? this.resultCounts : null;
     const newRows = previous ? appended : null;
     let revealable = previous?.revealable || 0;
@@ -1370,11 +1387,14 @@ export class CompanionApp {
       // A new version can also collapse existing rows that had no group before.
       const shown = previous ? previous.shown + eligible - (grouped - previous.grouped) : eligible;
       this.resultCounts = { total: (previous?.total || 0) + rows.length, shown, grouped, filtered, removed, revealable }; this.renderResultSummary();
-      this.toggleFiltered.disabled = !revealable;
-      this.toggleFiltered.hidden = !revealable || !this.storage.get('nseFloatingToggleButtonEnabled', true);
+      const page = this.win.location.href;
+      const hasResultsView = rows.length || cards.length || this.detachedFilterRows.size || this.backfill.table() ||
+        this.resultFilters.bookmarks || backfillURL(page, page);
+      this.toggleFiltered.closest('label').hidden = !hasResultsView || !this.storage.get('nseFloatingToggleButtonEnabled', true);
+      this.controls.get('animatedCovers').closest('label').hidden = !hasResultsView;
+      this.syncCoverMotionControls();
       this.filteredCount.textContent = revealable.toLocaleString();
-      this.filteredLabel.textContent = this.revealingFiltered ? 'Hide filtered' : 'Show filtered';
-      this.toggleFiltered.setAttribute('aria-label', this.filteredLabel.textContent + ' (' + this.filteredCount.textContent + ')');
+      this.filteredCount.hidden = !revealable;
       styleRowControls(this, newRows ? rows : undefined);
     }
     this.backfill?.sync();
@@ -1631,16 +1651,16 @@ export class PageMedia {
   }
   updateSettings(previous) {
     const settings = this.app.settings;
+    const playbackChanged = settings.animatedCovers !== previous.animatedCovers;
     this.invalidateLayout();
     this.syncCoverGate();
     this.pool.settings = settings; this.pool.budget.maxRetries = settings.maxRetries;
     for (const [element, record] of this.records) if (record.kind === 'background') {
-      const playbackChanged = record.coverArt && settings.gridAutoplayGifs !== previous.gridAutoplayGifs;
       if (!settings.recoverBackgrounds || record.coverArt && (settings.thumbnailMode !== previous.thumbnailMode ||
           playbackChanged && record.state !== 'ready')) {
         this.clearRecord(record); this.clearCover(record); this.intersection?.unobserve(element); this.near.delete(element);
         this.records.delete(element); this.pool.abandon(record.lastEntry);
-      } else if (!settings.gridAutoplayGifs) this.stopGridGif(record);
+      } else if (!settings.animatedCovers) this.stopGridGif(record);
     }
     for (const [row, record] of this.thumbnails) {
       if (!this.thumbnailsEnabled(row)) {
@@ -1664,7 +1684,7 @@ export class PageMedia {
       const entry = record.lastEntry, usable = ['ready', 'partial'].includes(record.state);
       const changedLayout = settings.resultsView !== previous.resultsView;
       const listAutoplay = this.listCoverAutoplay(row);
-      const listPlaybackChanged = !grid && row.matches('tr.torrent') && settings.listAutoplayGifs !== previous.listAutoplayGifs;
+      const listPlaybackChanged = !grid && row.matches('tr.torrent') && playbackChanged;
       const layoutNeedsReload = changedLayout && (!usable || grid && (!entry ||
         !this.thumbnailOptions(record.source, null, 'small-only')?.candidates.includes(canonicalImageURL(entry.actualURL))));
       if (layoutNeedsReload || listPlaybackChanged && (!usable || !listAutoplay) ||
@@ -1730,7 +1750,7 @@ export class PageMedia {
   }
   invalidateLayout() { this.layoutVersion++; }
   displayed(element, record) {
-    if (!element?.isConnected || element.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden')) return false;
+    if (!element?.isConnected || element.closest(hiddenMedia)) return false;
     const position = record && this.thumbnailPosition(record);
     if (position?.displayed !== undefined) return position.displayed;
     const style = element.getClientRects().length && this.win.getComputedStyle(element);
@@ -1766,7 +1786,7 @@ export class PageMedia {
   }
   prepareThumbnails(rows, cards) {
     if (this.disposed || !this.app.filtersReady) return;
-    const playGifs = (this.app.settings.gridAutoplayGifs || this.listCoverAutoplay()) && !this.reducedMotion?.matches;
+    const playGifs = this.app.settings.animatedCovers && !this.reducedMotion?.matches;
     if (!playGifs && this.gridGifs.size) this.pool.batch(() => {
       for (const record of this.gridGifs.keys()) this.stopGridGif(record);
     });
@@ -1805,7 +1825,7 @@ export class PageMedia {
   }
   listCoverAutoplay(row) {
     const { settings } = this.app;
-    return settings.resultsView === 'list' && settings.listAutoplayGifs && (!row || row.matches('tr.torrent'));
+    return settings.resultsView === 'list' && settings.animatedCovers && (!row || row.matches('tr.torrent'));
   }
   watchNear(element, callback) {
     this.near.set(element, callback);
@@ -2129,8 +2149,9 @@ export class PageMedia {
   }
   coverAutoplayEnabled(record) {
     const { settings } = this.app;
-    if (record.coverArt) return settings.recoverBackgrounds && settings.gridAutoplayGifs;
-    return record.row.closest('.epc-result-grid') ? settings.gridAutoplayGifs : this.listCoverAutoplay(record.row);
+    if (!settings.animatedCovers) return false;
+    if (record.coverArt) return settings.recoverBackgrounds;
+    return !!record.row.closest('.epc-result-grid') || this.listCoverAutoplay(record.row);
   }
   gridGifEligible(record) {
     return !this.disposed && !this.reducedMotion?.matches && this.coverAutoplayEnabled(record) && this.displayed(record.element, record);
@@ -2374,7 +2395,7 @@ export class PageMedia {
     if (!force && record.state !== 'deferred') return;
     if (!this.app.filtersReady || this.disposed || !this.app.settings.recoverBackgrounds ||
         !(record.coverArt ? this.displayed(record.element, record) : this.visible(record.element, true)) || this.doc.hidden) return;
-    const viewportPlayback = record.coverArt && this.app.settings.gridAutoplayGifs;
+    const viewportPlayback = record.coverArt && this.app.settings.animatedCovers;
     const options = record.coverArt ? this.thumbnailOptions(record.originalSource, rescue ? record.lastEntry : null,
       viewportPlayback ? 'small-only' : undefined, record.preferredThumbnail) : { lane: 'large' };
     if (!options) {
@@ -2427,7 +2448,7 @@ export class PageMedia {
   loadCounts() {
     const counts = Object.fromEntries(Object.keys(loadLabels).map(key => [key, emptyLoadCounts()]));
     for (const record of [...this.records.values(), ...this.thumbnails.values()]) {
-      if (!record.element.isConnected || record.element.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden')) continue;
+      if (!record.element.isConnected || record.element.closest(hiddenMedia)) continue;
       const key = record.coverArt ? 'cover' : record.kind || 'thumbnail';
       const lazy = record.kind === 'image' && record.state === 'loading' && record.element.loading === 'lazy' && !this.visible(record.element);
       countLoad(counts[key], lazy ? 'deferred' : record.state);
@@ -2435,7 +2456,7 @@ export class PageMedia {
     const animationEntries = new Set();
     let animationLoads = 0;
     for (const [record, playback] of this.gridGifs) {
-      if (!record.element.isConnected || record.element.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden')) continue;
+      if (!record.element.isConnected || record.element.closest(hiddenMedia)) continue;
       animationLoads++;
       if (playback.entry) animationEntries.add(playback.entry);
       countLoad(counts.animation, playback.state);
@@ -2443,8 +2464,7 @@ export class PageMedia {
     const grid = this.app.settings.resultsView === 'grid';
     const hasCoverArt = counts.cover.ready || counts.cover.pending;
     if (!animationLoads && (grid || this.listCoverAutoplay() || hasCoverArt)) {
-      const autoplay = this.listCoverAutoplay() || (grid || hasCoverArt) && this.app.settings.gridAutoplayGifs;
-      counts.animation.note = !this.app.settings.enabled || !autoplay ? 'Off' :
+      counts.animation.note = !this.app.settings.enabled || !this.app.settings.animatedCovers ? 'Off' :
         this.reducedMotion?.matches ? 'Reduced motion' : 'No covers to load';
     }
     const preview = this.app.preview;
@@ -2551,7 +2571,10 @@ export class PreviewController {
       this.deferHide();
     });
     this.frame.addEventListener('click', () => {
-      if (this.open && this.zoom) this.showFor(this.anchor, { pin: true });
+      if (this.open && this.zoom) {
+        this.showFor(this.anchor, { pin: true });
+        if (this.metadata?.galleryImage) this.element.focus({ preventScroll: true });
+      }
     });
     this.element.addEventListener('pointercancel', () => { if (this.zoom) this.hide(); });
     this.element.addEventListener('focusout', event => {
@@ -2671,6 +2694,14 @@ export class PreviewController {
   }
   scan(root) {
     if (!this.element) return;
+    if (this.app.settings.enabled && this.app.detailLayout?.torrentID) {
+      const gallery = root.matches?.(galleryImageSelector) ? [root] : root.querySelectorAll(galleryImageSelector);
+      for (const image of gallery) {
+        const anchor = image.closest('a[href]');
+        const trigger = anchor?.querySelectorAll('img').length === 1 ? anchor : image;
+        this.bind(trigger, { galleryImage: image });
+      }
+    }
     const links = root.matches?.('a[onmouseover*="overlib"]') ? [root] :
       Array.from(root.querySelectorAll?.('a[onmouseover*="overlib"],a[data-ep-overlay]') || []);
     const parentRow = root.closest?.('tr.torrent');
@@ -2689,7 +2720,7 @@ export class PreviewController {
       return;
     }
     clickOnly ||= !this.app.settings.previews;
-    const item = { metadata, thumbnail: link.matches('.epc-thumb-button') || !!metadata.cover,
+    const item = { metadata, thumbnail: link.matches('.epc-thumb-button') || !!(metadata.cover || metadata.galleryImage),
       over: link.getAttribute('onmouseover'), out: link.getAttribute('onmouseout') };
     const enter = event => {
       if (event.type === 'pointerenter' && this.open && this.zoom && this.anchor !== link) {
@@ -2738,46 +2769,89 @@ export class PreviewController {
         if (this.hoveredTrigger === link) { this.win.clearTimeout(this.showTimer); this.hoveredTrigger = null; }
         if (this.titleHover && this.anchor === link) this.hide();
       }]])];
-    for (const [event, listener] of item.events) link.addEventListener(event, listener);
+    if (metadata.galleryImage) {
+      const enlarge = event => {
+        if (event.defaultPrevented || event.button || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey ||
+            !this.app.settings.enabled || !this.galleryMetadata(metadata.galleryImage)) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        this.showFor(link, { pin: true });
+        if (this.pinned && this.anchor === link) this.element.focus({ preventScroll: true });
+      };
+      item.events.push(['click', enlarge, true]);
+      if (link === metadata.galleryImage && !link.closest('a[href]')) {
+        item.galleryAttributes = ['tabindex', 'role', 'aria-label'].map(name => [name, link.getAttribute(name)]);
+        link.tabIndex = 0;
+        link.setAttribute('role', 'button');
+        if (!link.alt && !link.hasAttribute('aria-label')) link.setAttribute('aria-label', 'Enlarge image');
+        item.events.push(['keydown', event => { if (event.key === 'Enter' || event.key === ' ') enlarge(event); }]);
+      }
+    }
+    for (const [event, listener, capture] of item.events) link.addEventListener(event, listener, capture);
     link.removeAttribute('onmouseover'); link.removeAttribute('onmouseout');
     this.bound.set(link, item);
   }
+  galleryMetadata(image) {
+    const base = this.win.location.href;
+    const src = safeImageURL(image.currentSrc || image.getAttribute('src'), base) ||
+      this.app.media.records.get(image)?.source || safeImageURL(image.getAttribute('data-src') || image.getAttribute('data-lazy-src'), base);
+    if (!src) return null;
+    const linked = safeImageURL(image.closest('a[href]')?.getAttribute('href'), base);
+    return { galleryImage: image, src, original: fullSizeURL(linked || src), title: image.alt.trim().slice(0, 400) };
+  }
   showFor(link, options = {}) {
     const retainedPin = this.pinned && options.pin === true && this.anchor === link && this.metadata;
-    const item = this.bound.get(link) || (retainedPin ? { metadata: this.metadata, thumbnail: link.matches('.epc-thumb-button') || !!this.metadata.cover } : null);
+    const item = this.bound.get(link) || (retainedPin ? { metadata: this.metadata,
+      thumbnail: link.matches('.epc-thumb-button') || !!(this.metadata.cover || this.metadata.galleryImage) } : null);
     if (!item || !this.app.settings.enabled || !this.app.settings.previews && !options.pin || !retainedPin && (!link.isConnected ||
-        link.closest('.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden'))) return;
+        link.closest(hiddenMedia))) return;
     if (this.pinned && options.pin === undefined && !options.force) return;
+    const galleryImage = item.metadata.galleryImage;
+    const metadata = galleryImage ? this.galleryMetadata(galleryImage) || (retainedPin && this.metadata) : item.metadata;
+    if (!metadata) return;
     this.win.clearTimeout(this.showTimer); this.win.clearTimeout(this.hideTimer);
     // hide() clears the displayed image. Remembering the previous item does not
     // mean its pixels are still visible when a new hover session starts.
-    const same = this.open && this.metadata?.src === item.metadata.src;
+    const same = this.open && this.metadata?.src === metadata.src;
     if (!same) this.clearLoadStats();
     const previousUnsubscribe = this.unsubscribe; this.unsubscribe = null;
-    this.anchor = link; this.metadata = item.metadata;
+    this.anchor = link; this.metadata = metadata;
     this.pinned = options.pin ?? this.pinned; this.open = true; const version = ++this.version;
     this.zoom = item.thumbnail && !this.pinned && !options.keyboard;
     const titleHover = this.titleHover = !item.thumbnail && !this.pinned && !options.keyboard;
     this.element.dataset.mode = this.zoom ? 'zoom' : titleHover ? 'tooltip' : 'controls';
+    this.element.toggleAttribute('data-ep-gallery-preview', !!galleryImage);
     this.element.setAttribute('role', this.zoom || titleHover ? 'tooltip' : 'dialog');
     this.heading.hidden = this.actions.hidden = this.zoom || titleHover;
     this.summary.hidden = this.zoom;
     this.element.style.pointerEvents = titleHover || !this.pinned && this.hoveredTrigger === link ? 'none' : '';
-    this.element.hidden = false; this.title.textContent = item.metadata.title || 'Image preview';
-    this.summary.textContent = item.metadata.summary || '';
+    this.element.hidden = false; this.title.textContent = metadata.title || 'Image preview';
+    this.summary.textContent = metadata.summary || '';
     this.syncShortcutLabels();
     this.pinButton.setAttribute('aria-pressed', String(this.pinned));
     this.clearPendingImage();
     if (!same) { this.clearImage(); this.setStatusText('Waiting for image…'); }
-    const href = item.metadata.href && new URL(item.metadata.href, this.win.location.href);
+    const href = metadata.href && new URL(metadata.href, this.win.location.href);
     this.details.hidden = !href || href.origin !== this.win.location.origin || href.searchParams.get('action') === 'download';
     if (!this.details.hidden) this.details.href = href.href;
-    const source = this.pinned || this.zoom ? fullSizeURL(item.metadata.src) : item.metadata.src;
+    const source = galleryImage ? (this.pinned ? metadata.original : metadata.src) :
+      (this.pinned || this.zoom ? fullSizeURL(metadata.src) : metadata.src);
     // If the same image already has a usable inline thumbnail, keep it visible
     // while its larger form loads. Never show a previous torrent's picture.
     const row = link.closest('tr.torrent');
-    const thumbnail = row ? this.app.media.thumbnails.get(row) : item.metadata.cover && this.app.media.records.get(item.metadata.cover);
-    if (!same && thumbnail?.image.naturalWidth && fullSizeURL(thumbnail.source) === fullSizeURL(item.metadata.src)) {
+    const thumbnail = row ? this.app.media.thumbnails.get(row) : metadata.cover && this.app.media.records.get(metadata.cover);
+    const pageSource = galleryImage?.currentSrc || (galleryImage?.hasAttribute('src') ? galleryImage.src : '');
+    if (galleryImage?.naturalWidth && pageSource) {
+      if (!same || !this.pinned && !options.force && source === metadata.src) {
+        this.displayImage(this.fallbackImage);
+        if (this.image.getAttribute('src') !== pageSource) this.image.src = pageSource;
+        this.image.dataset.epImageSource = metadata.src;
+      }
+      if (!options.force && source === metadata.src) {
+        previousUnsubscribe?.(); this.renderEntry = this.progressEntry = null;
+        this.clearLoadStats(); this.setStatusText(''); this.element.dataset.state = 'ready';
+        this.position(); this.app.scheduleHealth(); return;
+      }
+    } else if (!same && thumbnail?.image.naturalWidth && fullSizeURL(thumbnail.source) === fullSizeURL(metadata.src)) {
       this.image.src = thumbnail.image.src; this.image.hidden = false;
       this.image.dataset.epImageSource=thumbnail.image.dataset.epImageSource||thumbnail.image.src;
     }
@@ -2788,7 +2862,7 @@ export class PreviewController {
     const requestOptions = titleHover ? this.app.media.thumbnailOptions(source, null, smallTitle ? 'small-only' : undefined) : {
       lane: 'large', keepAlive: true,
       cacheMode: thumbnail?.image.naturalWidth && !/\.gif(?:\?|$)/i.test(source) ? 'network' : 'lookup',
-      candidates: Array.from(new Set([source, item.metadata.src]))
+      candidates: Array.from(new Set([source, metadata.src]))
     };
     const entry = titleHover && readyThumbnail && !options.force ? thumbnail.lastEntry : requestOptions &&
       this.app.media.pool.request(smallTitle ? requestOptions.candidates[0] : source, {
@@ -2825,7 +2899,7 @@ export class PreviewController {
         queued: 'Waiting for a loading slot…', loading: 'Loading image…',
         streaming: 'Preview available; the full image is still loading.',
         stalled: 'Still waiting for the image host. You can retry or keep waiting.',
-        retrying: 'Retrying image…', failed: this.app.media.pendingRecovery(item.metadata.src) ?
+        retrying: 'Retrying image…', failed: this.app.media.pendingRecovery(metadata.src) ?
           'Image temporarily unavailable. Retrying automatically.' : 'The image is currently unavailable.',
         partial: 'The image is partly available. Retry if it looks incomplete.', ready: '', ...larger
       })[current.status] || '';
@@ -2893,13 +2967,17 @@ export class PreviewController {
       const viewport = this.win.visualViewport;
       const width = viewport?.width || this.win.innerWidth, height = viewport?.height || this.win.innerHeight;
       const offsetX = viewport?.offsetLeft || 0, offsetY = viewport?.offsetTop || 0, pad = 12;
-      const popupWidth = Math.max(180, Math.min(this.pinned ? Math.max(600, this.app.settings.previewWidth) :
-        this.titleHover ? Math.min(350, this.app.settings.previewWidth) : this.app.settings.previewWidth, width - pad * 2));
+      const gallery = this.metadata?.galleryImage, preferred = this.app.settings.previewWidth;
+      const desiredWidth = gallery ? (this.pinned ? Math.max(760, preferred * 1.5) : Math.min(preferred, width * .65)) :
+        (this.pinned ? Math.max(600, preferred) : this.titleHover ? Math.min(350, preferred) : preferred);
+      const popupWidth = Math.max(180, Math.min(desiredWidth, width - pad * 2));
       const popupHeight = Math.max(120, height - pad * 2);
       const style = this.element.style;
       const assignments = { width: popupWidth + 'px', maxHeight: popupHeight + 'px' };
       for (const [key, value] of Object.entries(assignments)) if (style[key] !== value) style[key] = value;
-      const frameHeight = Math.max(60, popupHeight - (this.zoom ? this.status.textContent ? 60 : 14 : this.titleHover ? 130 : 190)) + 'px';
+      const imageSpace = gallery ? (this.pinned ? popupHeight - 110 : Math.min(height * .56, popupHeight - 50)) :
+        popupHeight - (this.zoom ? this.status.textContent ? 60 : 14 : this.titleHover ? 130 : 190);
+      const frameHeight = Math.max(60, imageSpace) + 'px';
       if (this.frame.style.maxHeight !== frameHeight) this.frame.style.maxHeight = frameHeight;
       const anchor = (this.metadata?.cover || this.anchor)?.getBoundingClientRect();
       const rect = this.element.getBoundingClientRect();
@@ -2915,23 +2993,30 @@ export class PreviewController {
     });
   }
   forget(root) {
-    for (const link of [root, ...root.querySelectorAll('a,button')]) {
-      const item = this.bound.get(link); if (!item || link.isConnected) continue;
-      for (const [event, listener] of item.events) link.removeEventListener(event, listener);
-      if (item.over !== null) link.setAttribute('onmouseover', item.over);
-      if (item.out !== null) link.setAttribute('onmouseout', item.out);
-      this.bound.delete(link);
+    for (const link of [root, ...root.querySelectorAll('a,button,img')]) {
+      if (!link.isConnected) this.unbind(link);
     }
     if (this.open && !this.pinned && !this.anchor?.isConnected) this.hide();
     if (!this.open && this.anchor && !this.anchor.isConnected) { this.anchor = null; this.metadata = null; this.dismissed = null; this.renderEntry = null; }
   }
+  unbindGallery(root) {
+    for (const [link, item] of this.bound) {
+      if (item.metadata.galleryImage && root.contains(item.metadata.galleryImage)) this.unbind(link);
+    }
+  }
   unbind(link) {
     const item = this.bound.get(link); if (!item) return;
-    for (const [event, listener] of item.events) link.removeEventListener(event, listener);
+    for (const [event, listener, capture] of item.events) link.removeEventListener(event, listener, capture);
+    for (const [name, value] of item.galleryAttributes || []) {
+      if (value === null) link.removeAttribute(name); else link.setAttribute(name, value);
+    }
     if (item.over !== null) link.setAttribute('onmouseover', item.over);
     if (item.out !== null) link.setAttribute('onmouseout', item.out);
     this.bound.delete(link);
-    if (this.open && !this.pinned && this.anchor === link) this.hide();
+    if (item.metadata.galleryImage && this.hoveredTrigger === link) {
+      this.win.clearTimeout(this.showTimer); this.hoveredTrigger = null;
+    }
+    if (this.open && this.anchor === link && (!this.pinned || item.metadata.galleryImage)) this.hide(!!item.metadata.galleryImage);
   }
   dispose() {
     this.hide(true); this.resize?.disconnect(); this.win.removeEventListener('scroll', this.scrollListener);
@@ -2941,12 +3026,8 @@ export class PreviewController {
       this.win.visualViewport.removeEventListener('resize', this.scrollListener);
       this.win.visualViewport.removeEventListener('scroll', this.scrollListener);
     }
-    for (const [link, item] of this.bound) {
-      for (const [event, listener] of item.events) link.removeEventListener(event, listener);
-      if (item.over !== null) link.setAttribute('onmouseover', item.over);
-      if (item.out !== null) link.setAttribute('onmouseout', item.out);
-    }
-    this.bound.clear(); this.element?.remove();
+    for (const link of this.bound.keys()) this.unbind(link);
+    this.element?.remove();
   }
 }
 

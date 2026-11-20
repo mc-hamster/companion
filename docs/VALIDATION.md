@@ -1,5 +1,49 @@
 # Validation
 
+Version 2.15.0 passes 403 automated checks, including saving Reformat details in Getting started, reloading the saved choice, and updating the detail toolbar from setup.
+
+Version 2.14.28 passes 400 automated checks. A compiled userscript fixture verified that an existing collage pin is recognized at both bare and www addresses for the same account, with distinct accounts and mirror domains kept separate.
+
+Version 2.14.27 passes 399 automated checks. A Chromium fixture verified that the native metadata and action rows have matching styles and widths in both detail modes, with File list below Tags in the reformatted view.
+
+Version 2.14.26 passes 399 automated checks. A Chromium fixture reproduced the older listing's plain-text upload promotion followed by three linked image cards. Reformatting kept the release images and screenshot spoiler, and the original description contained all three promotion cards.
+
+Version 2.14.25 passes 398 automated checks. A Chromium fixture based on the reported older listing preserved the Screenshots label and Personal Collages status. All 31 spoiler images remained deferred until the native Show control was clicked, then appeared in wrapping rows.
+
+Version 2.14.24 passes 397 automated checks. A Chromium fixture verified identical content widths and title styling with Reformat details on and off at 1280px, 764px, and 360px, including the site's native minimum width on narrow screens.
+
+Version 2.14.23 passes 397 automated checks. The reported listing reused the cover URL in its description. Chromium verified that the reformatted gallery shows the cover once, followed by the distinct contact sheet, and that switching layouts restores both original image placements.
+
+Version 2.14.22 passes 396 automated checks. Chromium verified that File list is collapsed below Tags, shows the native filenames when expanded, and scrolls within its section at 360px. The Add tag form aligned to the right at 1280px and 360px, and submitting a new tag worked.
+
+Version 2.14.21 passes 396 automated checks. Chromium fixtures verified equal Tags and Collages widths at 1280px and 360px. Discussion styles matched between the original and reformatted views, and switching layouts preserved the reply draft.
+
+Version 2.14.20 passes 396 automated checks. Chromium verified that Tags, Collages, and Discussion share aligned left edges and a continuous surface at 1280px and 360px. Collage counts sit beside their names. Tag votes, tag entry, and collage links worked, and switching back to the native layout preserved a reply draft.
+
+Version 2.14.19 passes 396 automated checks. The reported listing had 15 tags and one collage. Chromium fixtures with that structure verified aligned, matching panels at 1280px and stacked panels at 360px, including the site's inline sidebar float. Tag sorting, voting, adding a tag, and collage navigation worked. Turning off the layout restored the native panel styles.
+
+Version 2.14.18 passes 396 automated checks. Chromium verified both switches beside Settings and the right-aligned saved shortcuts in List, Grid, and detail views. The Show filtered setting survived refreshes in both states, restored archived Hard Pass rows when enabled, and remained available on an empty results page.
+
+Version 2.14.17 passes 395 automated checks. A Chromium fixture with 117 tags showed four aligned columns at 1280px and one aligned list at 360px. The vote controls sat to the right of their labels. Tag links, voting, adding a tag, and revealing low-priority tags worked in the scrollable list.
+
+Version 2.14.16 passes 395 automated checks. The original listing supplied 117 single-row tags. A Chromium fixture with the same count shrank the list from 2,701px to a 180px scrolling panel. Chromium verified tag links, voting, adding a tag, revealing low-priority tags, and restoring the original layout. At 360px the chips wrapped within the panel.
+
+Version 2.14.15 passes 395 automated checks. Chromium verified cover order, the summary disclosure, edition selection, and restoration of the original page through the layout switch. A 366-row file list scrolled within its panel at 360px, and the single-list case used the file list embedded in the page even when its ID differed from the listing ID.
+
+Version 2.14.14 passes 394 automated checks, including re-sizing after native image dimensions load. Chromium fixtures used the dimensions from both reported listings. At 1280 × 720px, the tall sheet widened from 85px to 245px, and the three-image row grew from 308px to the full 1,184px detail column. The three-image gallery wrapped at 360px, and click-to-enlarge worked for the tall sheet on mobile.
+
+Version 2.14.13 passes 393 automated checks. The reported listing has one 4090 × 2802 contact sheet. A Chromium fixture with the same dimensions showed it at 360 × 247px on desktop and 219 × 150px in a 360px viewport. The same image measured 187 × 128px in a two-image gallery, and click-to-enlarge worked on mobile.
+
+Version 2.14.12 passes 393 automated checks. Read-only inspection confirmed the native banner URL prefix on the reported listing and three other listings. In Chromium, the one-image fixture fit in a 206 × 142px gallery at desktop width, retained click-to-enlarge at 360px, and restored all four banners with the original description.
+
+Version 2.14.11 passes 392 automated checks. Chromium fixtures reproduced the overlap on fixed-height native headings and verified that their labels fit and retain the theme color at 1280px and 360px. In the desktop fixture, an image displayed at 426px wide on hover and 734px in the click viewer, which loaded the linked original. The mobile viewer fit within the window and closed when the original description was restored.
+
+Version 2.14.10 passes 391 automated checks. In Chromium at 1280px, the compact gallery reduced an 89-sheet fixture from 19 contact-sheet rows to eight, with six-pixel gaps. Chromium also verified image proportions and full gallery width at 360px, plus the native click handler on the last sheet.
+
+Version 2.14.9 passes 391 automated checks. A Chromium fixture with five overview images and 89 linked contact sheets showed six images on entry in 2.14.8 and all 94 in 2.14.9. The last sheet retained its click handler, and the full gallery returned after opening and closing the original description.
+
+Version 2.14.8 passes 391 automated checks. Read-only inspection of 37 live detail pages found linked images, images in tables, deferred spoiler galleries, an embed, and description links. Chromium fixtures verified that all 94 images on a large listing can be opened, that a 125-image spoiler stays deferred until revealed, and that the original description restores its media and controls. Browser checks at 764px and 360px also verified preview width, native table structure, and switch persistence across listings.
+
 Version 2.14.7 passes 389 automated checks, including opt-in and reversal, native file-list navigation, and page matching. The detail layout was also exercised at 1280px and 360px in Chromium using local fixtures. [Detail layout and supported pages](REFERENCE.md)
 
 Version 2.11.0 passes 301 checks. Eight new cases cover collage URL identity, deduplicated row/cover appends, filter-gated image activation/reveal, safe cover sizing/sanitization and rollback, automatic collage loading with retry, common Settings structure, in-context backfill autosave, and global search/disclosure restoration. Existing interface assertions were updated for six common preferences plus search; metric tests explicitly open the collapsed detail section.

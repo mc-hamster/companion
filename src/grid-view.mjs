@@ -56,7 +56,7 @@ export class ResultGrid {
       button.title = help;
       this.layoutButtons.set(value, button); this.layout.append(button);
     }
-    app.toolbarContext.append(this.layout);
+    if (!app.detailLayout?.torrentID) app.toolbarContext.append(this.layout);
     this.viewOptions = app.node('div', null, 'epc-view-options');
     this.viewOptions.id = 'epc-view-options';
     this.viewOptions.hidden = true;
@@ -99,7 +99,7 @@ export class ResultGrid {
   }
   mountViewOptions() {
     const { app } = this;
-    app.toolbarContext.append(this.viewOptions);
+    if (!app.detailLayout?.torrentID) app.toolbarContext.append(this.viewOptions);
     this.gridOptionFields = new Map();
     for (const [key, label] of [['gridCardWidth', 'Card size'], ['gridSpacing', 'Spacing'],
       ['gridTruncateTitles', 'Truncate titles'], ['gridShowTags', 'Show tags'], ['gridShowDetails', 'Show details']]) {
@@ -241,9 +241,10 @@ export class ResultGrid {
   }
   refresh() {
     const app = this.app, grid = app.settings.resultsView === 'grid';
+    if (app.detailLayout?.torrentID) return;
     app.batchDOM(() => {
       app.doc.documentElement.toggleAttribute('data-ep-compact-cover-grid', app.settings.gridSpacing === 'compact');
-      app.doc.documentElement.toggleAttribute('data-ep-list-autoplay', !grid && app.settings.listAutoplayGifs);
+      app.doc.documentElement.toggleAttribute('data-ep-list-autoplay', !grid && app.settings.animatedCovers);
       for (const table of this.tables.keys()) if (!table.isConnected || !grid) this.release(table);
       const candidates = new Set(this.tables.keys());
       // Retain managed tables when Hard Pass temporarily removes every row.

@@ -15,7 +15,7 @@ test('native Cover Art uses Grid spacing and plays visible animated covers with 
   let reduced = true;
   const supplied = 'https://hamsterimg.net/images/cover-1.md.webp';
   const full = supplied.replace('.md.webp', '.webp');
-  const f = await setup(cover(1, supplied) + cover(2), { gridSpacing: 'compact', gridAutoplayGifs: true, maxRetries: 0 }, ({ win, doc }) => {
+  const f = await setup(cover(1, supplied) + cover(2), { gridSpacing: 'compact', animatedCovers: true, maxRetries: 0 }, ({ win, doc }) => {
     const motion = new win.EventTarget();
     Object.defineProperty(motion, 'matches', { get: () => reduced });
     win.matchMedia = () => motion;

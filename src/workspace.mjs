@@ -11,8 +11,7 @@ const toolbarIcons = {
   grid: 'M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6z',
   add: 'M12 5v14M5 12h14',
   stop: 'M6 6h12v12H6z',
-  open: 'M7 17 17 7M7 7h10v10',
-  eye: 'M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Zm10-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z'
+  open: 'M7 17 17 7M7 7h10v10'
 };
 
 export function companionIcon(app, name) {
@@ -320,8 +319,10 @@ export function adoptNotificationControls(app) {
   }
 }
 
+export const workspacePaletteKeys = ['--epc-bg', '--epc-fg', '--epc-accent', '--epc-line'];
+
 export function applyWorkspaceTheme(app, roots = [app.root, app.backfill?.footer, app.preview?.element, app.onboarding?.element,
-  app.detailLayout?.nav, app.doc.getElementById('nseRCMBox'), ...app.doc.querySelectorAll('.epc-notification-control,.epc-search-feedback,.epc-media-retry')]) {
+  app.doc.getElementById('nseRCMBox'), ...app.doc.querySelectorAll('.epc-detail-files,.epc-detail-preview-links,.epc-notification-control,.epc-search-feedback,.epc-media-retry')]) {
   const selected = app.storage.get('nseSelectedTheme', null);
   const palettes = {
     nseThemeLegacy: ['#23395a', '#eef4ff', '#91c5ff', '#526b8e'],
@@ -334,11 +335,13 @@ export function applyWorkspaceTheme(app, roots = [app.root, app.backfill?.footer
     const theme = app.storage.get('nseCustomTheme', {});
     colors = [theme.backgroundColor, theme.foregroundColor, theme.accentColor, theme.highlightColor];
   }
-  for (const root of roots.filter(Boolean)) {
-    ['--epc-bg', '--epc-fg', '--epc-accent', '--epc-line'].forEach((key, i) => {
+  const detailPanels = app.detailLayout?.panelRoot;
+  for (const root of [...roots, detailPanels].filter(Boolean)) {
+    workspacePaletteKeys.forEach((key, i) => {
       if (colors?.[i]) root.style.setProperty(key, colors[i]);
       else root.style.removeProperty(key);
     });
+    if (root === detailPanels) continue;
     root.style.colorScheme = palettes[selected] ? 'dark' : '';
     const font = app.storage.get('nseUIFont', null);
     root.style.fontFamily = font && /^[\w\s,'".-]{1,200}$/.test(font) ? font : '';

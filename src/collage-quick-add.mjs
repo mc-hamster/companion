@@ -1,9 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { emporniumAccountID } from './core.mjs';
+import { COMPANION_HOSTS, emporniumAccountID } from './core.mjs';
 
 const quickAddID = /^[1-9]\d{0,14}$/;
 const quickAddCollagePath = /^\/collage\/([1-9]\d{0,14})\/?$/;
 const quickAddDetails = '#content tr.torrentdetails';
+
+function quickAddScopes(page, accountID) {
+  const hosts = [page.hostname];
+  if (COMPANION_HOSTS.includes(page.hostname)) {
+    const domain = page.hostname.replace(/^www\./, '');
+    hosts.splice(0, 1, domain, 'www.' + domain);
+  }
+  return hosts.map(host => {
+    const url = new URL(page);
+    url.hostname = host;
+    return 'ep.collageQuickAdd:' + url.origin + ':' + accountID;
+  });
+}
 
 function quickAddPageID(url, pathname) {
   const ids = url.searchParams.getAll('id');
@@ -62,8 +75,9 @@ export class CollageQuickAdd {
       this.members = quickAddMembership(app.doc, page);
     }
 
-    this.scope = 'ep.collageQuickAdd:' + page.origin + ':' + this.accountID;
-    this.pinPrefix = this.scope + ':pin:';
+    this.scopes = quickAddScopes(page, this.accountID);
+    this.scope = this.scopes[0];
+    this.pinPrefixes = this.scopes.map(scope => scope + ':pin:');
     this.tools = app.node('div', null, 'epc-collage-tools');
     this.button = app.button('', () => this.collageID ? this.togglePin() : void this.add());
     if (this.torrentID) this.button.classList.add('epc-primary');
@@ -90,24 +104,32 @@ export class CollageQuickAdd {
 
   urlFor(id) { return new URL('/collage/' + id, this.page); }
 
+  pinned(id) {
+    return this.pinPrefixes.some(prefix => !!this.app.storage.get(prefix + id, ''));
+  }
+
   refresh() {
     if (this.collageID) {
-      const pinned = !!this.app.storage.get(this.pinPrefix + this.collageID, '');
+      const pinned = this.pinned(this.collageID);
       this.button.textContent = pinned ? 'Unpin collage' : 'Pin for quick add';
       this.button.setAttribute('aria-pressed', String(pinned));
       return;
     }
 
-    const { app, pinPrefix } = this;
-    const pins = [];
-    for (const key of app.storage.list()) {
-      if (!key.startsWith(pinPrefix)) continue;
-      const id = key.slice(pinPrefix.length);
-      const title = app.storage.get(key, '');
-      if (quickAddID.test(id) && typeof title === 'string' && title.trim()) pins.push({ id, title: title.slice(0, 300) });
+    const { app } = this;
+    const byID = new Map();
+    const keys = app.storage.list();
+    for (const prefix of this.pinPrefixes) {
+      for (const key of keys) {
+        if (!key.startsWith(prefix)) continue;
+        const id = key.slice(prefix.length);
+        if (!quickAddID.test(id) || byID.has(id)) continue;
+        const title = app.storage.get(key, '');
+        if (typeof title === 'string' && title.trim()) byID.set(id, { id, title: title.slice(0, 300) });
+      }
     }
-    pins.sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
-    const selected = app.storage.get(this.scope + ':selected', this.select.value);
+    const pins = [...byID.values()].sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
+    const selected = this.scopes.map(scope => app.storage.get(scope + ':selected', '')).find(id => byID.has(id)) || this.select.value;
     if (JSON.stringify(pins) !== JSON.stringify(this.pins)) {
       this.pins = pins;
       this.select.replaceChildren(...pins.map(pin => {
@@ -135,11 +157,14 @@ export class CollageQuickAdd {
 
   togglePin() {
     const { storage } = this.app;
-    const key = this.pinPrefix + this.collageID;
     try {
-      const pinned = !!storage.get(key, '');
-      if (pinned) storage.delete(key);
-      else storage.set(key, this.title);
+      const pinned = this.pinned(this.collageID);
+      if (pinned) {
+        for (const prefix of this.pinPrefixes) {
+          const key = prefix + this.collageID;
+          if (storage.get(key, '')) storage.delete(key);
+        }
+      } else storage.set(this.pinPrefixes[0] + this.collageID, this.title);
       this.status.textContent = pinned ? 'Collage unpinned.' : 'Pinned. Add torrents from their details pages.';
       this.refresh();
     } catch { this.status.textContent = 'Could not save the collage pin.'; }

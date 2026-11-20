@@ -59,7 +59,7 @@ export class ResultFilters {
     });
     this.freeleechChip.className = 'epc-active-filter';
     this.freeleechChip.hidden = true;
-    app.toolbarStatus.append(this.freeleechChip);
+    if (!app.detailLayout?.torrentID) app.toolbarStatus.append(this.freeleechChip);
   }
   syncFreeleech(available) {
     const mode = this.app.settings[this.freeleechKey];

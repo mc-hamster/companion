@@ -71,14 +71,15 @@ export class OnboardingController {
     this.gridSpacing.removeAttribute('data-setting'); this.gridSpacing.dataset.welcomeSetting = 'gridSpacing';
     this.gridSpacing.value = app.settings.gridSpacing;
     field(form, 'Grid spacing', this.gridSpacing);
-    for (const [key, label] of [['gridAutoplayGifs', 'Play animated covers in Grid'], ['listAutoplayGifs', 'Play animated covers in List']]) {
-      const input = this[key] = app.node('input'); input.type = 'checkbox';
-      input.checked = app.settings[key]; input.dataset.welcomeSetting = key;
-      field(form, label, input);
-    }
-    this.coverMotionNote = app.createCoverMotionNote('epc-cover-motion-welcome');
-    form.append(this.coverMotionNote,
-      app.node('p', 'Preload full-size covers, including off-screen results. List playback shows inline covers. This can use more data.', 'epc-caption'));
+    this.reformatDetails = app.node('input');
+    this.reformatDetails.type = 'checkbox';
+    this.reformatDetails.checked = app.settings.reformatDetailPages;
+    this.reformatDetails.dataset.welcomeSetting = 'reformatDetailPages';
+    this.reformatDetails.setAttribute('aria-describedby', 'epc-welcome-detail-help');
+    field(form, 'Reformat details', this.reformatDetails);
+    const detailHelp = app.node('p', 'Group the cover and previews into a gallery and put the file list below Tags.', 'epc-caption');
+    detailHelp.id = 'epc-welcome-detail-help';
+    form.append(detailHelp);
     this.shortcuts = app.node('input'); this.shortcuts.type = 'checkbox'; this.shortcuts.checked = app.settings.keyboardShortcuts;
     this.shortcuts.dataset.welcomeSetting = 'keyboardShortcuts';
     this.shortcuts.setAttribute('aria-controls', 'epc-welcome-shortcuts');
@@ -100,7 +101,6 @@ export class OnboardingController {
     form.addEventListener('submit', event => { event.preventDefault(); this.finish(); });
     dialog.addEventListener('cancel', event => { event.preventDefault(); this.dismiss(); });
     dialog.append(form); app.doc.body.append(dialog); this.open = true;
-    app.syncCoverMotionControls();
     if (dialog.showModal) dialog.showModal(); else { dialog.open = true; dialog.setAttribute('role', 'dialog'); }
     // Native dialogs handle focus containment and return it on close.
     const focus = form.querySelector('[name="welcome-backfill"]:checked'); focus.focus({ preventScroll: true });
@@ -116,7 +116,7 @@ export class OnboardingController {
         backfillPages: mode === 'pages' ? Number(this.pages.value) : app.settings.backfillPages,
         thumbnailSize: Number(this.size.value), previews: this.hover.checked, groupVersions: this.group.checked,
         resultsView: this.view.value, gridCardWidth: Number(this.gridSize.value),
-        gridSpacing: this.gridSpacing.value, gridAutoplayGifs: this.gridAutoplayGifs.checked, listAutoplayGifs: this.listAutoplayGifs.checked,
+        gridSpacing: this.gridSpacing.value, reformatDetailPages: this.reformatDetails.checked,
         keyboardShortcuts: this.shortcuts.checked,
         favoriteTags: this.tags.get('favoriteTags').value, cautionTags: this.tags.get('cautionTags').value };
       app.importData(JSON.stringify({ ...current, settings,
@@ -136,8 +136,7 @@ export class OnboardingController {
     this.element?.remove(); this.element = null;
     if (this.returnFocus?.isConnected) this.returnFocus.focus({ preventScroll: true });
     this.form = this.tags = this.pages = this.size = this.hover = this.group = this.status = this.save = this.returnFocus = null;
-    this.view = this.gridSize = this.gridSpacing = this.gridAutoplayGifs = this.listAutoplayGifs = this.shortcuts = null;
-    this.coverMotionNote = null;
+    this.view = this.gridSize = this.gridSpacing = this.reformatDetails = this.shortcuts = null;
   }
   dispose() { this.close(); }
 }

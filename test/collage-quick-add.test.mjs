@@ -19,7 +19,7 @@ const member = id => `<table id="personal_collages"><tr class="personal_rows hid
 const response = (url, html) => ({ ok: true, url, text: async () => html });
 
 async function open(t, path, html, storage, fetch = async () => { throw new Error('Unexpected request'); }) {
-  const f = domFixture(html, origin + path);
+  const f = domFixture(html, new URL(path, origin).href);
   t.after(f.close);
   Object.assign(f.win, {
     GM_getValue: storage.get, GM_setValue: storage.set, GM_deleteValue: storage.delete, GM_listValues: storage.list,
@@ -57,6 +57,28 @@ test('built quick add pins only eligible collages and shows add only on real tor
   collection.button.click();
   detail.win.dispatchEvent(new detail.win.Event('focus'));
   assert.equal(detail.tools.hidden, true);
+});
+
+test('bare and www addresses share existing Quick Add pins for the same account', async t => {
+  const bare = 'https://empornium.sx';
+  const legacy = 'ep.collageQuickAdd:' + origin + ':7';
+  const storage = memoryStorage({ [legacy + ':pin:2591']: 'Coastal walks', [legacy + ':selected']: '2591' });
+  const alias = await open(t, bare + '/collage/2591', page(form(2591)), storage);
+  assert.equal(alias.button.textContent, 'Unpin collage');
+  const detail = await open(t, bare + torrent, details(), storage);
+  assert.equal(detail.button.textContent, 'Add to Coastal walks');
+  const otherMirror = await open(t, 'https://www.empornium.me/collage/2591', page(form(2591)), storage);
+  assert.equal(otherMirror.button.textContent, 'Pin for quick add');
+  const otherAccount = await open(t, bare + '/collage/2591', page(form(2591), 8), storage);
+  assert.equal(otherAccount.button.textContent, 'Pin for quick add');
+  alias.button.click();
+  assert.equal(storage.get(legacy + ':pin:2591', ''), '');
+  const originalHost = await open(t, '/collage/2591', page(form(2591)), storage);
+  assert.equal(originalHost.button.textContent, 'Pin for quick add');
+  originalHost.button.click();
+  assert.ok(storage.get('ep.collageQuickAdd:' + bare + ':7:pin:2591'));
+  alias.win.dispatchEvent(new alias.win.Event('focus'));
+  assert.equal(alias.button.textContent, 'Unpin collage');
 });
 
 test('the destination selector remembers the chosen collage and detects existing membership', async t => {

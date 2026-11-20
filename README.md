@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.14.7](dist/EmporniumCompanion-2.14.7.user.js)**
+**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.15.0](dist/EmporniumCompanion-2.15.0.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -21,7 +21,7 @@ Companion is a small add-on that runs through [Tampermonkey](https://www.tamperm
 1. Install [Tampermonkey](https://www.tampermonkey.net/) for your browser.
 2. Click **[Install Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)**, review the permissions, and choose **Install**.
 3. Sign in to Empornium and open a torrent results page. Look for the **Companion** toolbar above the results.
-4. Follow **Getting started** to choose your thumbnail size, previews, and whether to load extra pages. You can change these later in **Settings**.
+4. Follow **Getting started** to choose your thumbnail size, previews, detail layout, and whether to load extra pages. You can change these later in **Settings**. **Reformat details** is also in the detail toolbar.
 
 Already using Companion? Use **Check for updates** on your installed script in Tampermonkey to get the rename and keep your settings. Use the install link for a fresh copy.
 
@@ -29,7 +29,7 @@ If you use older scripts for the same features, back up their settings first, th
 
 ## Start browsing
 
-**Filters** lets you choose what to hide or highlight. Most changes save automatically. When results are hidden, click **Show filtered** in the toolbar to temporarily bring them back.
+**Filters** lets you choose what to hide or highlight. Most changes save automatically. Turn on **Show filtered** beside Settings to reveal hidden results in the current Freeleech view. Companion remembers the switch across result pages.
 
 Open **Filters → Freeleech** to switch between **All results**, **Any freeleech**, and **Sitewide only**. Select the active filter chip to return to all results. Bookmarks remembers its own selection.
 
@@ -43,7 +43,7 @@ Enable **Use keyboard shortcuts** during setup, or find the toggle and key mappi
 
 Click **Grid** above the results to switch to thumbnail cards. **List** switches back. Open **View options** beside the layout switch to choose the card size, spacing, title truncation, tags, and details in Grid or the visible columns in List. Hover over a thumbnail or click its preview button to load the larger image. Use the versions button on a grouped card to open alternate releases. Your layout is remembered across visits.
 
-Grid covers fill the card width. Set **View options → Spacing → Compact** to bring cards closer together. Turn on **Play animated covers in Grid** or **Play animated covers in List** to preload covers, including off-screen results, and play animations as they come into view. List playback shows inline covers. Companion uses its image cache and respects your system's reduced-motion preference. These options are also in **Getting started**.
+Grid covers fill the card width. Set **View options → Spacing → Compact** to bring cards closer together. Use **Animated Covers** beside **Show filtered** in the toolbar to play covers as they come into view. The switch starts off and saves one preference for both List and Grid. List playback shows inline covers. Companion preloads covers using its image cache and respects your system's reduced-motion preference.
 
 Hover over, focus, or tap the small gauge beside the Companion name to see load progress for thumbnails, cover playback, previews, other images, and additional result pages. The percentage counts finished items. The breakdown separates ready, partial, and failed loads and marks tasks whose totals are unknown.
 
@@ -55,7 +55,7 @@ To add more results yourself, click **Load more** below the results. This brings
 
 To curate a collage, open it and click **Pin for quick add** in the Companion toolbar. Open a torrent's details page and click **Add to [collage name]**. If you pin several collages, use the selector next to the button to switch destinations. You can unpin a collage from its own page.
 
-Enable **Settings → Appearance → Reformat torrent detail pages** for a responsive layout and jump links to the description, files, tags, and discussion.
+On a torrent detail page, turn on **Reformat details** in the Companion toolbar for a gallery that starts with the cover. Expand **File list** below Tags to see the files. Hover for a larger preview or click to open the image viewer. Turn off **Reformat details** to return to the original page. Companion remembers the switch for other detail pages.
 
 ## Updates and backups
 

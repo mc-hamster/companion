@@ -40,11 +40,14 @@ const completedSmall = async f => {
 test('grid settings validate, retain list by default and use a separate larger card width', () => {
   const defaults = validateSettings();
   assert.equal(defaults.gridShowTags, false);
-  assert.equal(defaults.gridSpacing, 'standard'); assert.equal(defaults.gridAutoplayGifs, false);
+  assert.equal(defaults.gridSpacing, 'standard'); assert.equal(defaults.animatedCovers, false);
   assert.equal(defaults.resultsView, 'list'); assert.equal(defaults.gridCardWidth, 320); assert.equal(defaults.gridShowDetails, false);
   const checked = validateSettings({ resultsView: 'invalid', gridCardWidth: 900, gridLargeImages: true, thumbnailSize: 72 });
   assert.equal(checked.resultsView, 'list'); assert.equal(checked.gridCardWidth, 600); assert.equal(checked.thumbnailSize, 72);
   assert.equal(Object.hasOwn(checked, 'gridLargeImages'), false);
+  assert.equal(validateSettings({ gridAutoplayGifs: true }).animatedCovers, true);
+  assert.equal(validateSettings({ listAutoplayGifs: true }).animatedCovers, true);
+  assert.equal(validateSettings({ animatedCovers: false, gridAutoplayGifs: true }).animatedCovers, false);
 });
 
 test('Grid warms off-screen covers, plays only visible cards, and follows reduced motion', async () => {
@@ -60,7 +63,7 @@ test('Grid warms off-screen covers, plays only visible cards, and follows reduce
   try {
     await completedSmall(f);
     assert.ok(f.clock.images.every(image => image.src.includes('.th.jpg')));
-    await field(f, '[data-setting=gridAutoplayGifs]', true);
+    await field(f, '[data-setting=animatedCovers]', true);
     await until(() => originals.every(url => f.clock.images.some(image => image.src === url)));
     assert.equal(f.app.media.loadCounts().animation.pending, 2);
     scrollTo(1450);
@@ -86,19 +89,19 @@ test('Grid warms off-screen covers, plays only visible cards, and follows reduce
     await until(() => !playback(1));
     hidden = false; f.doc.dispatchEvent(new f.win.Event('visibilitychange'));
     await until(() => !!playback(1));
-    await field(f, '[data-setting=gridAutoplayGifs]', false);
+    await field(f, '[data-setting=animatedCovers]', false);
     assert.equal(playback(1), null);
   } finally { f.close(); }
 });
 
-test('List autoplay enables inline covers independently from Grid playback', async () => {
+test('Animated Covers enables inline List covers and stays on when switching layouts', async () => {
   const originals = ['https://hamsterimg.net/images/list-visible.gif', 'https://hamsterimg.net/images/list-offscreen.gif'];
   const definitions = originals.map((url, index) => overlayHTML(index + 1, url, url.replace('.gif', '.th.jpg'))).join('');
   const f = await setup({ resultsView: 'list', inlineThumbnails: false }, { definitions, positions: [10, 1500] });
   const playback = () => f.doc.querySelector('.epc-grid-gif-playback');
   try {
     assert.equal(f.app.media.thumbnails.size, 0);
-    await field(f, '[data-setting=listAutoplayGifs]', true);
+    const toggle = await field(f, '[data-setting=animatedCovers]', true);
     await until(() => originals.every(url => f.clock.images.some(image => image.src === url)));
     for (const image of f.clock.images.filter(image => originals.includes(image.src))) image.succeed();
     assert.equal(f.app.media.thumbnails.size, 2);
@@ -106,52 +109,46 @@ test('List autoplay enables inline covers independently from Grid playback', asy
     assert.equal(f.app.media.loadCounts().animation.ready, 2);
     assert.equal(f.doc.querySelectorAll('.epc-grid-gif-playback').length, 1);
     f.app.grid.layoutButtons.get('grid').click();
-    await until(() => !playback());
-    assert.equal(f.app.settings.gridAutoplayGifs, false);
+    await until(() => playback()?.closest('.epc-result-grid'));
+    assert.equal(toggle.checked, true);
     f.app.grid.layoutButtons.get('list').click();
     await until(() => playback()?.src === originals[0]);
     assert.equal(f.clock.images.filter(image => originals.includes(image.src)).length, 2);
-    await field(f, '[data-setting=listAutoplayGifs]', false);
+    await field(f, '[data-setting=animatedCovers]', false);
     assert.equal(f.app.media.thumbnails.size, 0);
   } finally { f.close(); }
 });
 
-test('reduced motion disables both autoplay choices in Settings and Getting started without clearing them', async () => {
+test('reduced motion disables the Animated Covers switch without clearing the preference', async () => {
   let reduced = true;
   const f = await setup({ listAutoplayGifs: true }, { motion: () => reduced });
-  const keys = ['gridAutoplayGifs', 'listAutoplayGifs'];
-  const settings = keys.map(key => f.app.controls.get(key));
-  const settingsNote = f.doc.getElementById('epc-cover-motion-settings');
+  const toggle = f.app.controls.get('animatedCovers');
+  const note = f.doc.getElementById('epc-cover-motion-toolbar');
   const changeMotion = value => {
     reduced = value;
     f.app.media.reducedMotion.dispatchEvent(new f.win.Event('change'));
   };
   try {
-    assert.equal(settingsNote.hidden, false);
-    assert.ok(settings.every(control => control.disabled && control.getAttribute('aria-describedby') === settingsNote.id));
-    settings[0].click();
-    assert.deepEqual(settings.map(control => control.checked), [false, true]);
-
-    f.app.onboarding.show();
-    const welcome = keys.map(key => f.doc.querySelector('[data-welcome-setting=' + key + ']'));
-    const welcomeNote = f.doc.getElementById('epc-cover-motion-welcome');
-    assert.equal(welcomeNote.hidden, false);
-    assert.ok(welcome.every(control => control.disabled && control.getAttribute('aria-describedby') === welcomeNote.id));
+    assert.equal(note.hidden, false);
+    assert.equal(toggle.disabled, true);
+    assert.equal(toggle.getAttribute('aria-describedby'), note.id);
+    toggle.click();
+    assert.equal(toggle.checked, true);
     changeMotion(false);
-    assert.ok([...settings, ...welcome].every(control => !control.disabled && !control.hasAttribute('aria-describedby')));
-    assert.ok(settingsNote.hidden && welcomeNote.hidden);
-    welcome[0].click();
+    assert.equal(toggle.disabled, false);
+    assert.equal(toggle.hasAttribute('aria-describedby'), false);
+    assert.equal(note.hidden, true);
+    toggle.click();
     changeMotion(true);
-    assert.ok([...settings, ...welcome].every(control => control.disabled));
-    f.app.onboarding.finish();
-    assert.deepEqual(settings.map(control => control.checked), [true, true]);
-    assert.deepEqual(keys.map(key => f.storage.get('ep.settings')[key]), [true, true]);
+    assert.equal(toggle.disabled, true);
+    assert.equal(toggle.checked, false);
+    assert.equal(f.storage.get('ep.settings').animatedCovers, false);
   } finally { f.close(); }
 });
 
 test('header load progress separates thumbnails, visible animation, and failures', async () => {
   const original = 'https://hamsterimg.net/images/progress.gif';
-  const f = await setup({ gridAutoplayGifs: true, maxRetries: 0 }, {
+  const f = await setup({ animatedCovers: true, maxRetries: 0 }, {
     rows: rowHTML(1), definitions: overlayHTML(1, original, original.replace('.gif', '.th.jpg'))
   });
   try {
@@ -188,7 +185,7 @@ test('autoplay saves GIF covers as previews and reuses them after navigation', a
       },
       encode: async blob => 'data:' + blob.type + ';base64,' + Buffer.from(await blob.arrayBuffer()).toString('base64')
     }, validateSettings);
-    const f = await setup({ gridAutoplayGifs: true }, { rows: rowHTML(1), definitions, app: { imageCache } });
+    const f = await setup({ animatedCovers: true }, { rows: rowHTML(1), definitions, app: { imageCache } });
     try {
       await until(() => f.clock.images.some(image => image.src.startsWith('data:image/gif')));
       f.clock.images.find(image => image.src.startsWith('data:image/gif')).succeed();
@@ -216,7 +213,7 @@ test('a stalled autoplay download streams the cover directly and restores the th
     },
     encode: async blob => 'data:' + blob.type + ';base64,' + Buffer.from(await blob.arrayBuffer()).toString('base64')
   }, validateSettings);
-  const f = await setup({ gridAutoplayGifs: true, stallMs: 1000, maxRetries: 0 }, {
+  const f = await setup({ animatedCovers: true, stallMs: 1000, maxRetries: 0 }, {
     rows: rowHTML(1), definitions: overlayHTML(1, original, thumbnail), app: { imageCache }
   });
   try {
@@ -245,7 +242,7 @@ test('Grid loads the same full cover as hover and admits covers regardless of fi
   const original = supplied[0].replace('.md.webp', '.webp');
   const definitions = supplied.map((url, index) => overlayHTML(index + 1, url,
     'https://hamsterimg.net/images/poster-' + index + '.th.jpg')).join('');
-  const f = await setup({ gridAutoplayGifs: true }, { definitions, count: 3 });
+  const f = await setup({ animatedCovers: true }, { definitions, count: 3 });
   try {
     const animated = [original, supplied[1]];
     await until(() => animated.every(url => f.clock.images.some(image => image.src === url)));
@@ -465,7 +462,7 @@ test('grid skips collapsed versions, warms new rows, and waits while the tab is 
   } finally { f.close(); }
 });
 
-test('setup and Settings share the grid layout, width, spacing and GIF opt-in', async () => {
+test('setup and Settings share layout, width and spacing while Animated Covers stays in the toolbar', async () => {
   const store = strictStorage({ 'ep.onboardingDone': false }), f = await boot({}, { store });
   try {
     const dialog = f.doc.querySelector('.epc-onboarding');
@@ -473,14 +470,14 @@ test('setup and Settings share the grid layout, width, spacing and GIF opt-in', 
     dialog.querySelector('[data-welcome-setting=resultsView]').value = 'grid';
     dialog.querySelector('[data-welcome-setting=gridCardWidth]').value = 420;
     dialog.querySelector('[data-welcome-setting=gridSpacing]').value = 'compact';
-    const autoplay = dialog.querySelector('[data-welcome-setting=gridAutoplayGifs]');
-    assert.equal(autoplay.checked, false); autoplay.checked = true;
-    const listAutoplay = dialog.querySelector('[data-welcome-setting=listAutoplayGifs]');
-    assert.equal(listAutoplay.checked, false); listAutoplay.checked = true;
+    assert.doesNotMatch(dialog.textContent, /animated covers/i);
     clickText(dialog, 'Start browsing'); await settle();
     assert.equal(store.get('ep.settings').resultsView, 'grid'); assert.equal(store.get('ep.settings').gridCardWidth, 420);
-    assert.equal(store.get('ep.settings').gridSpacing, 'compact'); assert.equal(store.get('ep.settings').gridAutoplayGifs, true);
-    assert.equal(store.get('ep.settings').listAutoplayGifs, true);
+    assert.equal(store.get('ep.settings').gridSpacing, 'compact');
+    const toggle = f.doc.querySelector('.epc-toolbar-switch input[data-setting=animatedCovers]');
+    assert.equal(toggle.checked, false);
+    toggle.click();
+    assert.equal(store.get('ep.settings').animatedCovers, true);
     assert.equal(f.doc.querySelector('.epc-result-grid').dataset.epGridSpacing, 'compact');
     pane(f, 'settings'); await field(f, '[data-setting=gridCardWidth]', 540);
     await field(f, '[data-setting=gridSpacing]', 'standard');
@@ -490,10 +487,43 @@ test('setup and Settings share the grid layout, width, spacing and GIF opt-in', 
     assert.equal(replay.querySelector('[data-welcome-setting=resultsView]').value, 'grid');
     assert.equal(replay.querySelector('[data-welcome-setting=gridCardWidth]').value, '540');
     assert.equal(replay.querySelector('[data-welcome-setting=gridSpacing]').value, 'standard');
-    assert.equal(replay.querySelector('[data-welcome-setting=gridAutoplayGifs]').checked, true);
-    assert.equal(replay.querySelector('[data-welcome-setting=listAutoplayGifs]').checked, true);
+    clickText(replay, 'Save changes'); await settle();
+    assert.equal(toggle.checked, true);
+    assert.equal(store.get('ep.settings').animatedCovers, true);
     assert.equal(f.errors.length, 0, f.errors.join('\n'));
   } finally { f.close(); }
+});
+
+test('the Animated Covers toolbar switch saves and restores both states across result page loads', async () => {
+  const store = strictStorage();
+  const selector = '.epc-toolbar-switch input[data-setting=animatedCovers]';
+  const list = await boot({}, { store });
+  try {
+    const toggle = list.doc.querySelector(selector);
+    assert.equal(toggle.getAttribute('role'), 'switch');
+    assert.equal(toggle.closest('label').hidden, false);
+    assert.equal(toggle.closest('label').textContent, 'Animated Covers');
+    assert.equal(toggle.closest('nav'), list.doc.querySelector('[data-ep-reveal]').closest('nav'));
+    assert.equal(toggle.checked, false);
+    toggle.click();
+    assert.equal(store.get('ep.settings').animatedCovers, true);
+    list.doc.querySelector('[data-ep-layout=grid]').click();
+    assert.equal(toggle.checked, true);
+    assert.equal(toggle.closest('label').hidden, false);
+  } finally { list.close(); }
+
+  const grid = await boot({}, { store });
+  try {
+    assert.ok(grid.doc.querySelector('.epc-result-grid'));
+    const toggle = grid.doc.querySelector(selector);
+    assert.equal(toggle.checked, true);
+    toggle.click();
+    assert.equal(store.get('ep.settings').animatedCovers, false);
+  } finally { grid.close(); }
+
+  const reloaded = await boot({}, { store });
+  try { assert.equal(reloaded.doc.querySelector(selector).checked, false); }
+  finally { reloaded.close(); }
 });
 
 test('compiled grid backfill retains filtering, grouping, reveal and the current layout', async () => {
@@ -530,7 +560,7 @@ test('a failed layout write preserves the current grid and can be retried', asyn
 });
 
 test('Appearance can apply saved Grid options to results currently shown as List', async () => {
-  const f = await boot({ 'ep.settings': { resultsView: 'list', gridSpacing: 'compact', gridAutoplayGifs: true } });
+  const f = await boot({ 'ep.settings': { resultsView: 'list', gridSpacing: 'compact' } });
   try {
     pane(f, 'settings');
     const settings = f.doc.querySelector('.epc-pane[data-pane=settings]');

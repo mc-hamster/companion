@@ -163,6 +163,7 @@ export class VersionGroups {
   }
   refresh() {
     const { doc, settings } = this.app;
+    if (this.app.detailLayout?.torrentID) return;
     if (!this.app.filtersReady || !settings.groupVersions) { this.clear(); return; }
     this.collapsed = 0; this.groups.clear(); this.candidates.clear();
     const representatives = new Set(), members = new Set();
@@ -209,7 +210,7 @@ export class VersionGroups {
   }
   toggle(row, name, wanted) { if (row.classList.contains(name) !== wanted) row.classList.toggle(name, wanted); }
   stabilizeLayouts() {
-    if (!this.app.settings.groupVersions || this.app.backfill?.busy) return;
+    if (this.app.detailLayout?.torrentID || !this.app.settings.groupVersions || this.app.backfill?.busy) return;
     for (const table of this.app.doc.querySelectorAll('table.torrent_table,table#torrent_table')) {
       if (table.matches('.epc-result-grid,[data-ep-list-columns]')) continue;
       if (this.layouts.has(table) || table.querySelector(':scope > colgroup') || table.querySelectorAll('tr.torrent').length < 200) continue;

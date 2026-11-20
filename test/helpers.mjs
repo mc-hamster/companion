@@ -31,7 +31,7 @@ export function fixtureHTML(rows = rowHTML(1) + rowHTML(2), extra = '') {
     '<a class="pager_prev" href="/torrents.php?page=1">Previous</a><a class="pager_next" href="/torrents.php?page=3">Next</a>' +
     '</div></div></body></html>';
 }
-export function detailFixtureHTML({ collages = true, comments = true } = {}) {
+export function detailFixtureHTML({ collages = true, comments = true, cover = true, editions = [[41, '1080p'], [42, '2160p']] } = {}) {
   const fileRow = (id, quality) => `<tr class="group_torrent"><td>${quality}</td></tr><tr class="torrentdetails"><td>
     <div class="linkbox"><a href="#" onclick="show_files('${id}');return false;">View Filelist</a></div>
     <div class="hidden" id="files_${id}"><table class="filelist"><tr><th>File</th><th>Size</th></tr>
@@ -45,20 +45,23 @@ export function detailFixtureHTML({ collages = true, comments = true } = {}) {
     <td>Seeders</td><td>18</td><td>Uploaded</td><td>20 November 2026</td></tr></table></div></div>
     <div class="linkbox"><span class="torrent_buttons"><span class="torrent_buttons"><a class="button" href="#download">Download</a></span></span>
     <span style="float:right"><a class="button" id="slide_button">Hide Info</a></span><br style="clear:both"></div>
-    <div id="details_top"><div class="sidebar"><div class="head"><strong>Cover</strong></div>
-    <div class="box box_albumart" id="coverimage"><img src="/coast-cover.svg" alt="Coastal cliffs under a moonlit sky" width="480" height="360"></div>
+    <div id="details_top"><div class="sidebar">${cover ? '<div class="head"><strong>Cover</strong></div>' +
+    '<div class="box box_albumart" id="coverimage"><img src="/coast-cover.svg" alt="Coastal cliffs under a moonlit sky" width="480" height="360"></div>' : ''}
     <a id="tags"></a><div class="head"><strong>Tags</strong></div><div class="box box_tags" id="tag_container">
     <ul id="torrent_tags_list" class="stats nobullet"><li><a href="#field-recording">field.recording</a></li><li><a href="#coast">coast</a></li></ul></div></div>
     <div class="middle_column"><div class="head"><strong>Torrent information</strong></div>
-    <table class="torrent_table">${fileRow(41, '1080p')}${fileRow(42, '2160p')}</table>
+    <table class="torrent_table">${editions.map(([id, quality]) => fileRow(id, quality)).join('')}</table>
     ${collages ? '<div class="head"><strong>Collages</strong></div><table id="personal_collages"><tr><td><a href="/collage/8">Coastal walks</a></td></tr></table>' : ''}
     </div><div style="clear:both"></div></div>
     <div class="main_column"><div class="head" id="native-description"><strong>Description</strong> <a id="desctoggle" href="#">Hide</a></div>
     <div class="box"><div id="descbox"><div class="body"><p>Low tide along the headlands, recorded after moonrise.</p>
-    <button id="reveal-example" type="button">Show contact sheet</button><blockquote class="hidden spoiler" id="contact-sheet">
+    <a href="#panorama" id="preview-link"><picture><source srcset="/coast-wide.svg">
+    <img src="/coast-wide.svg" width="1280" height="720" style="min-width:1280px" alt="Coastal panorama"></picture></a>
+    <img id="description-divider" src="/coast-divider.svg" width="239" height="90" alt="Divider">
+    <a id="reveal-example" href="#" onclick="BBCode.spoiler(this);return false;">Show contact sheet</a><blockquote class="hidden spoiler" id="contact-sheet">
     <img data-src="/coast-contact-sheet.svg" width="900" alt="Contact sheet"></blockquote>
     <table class="bbcode" style="width:840px"><tr><td>Camera notes</td><td>UHD, 24 fps, stereo</td></tr></table>
-    <div id="torrentsigbox">Uploader signature</div></div></div></div>
+    <div id="torrentsigbox">Uploader signature <img src="/coast-signature.svg" width="480" height="360" alt="Signature"></div></div></div></div>
     <div class="head">Thanks</div><div class="box pad center"><form id="thanksform"><button type="button">Say thanks</button></form></div>
     <div class="linkbox pager"></div>${comments ? '<table id="post100" class="forum_post"><tr><td>Example comment</td></tr></table>' : ''}
     <table id="quickreplypreview" class="forum_post hidden"><tr><td>Preview</td></tr></table>
