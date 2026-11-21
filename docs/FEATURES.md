@@ -1,5 +1,23 @@
 # Feature mapping
 
+Version 2.15.9 groups lightbox navigation and zoom controls and shows **Retry** when image loading needs attention. [Detail layout](REFERENCE.md)
+
+Version 2.15.8 preserves the lightbox zoom and viewing position when a linked original loads. Distinct originals can share a thumbnail, and the viewer waits until you leave an image before moving it into **Other images**. [Detail layout](REFERENCE.md)
+
+Version 2.15.7 keeps lightbox controls above the image, increases their touch targets, and lets you drag around a zoomed contact sheet. [Detail layout](REFERENCE.md)
+
+Version 2.15.6 adds a navigable lightbox to reformatted detail galleries. Browse images with arrow controls, the mouse wheel, or a swipe. Zoom into linked originals and scroll large contact sheets at actual size. [Detail layout](REFERENCE.md)
+
+Version 2.15.5 recognizes more media-info badge sets, including resolution, codec, container, frame rate, date, duration, and file-size badges. [Detail layout](REFERENCE.md)
+
+Version 2.15.4 checks for consecutive headers and short animated logos after deduplicating gallery images. Suspected artwork stays accessible under **Other images**. [Detail layout](REFERENCE.md)
+
+Version 2.15.3 recognizes media-info icon rows and matching section headers across uploader templates. Likely banners at the start or end of a description stay accessible under **Other images**. [Detail layout](REFERENCE.md)
+
+Version 2.15.2 recognizes collage links of the form `/collage?id=864` so their promotional images stay in the original description. [Detail layout](REFERENCE.md)
+
+Version 2.15.1 keeps image buttons for section jumps, collage promotions, and additional older template artwork in the original torrent description. [Detail layout](REFERENCE.md)
+
 Version 2.15.0 adds an opt-in detail layout with a cover-first gallery, compact tags and collages, and a collapsible file list. Set **Reformat details** in the detail toolbar or Getting started. The results toolbar has persistent **Animated Covers** and **Show filtered** switches. [Detail layout and toolbar](REFERENCE.md)
 
 Version 2.14.32 keeps decorative studio headers and their matching banners in the original description so covers, screenshots, and contact sheets can pack into a shorter gallery. [Detail layout](REFERENCE.md)

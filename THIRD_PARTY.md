@@ -34,6 +34,10 @@ Thumbnail behavior was independently reimplemented. Its runtime source and unrel
 
 No explicit license was found in the inspected file. Behavior and storage compatibility were independently reimplemented; none of its code is incorporated into the generated script. The research reference is not distributed in this repository or used by the build.
 
+## Lightbox Gallery design reference
+
+ephraim's [Lightbox Gallery](https://www.empornium.sx/forum/thread/145952) inspired Companion's gallery navigation and zoom controls. Companion implements these interactions independently using its own preview controller and image loader.
+
 ## Version grouping design references
 
 [Collapse Duplicates](https://github.com/colligere/collapse_duplicates/blob/master/gazelle_collapse_duplicates.user.js), originally by node998 and maintained by colligere, reference version 27.3, Git blob 3b30aed6ba0cd76ae05318a627f05e9208fa34fd. Reviewed descriptor parsing, chronological placement, status preservation and duplicate-script guards.

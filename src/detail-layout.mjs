@@ -10,6 +10,23 @@ const detailSpoiler = 'blockquote.spoiler,details';
 const detailMedia = [detailSpoiler, detailEmbed, detailImage, 'a[href]'].join(',');
 const uploadPromotionHeading = /^(?:please\s+)?check\s+(?:out\s+)?my\s+other\s+uploads\s*:?$/i;
 const studioDescriptionArtwork = /\/([\w-]+)_(?:(h_(?:cast|sceneinfo|thestory|mediainfo|screenshots))|banner(?:_[12]x)?)(?:[a-f0-9]{16})?\.png$/i;
+const legacyDescriptionArtwork = [
+  /\/(?:s7s-artwork-[\w-]+|(?:description|screens)-s7s|header-icon27e75)\.png$/i,
+  /\/s7s[a-f\d]{16}\.gif$/i,
+  /\/2015\/10\/02\/(?:description|screens)\.png$/i,
+  /\/aerobanner\.\d+\.gif$/i
+];
+const metadataArtworkRoles = [
+  ['resolution', /^(?:res(?:olution)?|\d{3,4}p|[48]k)$/i],
+  ['duration', /^(?:duration|length)$/i],
+  ['format', /^(?:format|mp4|mkv|webm|avi)$/i],
+  ['codec', /^codec(?:[-_][a-z\d]+)?$/i],
+  ['fps', /^(?:fps|\d{2,3}[-_]?fps)$/i],
+  ['size', /^size$/i],
+  ['date', /^date$/i],
+  ['bitrate', /^bitrate$/i]
+];
+const sectionArtwork = /\/(description|cast|plot|info|mediainfo|screens(?:hots?)?)\.png$/i;
 
 function promotedUploadLinks(description, torrentID) {
   const doc = description.ownerDocument;
@@ -51,28 +68,73 @@ function galleryImageKey(image) {
   return url && canonicalImageURL(fullSizeURL(url));
 }
 
+export function detailImageLink(image) {
+  return safeImageURL(image.closest('a[href]')?.getAttribute('href'), image.baseURI);
+}
+
+function isDescriptionNavigationImage(image, imageURL, page) {
+  const href = image.closest('a[href]')?.getAttribute('href')?.trim();
+  if (!href || !URL.canParse(href, page)) return false;
+  const target = new URL(href, page);
+  const sameOrigin = target.origin === page.origin;
+  if (sameOrigin && target.pathname === page.pathname && target.search === page.search && target.hash &&
+      /\/nav[-_][\w-]+\.(?:png|gif|webp|jpe?g)$/i.test(imageURL.pathname)) return true;
+  const siteLink = sameOrigin || COMPANION_HOSTS.includes(page.hostname) && COMPANION_HOSTS.includes(target.hostname);
+  return siteLink && (/^\/collage\/[1-9]\d*\/?$/.test(target.pathname) ||
+    /^\/(?:collage\/?|collages\.php)$/.test(target.pathname) && /^[1-9]\d*$/.test(target.searchParams.get('id') || ''));
+}
+
+function metadataArtworkRole(pathname) {
+  const file = pathname.split('/').at(-1);
+  if (!/\.png$/i.test(file)) return null;
+  const name = file.slice(0, -4).replace(/^ico[-_]/i, '')
+    .replace(/[a-f\d]{16}$/i, '').replace(/[-_]small$/i, '');
+  return metadataArtworkRoles.find(([, pattern]) => pattern.test(name))?.[0];
+}
+
 function descriptionDecorations(description) {
   const decorations = new Set(), studioHeaders = new Set(), studioBanners = new Map();
+  const artworkGroups = new Map();
+  const page = new URL(description.ownerDocument.location.href);
   for (const image of description.querySelectorAll(detailImage)) {
     const src = detailImageSource(image);
     if (!src || !URL.canParse(src, image.baseURI)) continue;
     const url = new URL(src, image.baseURI);
-    if (url.pathname.startsWith('/static/common/icons/') &&
-        (url.origin === image.ownerDocument.location.origin || COMPANION_HOSTS.includes(url.hostname))) {
+    if (isDescriptionNavigationImage(image, url, page) || url.pathname.startsWith('/static/common/icons/') &&
+        (url.origin === page.origin || COMPANION_HOSTS.includes(url.hostname))) {
       decorations.add(image);
       continue;
     }
-    if (!isFriendlyImageHost(url.hostname) || !/\.png$/i.test(url.pathname)) continue;
-    const artwork = studioDescriptionArtwork.exec(new URL(fullSizeURL(url.href)).pathname);
-    if (!artwork) continue;
-    const studio = artwork[1].toLowerCase();
-    if (artwork[2]) {
-      studioHeaders.add(studio);
+    if (!isFriendlyImageHost(url.hostname) || !/\.(?:png|gif)$/i.test(url.pathname)) continue;
+    const pathname = new URL(fullSizeURL(url.href)).pathname;
+    if (legacyDescriptionArtwork.some(pattern => pattern.test(pathname))) {
       decorations.add(image);
-    } else studioBanners.set(image, studio);
+      continue;
+    }
+    const artwork = studioDescriptionArtwork.exec(pathname);
+    if (artwork) {
+      const studio = artwork[1].toLowerCase();
+      if (artwork[2]) {
+        studioHeaders.add(studio);
+        decorations.add(image);
+      } else studioBanners.set(image, studio);
+      continue;
+    }
+    const cell = image.closest('td,th');
+    const metadata = cell?.textContent.trim() && metadataArtworkRole(pathname);
+    const section = !image.closest('a[href]') && sectionArtwork.exec(pathname);
+    const role = metadata || section?.[1];
+    const group = metadata ? cell.closest('tr') :
+      section ? url.origin + pathname.slice(0, pathname.lastIndexOf('/') + 1) : null;
+    if (!group || !role) continue;
+    if (!artworkGroups.has(group)) artworkGroups.set(group, new Map());
+    artworkGroups.get(group).set(image, role.toLowerCase());
   }
   // A banner filename alone can also belong to a real preview.
   for (const [image, studio] of studioBanners) if (studioHeaders.has(studio)) decorations.add(image);
+  for (const group of artworkGroups.values()) {
+    if (new Set(group.values()).size >= 2) for (const image of group.keys()) decorations.add(image);
+  }
   return decorations;
 }
 
@@ -124,7 +186,10 @@ export class DetailLayout {
     this.previewSection = app.node('section', null, 'epc-detail-preview');
     this.previewSection.setAttribute('aria-label', 'Listing preview');
     this.previewImages = app.node('div', null, 'epc-detail-preview-images');
-    this.previewImages.addEventListener('load', () => this.sizeSparseGallery(), true);
+    this.previewImages.addEventListener('load', event => {
+      this.separateOtherImage(event.target);
+      this.sizeSparseGallery();
+    }, true);
     this.previewExtras = app.node('div', null, 'epc-detail-preview-extras');
     this.linksPanel = app.node('details', null, 'epc-root epc-detail-preview-links');
     this.linksSummary = app.node('summary');
@@ -209,21 +274,63 @@ export class DetailLayout {
     this.linksPanel.hidden = !links;
     this.linksSummary.textContent = `Links from description (${links})`;
     this.previewSection.hidden = !links && !this.previewImages.childElementCount && !this.previewExtras.childElementCount;
+    // Find the edges after duplicate cover and gallery images have been removed.
+    const images = [...this.previewImages.querySelectorAll('img')].filter(image => image !== this.coverImage);
+    this.edgeImages = images.length > 1 ? [...new Set([...images.slice(0, 2), ...images.slice(-2)])] : [];
+    for (const image of this.edgeImages) this.separateOtherImage(image);
     this.sizeSparseGallery();
     this.app.preview.scan(this.previewImages);
+    if (this.otherImages) this.app.preview.scan(this.otherImages);
+    this.app.preview.scan(this.previewExtras);
+  }
+
+  separateOtherImage(image) {
+    const index = this.edgeImages?.indexOf(image) ?? -1;
+    const preview = this.app.preview;
+    if (index < 0 || this.app.disposed || preview.open && preview.metadata?.galleryImage === image ||
+        !this.previewImages.contains(image) ||
+        this.previewImages.childElementCount < 2) return;
+    const src = galleryImageKey(image);
+    if (!src) return;
+    const file = new URL(src).pathname.split('/').at(-1);
+    if (!/\.(?:png|gif)$/i.test(file) || /preview|screenshots?|contact[-_. ]?sheet|panorama|sizzle|teaser|\.mp4\./i.test(file)) return;
+    const { naturalWidth, naturalHeight } = image;
+    const authoredWidth = Number(image.getAttribute('width'));
+    const compact = naturalWidth <= 240 && naturalHeight <= 100 ||
+      naturalWidth <= 760 && authoredWidth > 0 && authoredWidth <= 400;
+    const namedArtwork = /(?:chatgpt[-_ ]image|generated[-_ ]image|banner|logo)/i.test(file);
+    const minimumRatio = compact ? 2.2 : namedArtwork ? 2.6 : 4.2;
+    if (!naturalHeight || naturalHeight > 200 || naturalWidth < (compact ? 200 : 240) ||
+        naturalWidth / naturalHeight < minimumRatio) return;
+    const frame = image.closest('.epc-detail-preview-images > div');
+    if (frame?.parentElement !== this.previewImages || frame.querySelectorAll('img').length !== 1) return;
+    this.app.batchDOM(() => {
+      if (!this.otherImages) {
+        const disclosure = this.app.node('details', null, 'epc-root epc-detail-other-images');
+        this.otherImages = this.app.node('div', null, 'epc-detail-preview-images');
+        disclosure.append(this.app.node('summary', 'Other images'), this.otherImages);
+        this.previewImages.after(disclosure);
+        applyWorkspaceTheme(this.app, [disclosure]);
+      }
+      const next = this.edgeImages.slice(index + 1).map(candidate => candidate.closest('.epc-detail-preview-images > div'))
+        .find(candidate => candidate?.parentElement === this.otherImages);
+      this.otherImages.insertBefore(frame, next || null);
+    });
+    this.sizeSparseGallery();
+    if (preview.pinned && preview.metadata?.galleryImage) preview.syncGalleryControls(true);
   }
 
   moveImage(image, section, seen, decorations) {
-    const key = galleryImageKey(image);
-    if (key && seen.has(key)) return;
-
     const media = image.parentElement.matches('picture') ? image.parentElement : image;
     const link = media.closest('a');
     const linkImages = link && section.contains(link) ? [...link.querySelectorAll(detailImage)] : [];
+    const canMoveLink = linkImages.length && !linkImages.some(node => decorations.has(node)) &&
+      !link.querySelector(`${detailSpoiler},${detailEmbed},${closedDescriptionMedia}`);
+    const original = canMoveLink && linkImages.length === 1 && detailImageLink(image);
+    const key = original ? canonicalImageURL(fullSizeURL(original)) : galleryImageKey(image);
+    if (key && seen.has(key)) return;
     const linkKeys = linkImages.map(node => node === image ? key : galleryImageKey(node)).filter(Boolean);
-    const linked = linkImages.length && !linkImages.some(node => decorations.has(node)) &&
-      !link.querySelector(`${detailSpoiler},${detailEmbed},${closedDescriptionMedia}`) &&
-      new Set(linkKeys).size === linkKeys.length && !linkKeys.some(value => seen.has(value));
+    const linked = canMoveLink && new Set(linkKeys).size === linkKeys.length && !linkKeys.some(value => seen.has(value));
     this.moveNodes(this.previewImages, [linked ? link : media], linked ? linkImages : [image]);
     for (const value of linked ? linkKeys : [key]) if (value) seen.add(value);
   }
@@ -269,7 +376,7 @@ export class DetailLayout {
   }
 
   restoreNodes() {
-    this.app.preview.unbindGallery(this.previewImages);
+    this.app.preview.unbindGallery(this.previewSection);
     for (const { frame, moved, images } of this.movedNodes) {
       for (const { element, position } of moved) {
         if (element.parentNode === frame && position.parentNode) position.replaceWith(element);
@@ -286,6 +393,7 @@ export class DetailLayout {
 
   dispose() {
     if (!this.root) return;
+    this.edgeImages = null;
     this.app.batchDOM(() => {
       this.restoreNodes();
       for (const section of this.originalSections) section.removeAttribute('data-ep-detail-original-hidden');
@@ -300,6 +408,7 @@ export class DetailLayout {
     this.collageTables = null;
     this.description = this.descriptionBox = this.previewSection = this.previewImages = this.originalSections = null;
     this.previewExtras = this.linksPanel = this.linksSummary = this.previewLinks = null;
+    this.otherImages = null;
     this.app.scheduleHealth();
   }
 }

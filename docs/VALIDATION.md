@@ -1,5 +1,7 @@
 # Validation
 
+Version 2.15.9 passes 413 automated checks. Chromium fixtures verified that the lightbox preserves zoom as an original loads, opens distinct originals that share a thumbnail, keeps navigation working during artwork reclassification, and shows Retry when the original fails to load.
+
 Version 2.15.0 passes 403 automated checks, including saving Reformat details in Getting started, reloading the saved choice, and updating the detail toolbar from setup.
 
 Version 2.14.28 passes 400 automated checks. A compiled userscript fixture verified that an existing collage pin is recognized at both bare and www addresses for the same account, with distinct accounts and mirror domains kept separate.

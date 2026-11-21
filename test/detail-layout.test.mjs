@@ -269,6 +269,188 @@ test('studio template banners stay in the original while all contact sheets and 
   }
 });
 
+test('section navigation and older template graphics stay in the original description', async t => {
+  const cdn = 'https://hamsterimg.net/images/2017/06/30/';
+  const html = detailFixtureHTML().replace(/<a [^>]*id="preview-link"[\s\S]*?(?=<a id="reveal-example")/,
+    `<a id="nav" href="#screens"><img src="${cdn}nav-screens.png"></a>
+    <img id="logo" src="${cdn}s7s-artwork-black66f39.png" width="980" height="504">
+    <img id="icon" src="${cdn}header-icon27e75.th.png">
+    <img id="label" src="${cdn}screens-s7s.png">
+    <img id="photo" src="${cdn}coastal-panorama.png" width="1800" height="240">
+    <a id="photo-link" href="#screens"><img id="linked-preview" src="${cdn}coast.webp"></a>
+    <img id="animation" src="${cdn}preview.mp4.gif" width="360" height="203">
+    <div id="screens"><img id="sheet" src="${cdn}contact-sheet.jpg" width="1024" height="3124"></div>`);
+  const { app, doc } = await openDetail(t, { enabled: true, html, path: '/torrents.php?id=736569' });
+  const gallery = doc.querySelector('.epc-detail-preview-images');
+  const original = doc.querySelector('#descbox');
+  assert.deepEqual([...gallery.querySelectorAll('img')].map(img => img.id), ['', 'photo', 'linked-preview', 'animation', 'sheet']);
+  assert.equal(original.querySelector('#nav').getAttribute('href'), '#screens');
+  assert.equal(original.querySelectorAll('#logo, #icon, #label').length, 3);
+  assert.ok(gallery.querySelector('#photo-link'));
+  app.controls.get('reformatDetailPages').click();
+  assert.ok(original.querySelector('#screens #sheet'));
+  assert.equal(original.querySelectorAll('#nav, #logo, #icon, #label').length, 4);
+});
+
+test('collage promotions and legacy section art stay out of preview galleries', async t => {
+  const cdn = 'https://hamsterimg.net/images/';
+  const html = detailFixtureHTML().replace(/<a [^>]*id="preview-link"[\s\S]*?(?=<a id="reveal-example")/,
+    `<a id="collage-logo" href="/collage?id=864"><img src="${cdn}2016/02/09/PET-18-LOGO.png" width="480" height="159"></a>
+    <img id="description-label" src="${cdn}2015/10/02/Description.png">
+    <img id="screens-label" src="${cdn}2015/10/02/Screens.png">
+    <img id="sheet" src="${cdn}2016/10/14/contact-sheet.jpg" width="1024" height="2934">
+    <a id="collage-card" href="https://empornium.sx/collages.php?id=12"><img src="${cdn}fi/A/5/collection-card.jpg"></a>
+    <a id="pretty-collage-card" href="/collage/8"><img src="${cdn}collection-card.jpg"></a>
+    <img id="banner" src="${cdn}2015/08/31/aerobanner.0537023001441002133.gif">
+    <a href="https://example.test/collage/8"><img id="external" src="${cdn}another-preview.jpg"></a>
+    <img id="png" src="${cdn}2026/11/20/Screens.png" width="900" height="60">`);
+  const { app, doc } = await openDetail(t, { enabled: true, html, path: '/torrents.php?id=375894' });
+  const gallery = doc.querySelector('.epc-detail-preview-images');
+  const original = doc.querySelector('#descbox');
+  assert.deepEqual([...gallery.querySelectorAll('img')].map(img => img.id), ['', 'sheet', 'external', 'png']);
+  assert.equal(original.querySelectorAll('#collage-logo, #collage-card, #pretty-collage-card, #description-label, #screens-label, #banner').length, 6);
+  app.controls.get('reformatDetailPages').click();
+  assert.equal(original.querySelector('#collage-logo').getAttribute('href'), '/collage?id=864');
+  assert.ok(original.querySelector('#collage-logo img'));
+  assert.ok(original.querySelector('#collage-card img'));
+  assert.ok(original.querySelector('#sheet'));
+});
+
+test('recognizes metadata icon rows and matching section header sets on new listings', async t => {
+  const cdn = 'https://hamsterimg.net/images/';
+  const html = detailFixtureHTML().replace(/<a [^>]*id="preview-link"[\s\S]*?(?=<a id="reveal-example")/,
+    `<table><tr>
+      <td><div><img id="resolution-icon" src="${cdn}2018/03/16/resolution.png">1920 × 1080</div></td>
+      <td><div><img id="duration-icon" src="${cdn}2018/03/16/duration.png">12:40</div></td>
+      <td><div><img id="size-icon" src="${cdn}2017/05/29/size.png">840 MiB</div></td>
+    </tr><tr><td><img id="resolution-photo" src="${cdn}new-upload/resolution.png">Resolution comparison</td></tr></table>
+    <img id="description-header" src="${cdn}another-template/Description.png">
+    <img id="info-header" src="${cdn}another-template/info.png">
+    <img id="screens-header" src="${cdn}another-template/screens.png">
+    <img id="screens" src="${cdn}new-upload/Screens.png">
+    <img id="signature" src="${cdn}older-template/S7S0123456789abcdef.gif">
+    <img id="animated-preview" src="${cdn}new-upload/preview.gif">`);
+  const { doc } = await openDetail(t, { enabled: true, html });
+  assert.deepEqual([...doc.querySelectorAll('.epc-detail-preview-images img')].map(image => image.id),
+    ['', 'resolution-photo', 'screens', 'animated-preview']);
+  assert.equal(doc.querySelectorAll('#descbox #resolution-icon, #descbox #duration-icon, #descbox #size-icon').length, 3);
+  assert.equal(doc.querySelectorAll('#descbox #description-header, #descbox #info-header, #descbox #screens-header, #descbox #signature').length, 4);
+});
+
+test('recognizes filename variants for grouped media badges without mistaking a single role for a group', async t => {
+  const cdn = 'https://hamsterimg.net/images/';
+  const inlineBadges = ['720p_small71347d5e6545043b', 'codec_hevc', 'mp4_small9dfd7fe55e0fad20', '24_fps_small'];
+  const cellBadges = ['ico-format', 'ico-res', 'ico-date', 'ico-length', 'ico-size'];
+  const badge = (name, width) => `<img class="fixture-badge" src="${cdn}icons/${name}.png" width="${width}">`;
+  const html = detailFixtureHTML().replace(/<a [^>]*id="preview-link"[\s\S]*?(?=<a id="reveal-example")/,
+    `<table><tr><td><span>${inlineBadges.map(name => badge(name, 100)).join('')}Format MP4, 24 fps</span>
+      <table><tr><td><img id="portrait" src="${cdn}cast-portrait.jpg" width="200">Cast portrait</td></tr></table>
+    </td></tr><tr><td><table><tr>
+      ${cellBadges.map(name => `<td>${badge(name, 44)}Video details</td>`).join('')}
+    </tr></table></td></tr>
+    <tr><td><img id="format-preview" src="${cdn}samples/format.png">Format example
+      <img id="mp4-preview" src="${cdn}samples/mp4.png"></td></tr></table>
+    <img id="animation" src="${cdn}preview.gif"><img id="sheet" src="${cdn}contact-sheet.jpg">`);
+  const { doc } = await openDetail(t, { enabled: true, html });
+  assert.equal(doc.querySelectorAll('#descbox .fixture-badge').length, 9);
+  assert.deepEqual([...doc.querySelectorAll('.epc-detail-preview-images img')].map(image => image.id),
+    ['', 'portrait', 'format-preview', 'mp4-preview', 'animation', 'sheet']);
+});
+
+test('keeps likely banners accessible below the gallery after their images load', async t => {
+  const cdn = 'https://hamsterimg.net/images/';
+  const html = detailFixtureHTML().replace(/<a [^>]*id="preview-link"[\s\S]*?(?=<a id="reveal-example")/,
+    `<a id="leading-link" href="${cdn}full.png"><img id="leading" src="${cdn}Gemini_Generated_Image_abcdef.md.png"></a>
+    <img id="wide" src="${cdn}sunset-panorama.png">
+    <img id="sheet" src="${cdn}contact-sheet.jpg">
+    <img id="trailing" src="${cdn}image0123456789abcdef.png">`);
+  const { app, doc, win } = await openDetail(t, { enabled: true, html });
+  const gallery = doc.querySelector('.epc-detail-preview > .epc-detail-preview-images');
+  const visibleImages = () => [...gallery.querySelectorAll('img')].map(image => image.id);
+  assert.deepEqual(visibleImages(), ['', 'leading', 'wide', 'sheet', 'trailing']);
+  const loadImage = (id, naturalWidth, naturalHeight) => {
+    const image = doc.getElementById(id);
+    Object.defineProperties(image, { naturalWidth: { value: naturalWidth }, naturalHeight: { value: naturalHeight } });
+    image.dispatchEvent(new win.Event('load'));
+  };
+  loadImage('trailing', 672, 83);
+  loadImage('leading', 500, 190);
+  loadImage('wide', 1800, 140);
+  loadImage('sheet', 1024, 2934);
+  assert.deepEqual(visibleImages(), ['', 'wide', 'sheet']);
+  const other = doc.querySelector('.epc-detail-other-images');
+  assert.equal(other.querySelector('summary').textContent, 'Other images');
+  assert.equal(other.open, false);
+  other.querySelector('summary').click();
+  assert.equal(other.open, true);
+  assert.deepEqual([...other.querySelectorAll('img')].map(image => image.id), ['leading', 'trailing']);
+  assert.equal(other.querySelector('#leading-link').getAttribute('href'), cdn + 'full.png');
+  app.controls.get('reformatDetailPages').click();
+  assert.equal(doc.querySelector('.epc-detail-other-images'), null);
+  assert.deepEqual([...doc.querySelectorAll('#descbox .body img[id]')].slice(0, 4).map(image => image.id),
+    ['leading', 'wide', 'sheet', 'trailing']);
+});
+
+test('an open image stays navigable when late dimensions identify it as artwork', async t => {
+  const html = detailFixtureHTML().replace(/<a [^>]*id="preview-link"[\s\S]*?(?=<a id="reveal-example")/,
+    '<img id="late-banner" src="/banner.png"><img id="first-preview" src="/preview-a.jpg">' +
+    '<img id="last-preview" src="/preview-b.jpg">');
+  const clock = fakeClock();
+  const { app, doc, win } = await openDetail(t, { enabled: true, html, Image: clock.env.Image });
+  const banner = doc.getElementById('late-banner');
+  banner.click();
+  assert.equal(app.preview.galleryIndex.textContent, '2 of 4');
+  Object.defineProperties(banner, { naturalWidth: { value: 672 }, naturalHeight: { value: 83 } });
+  banner.dispatchEvent(new win.Event('load'));
+  assert.equal(banner.closest('details'), null);
+  assert.equal(app.preview.galleryIndex.textContent, '2 of 4');
+
+  app.preview.element.querySelector('[aria-label="Next image"]').click();
+  assert.equal(app.preview.metadata.galleryImage.id, 'first-preview');
+  assert.equal(app.preview.galleryIndex.textContent, '2 of 3');
+  const other = banner.closest('.epc-detail-other-images');
+  assert.ok(other);
+  assert.equal(other.open, false);
+  app.preview.element.querySelector('[aria-label="Next image"]').click();
+  assert.equal(app.preview.metadata.galleryImage.id, 'last-preview');
+});
+
+test('finds consecutive headers after a duplicate cover and keeps real animated previews', async t => {
+  const cases = [
+    {
+      media: '<img src="/coast-cover.svg">' +
+        '<img id="first" src="/aK3bc.png" width="350"><img id="second" src="/xe7P0.png" width="350">' +
+        '<img id="preview" src="/scene.jpg"><img id="sheet" src="/sheet.jpg">',
+      sizes: [['second', 375, 137], ['first', 386, 135], ['preview', 1920, 1080], ['sheet', 1290, 2004]],
+      main: ['', 'preview', 'sheet']
+    },
+    {
+      media: '<img id="first" src="/uploader.gif" width="300"><p><img id="second" src="/studio.png">Description</p>' +
+        '<img id="preview" src="/recording.mp4.gif" width="320"><img id="panorama" src="/coastal-panorama.png" width="350">' +
+        '<img src="/uploader.gif" width="175">',
+      sizes: [['second', 215, 80], ['first', 524, 144], ['preview', 360, 140], ['panorama', 410, 182]],
+      main: ['', 'preview', 'panorama']
+    }
+  ];
+  for (const { media, sizes, main } of cases) {
+    const html = detailFixtureHTML().replace(/<a [^>]*id="preview-link"[\s\S]*?(?=<a id="reveal-example")/, media);
+    const { app, doc, win } = await openDetail(t, { enabled: true, html });
+    for (const [id, naturalWidth, naturalHeight] of sizes) {
+      const image = doc.getElementById(id);
+      Object.defineProperties(image, { naturalWidth: { value: naturalWidth }, naturalHeight: { value: naturalHeight } });
+      image.dispatchEvent(new win.Event('load'));
+    }
+    const ids = selector => [...doc.querySelectorAll(selector)].map(image => image.id);
+    assert.deepEqual(ids('.epc-detail-preview > .epc-detail-preview-images img'), main);
+    assert.deepEqual(ids('.epc-detail-other-images img'), ['first', 'second']);
+    assert.equal(doc.querySelector('.epc-detail-other-images').open, false);
+    app.controls.get('reformatDetailPages').click();
+    assert.ok(doc.querySelector('#descbox #first'));
+    assert.ok(doc.querySelector('#descbox #second'));
+    assert.equal(doc.querySelector('.epc-detail-other-images'), null);
+  }
+});
+
 test('an older listing keeps its screenshot label and Personal Collages status', async t => {
   const sheets = Array.from({ length: 31 }, (_, i) => `<a href="/sheet-${i}.jpg"><img data-src="/sheet-${i}.jpg"></a>`).join('');
   const html = detailFixtureHTML()
@@ -321,6 +503,33 @@ test('the gallery shows a cover once when the description repeats its original o
   assert.equal(doc.querySelector('#coverimage img').getAttribute('src'), coverURL);
   assert.equal(doc.querySelectorAll('#descbox img[alt^="Cover"],#descbox img[alt="Repeated cover"]').length, 2);
   assert.ok(doc.querySelector('#descbox a img[src="/contact-sheet.jpg"]'));
+});
+
+test('different originals that share a thumbnail each remain in the detail gallery', async t => {
+  const html = detailFixtureHTML().replace(/<a [^>]*id="preview-link"[\s\S]*?(?=<a id="reveal-example")/,
+    '<a id="first-original" href="/first.jpg"><img src="/shared-thumb.jpg"></a>' +
+    '<a id="second-original" href="/second.jpg"><img src="/shared-thumb.jpg"></a>' +
+    '<a href="/first.jpg"><img src="/different-thumb.jpg"></a>');
+  const clock = fakeClock();
+  const { app, doc, win } = await openDetail(t, { enabled: true, html, Image: clock.env.Image });
+  const gallery = doc.querySelector('.epc-detail-preview > .epc-detail-preview-images');
+  const links = [...gallery.querySelectorAll('a')];
+  assert.deepEqual(links.map(link => link.getAttribute('href')), ['/first.jpg', '/second.jpg']);
+  for (const link of links) Object.defineProperty(link.querySelector('img'), 'naturalWidth', { value: 240 });
+  links[0].click();
+  await until(() => clock.images.some(image => image.src.endsWith('/first.jpg')), 'First original request');
+  clock.images.find(image => image.src.endsWith('/first.jpg')).succeed();
+  assert.ok(app.preview.image.src.endsWith('/first.jpg'));
+
+  app.preview.element.querySelector('[aria-label="Next image"]').click();
+  assert.equal(app.preview.galleryIndex.textContent, '3 of 3');
+  assert.ok(app.preview.image.src.endsWith('/shared-thumb.jpg'));
+  await until(() => clock.images.some(image => image.src.endsWith('/second.jpg')), 'Second original request');
+  clock.images.find(image => image.src.endsWith('/second.jpg')).succeed();
+  await afterFrames(win);
+  assert.ok(app.preview.image.src.endsWith('/second.jpg'));
+  app.controls.get('reformatDetailPages').click();
+  assert.equal(doc.querySelectorAll('#descbox a[href="/first.jpg"], #descbox a[href="/second.jpg"]').length, 3);
 });
 
 test('a small gallery uses the image proportions and updates its sizing when a sheet loads', async t => {
@@ -385,6 +594,111 @@ test('gallery hover reuses the thumbnail and clicking opens a larger preview wit
   tile.click();
   assert.equal(nativeClicks, 1);
   assert.equal(viewer.open, false);
+});
+
+test('an arriving original preserves the contact sheet zoom and pan point', async t => {
+  const clock = fakeClock();
+  const html = detailFixtureHTML().replace('href="#panorama"', 'href="/full-sheet.jpg"');
+  const { app, doc, win, errors } = await openDetail(t, { enabled: true, html, Image: clock.env.Image });
+  const link = doc.querySelector('#preview-link');
+  Object.defineProperty(link.querySelector('img'), 'naturalWidth', { value: 240 });
+  const viewer = app.preview;
+  link.click();
+  await afterFrames(win);
+  const frame = viewer.frame;
+  Object.defineProperties(frame, { clientWidth: { value: 550 }, clientHeight: { value: 480 } });
+  frame.style.maxHeight = '480px';
+  frame.getBoundingClientRect = () => ({ left: 0, top: 0, width: 550, height: 480 });
+  const sizeImage = (image, width, height) => {
+    Object.defineProperties(image, { naturalWidth: { value: width }, naturalHeight: { value: height } });
+    image.getBoundingClientRect = () => {
+      const fitWidth = Math.min(width, frame.clientWidth, frame.clientHeight * width / height);
+      const displayedWidth = parseFloat(frame.style.getPropertyValue('--epc-gallery-image-width')) || fitWidth;
+      return { left: Math.max(0, (frame.clientWidth - displayedWidth) / 2) - frame.scrollLeft,
+        top: -frame.scrollTop, width: displayedWidth, height: displayedWidth * height / width };
+    };
+  };
+  sizeImage(viewer.image, 240, 600);
+  viewer.layoutGalleryZoom();
+  viewer.galleryZoomIn.click();
+  frame.scrollTop = 144;
+  const before = viewer.image.getBoundingClientRect();
+  const original = doc.createElement('img');
+  original.src = '/full-sheet.jpg';
+  sizeImage(original, 1800, 4500);
+  viewer.displayLoaded({ image: original, actualURL: original.src }, viewer.version, () => {});
+  assert.equal(viewer.image, original);
+  assert.ok(frame.hasAttribute('data-ep-magnified'));
+  assert.ok(Math.abs(original.getBoundingClientRect().width - before.width) < 1);
+  assert.ok(Math.abs(frame.scrollTop - 144) < 1);
+  assert.equal(errors.length, 0, errors.join('\n'));
+});
+
+test('the detail lightbox navigates the current gallery and pans a magnified contact sheet', async t => {
+  const clock = fakeClock();
+  const html = detailFixtureHTML().replace('href="#panorama"', 'href="/coast-original.jpg"')
+    .replace('<img id="description-divider"', '<a id="large-sheet" href="/full-sheet.jpg"><img src="/sheet-thumb.jpg" alt="Contact sheet"></a><img id="description-divider"');
+  const storage = memoryStorage({ 'ep.settings': { reformatDetailPages: true, recoverImages: false, persistentImages: false } });
+  const { app, doc, win } = await openDetail(t, { html, storage, Image: clock.env.Image });
+  const viewer = app.preview;
+  const sheet = doc.querySelector('#large-sheet');
+  sheet.querySelector('img').alt = 'https://example.test/images/a-very-long-contact-sheet-source.jpg';
+  sheet.click();
+  assert.equal(viewer.galleryControls.hidden, false);
+  assert.equal(viewer.galleryIndex.textContent, '3 of 4');
+  assert.equal(viewer.title.textContent, 'Image gallery');
+  assert.equal(viewer.galleryControls.nextElementSibling, viewer.frame);
+  await until(() => clock.images.some(image => image.src.endsWith('/full-sheet.jpg')), 'Full contact sheet request');
+  clock.images.find(image => image.src.endsWith('/full-sheet.jpg')).succeed(1800, 3600);
+  await afterFrames(win);
+  Object.defineProperty(viewer.frame, 'clientWidth', { value: 724 });
+  Object.defineProperties(viewer.image, { naturalWidth: { value: 1800 }, naturalHeight: { value: 3600 } });
+  viewer.layoutGalleryZoom();
+  assert.equal(viewer.galleryFit.textContent, 'Actual size');
+  viewer.galleryFit.click();
+  assert.equal(viewer.frame.getAttribute('data-ep-magnified'), '');
+  assert.equal(viewer.frame.style.getPropertyValue('--epc-gallery-image-width'), '1800px');
+  assert.equal(viewer.galleryFit.textContent, 'Fit');
+
+  const wheel = () => new win.WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true });
+  const pan = wheel();
+  viewer.frame.dispatchEvent(pan);
+  assert.equal(pan.defaultPrevented, false);
+  assert.equal(viewer.galleryIndex.textContent, '3 of 4');
+  const pointer = (target, type, x, y, pointerType) => {
+    const event = new win.MouseEvent(type, { clientX: x, clientY: y, bubbles: true, cancelable: true });
+    Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: pointerType } });
+    target.dispatchEvent(event);
+  };
+  viewer.frame.scrollLeft = 300;
+  viewer.frame.scrollTop = 504;
+  pointer(viewer.image, 'pointerdown', 120, 150, 'mouse');
+  pointer(viewer.frame, 'pointermove', 90, 100, 'mouse');
+  assert.ok(viewer.frame.hasAttribute('data-ep-panning'));
+  assert.equal(viewer.frame.scrollLeft, 330);
+  assert.equal(viewer.frame.scrollTop, 554);
+  pointer(viewer.frame, 'pointerup', 90, 100, 'mouse');
+  assert.equal(viewer.frame.hasAttribute('data-ep-panning'), false);
+  viewer.image.click();
+  assert.ok(viewer.frame.hasAttribute('data-ep-magnified'));
+  viewer.galleryFit.click();
+  assert.equal(viewer.frame.hasAttribute('data-ep-magnified'), false);
+  assert.equal(viewer.frame.scrollTop, 0);
+  const advance = wheel();
+  viewer.frame.dispatchEvent(advance);
+  assert.equal(advance.defaultPrevented, true);
+  assert.equal(viewer.galleryIndex.textContent, '4 of 4');
+  viewer.element.querySelector('[aria-label="Next image"]').click();
+  assert.equal(viewer.galleryIndex.textContent, '1 of 4');
+  viewer.element.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }));
+  assert.equal(viewer.galleryIndex.textContent, '4 of 4');
+  pointer(viewer.frame, 'pointerdown', 20, 20, 'touch');
+  pointer(viewer.frame, 'pointerup', 90, 20, 'touch');
+  assert.equal(viewer.galleryIndex.textContent, '3 of 4');
+  app.settings.keyboardShortcuts = false;
+  viewer.element.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  assert.equal(viewer.open, false);
+  assert.equal(doc.activeElement, sheet);
 });
 
 test('the disclosure below Tags opens each edition and restores the original tables on opt-out', async t => {

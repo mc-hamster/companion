@@ -70,6 +70,38 @@ html.epc-cover-art .torrent_grid__torrent .torrent__cover[style*="background"]:n
 .epc-preview[data-mode=zoom]{padding:6px;overflow:hidden;cursor:zoom-in}
 .epc-preview[data-mode=zoom] .epc-preview-frame>img{width:100%;height:auto}
 .epc-preview[data-ep-gallery-preview] .epc-preview-frame>img{width:100%;height:auto}
+.epc-preview[data-ep-gallery-viewer]{display:flex;flex-direction:column;overflow:hidden}
+.epc-preview[data-ep-gallery-viewer]>:not(.epc-preview-frame){flex-shrink:0}
+.epc-preview[data-ep-gallery-viewer] .epc-preview-heading strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.epc-preview[data-ep-gallery-viewer] .epc-preview-heading button{margin:0;min-height:40px}
+.epc-preview[data-ep-gallery-viewer] .epc-preview-frame{
+  display:block;min-height:0;outline:1px solid var(--epc-line);overscroll-behavior:contain;touch-action:pan-y pinch-zoom
+}
+.epc-preview[data-ep-gallery-viewer] .epc-preview-frame>img{width:auto;cursor:zoom-in}
+.epc-preview[data-ep-gallery-viewer] .epc-preview-frame[data-ep-magnified]{overflow:auto;touch-action:auto}
+.epc-preview[data-ep-gallery-viewer] .epc-preview-frame[data-ep-magnified]>img{
+  width:var(--epc-gallery-image-width);max-width:none;max-height:none;cursor:grab
+}
+.epc-preview[data-ep-gallery-viewer] .epc-preview-frame[data-ep-panning]>img{cursor:grabbing}
+.epc-gallery-controls,.epc-gallery-control-group{display:flex;align-items:center}
+.epc-gallery-controls{justify-content:space-between;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.epc-gallery-control-group{padding:2px;border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);background:var(--epc-subtle)}
+.epc-gallery-control-group>[role=status]{min-width:50px;padding-inline:5px;text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+.epc-root .epc-gallery-controls button{min-width:44px;min-height:44px;margin:0;border-color:transparent;background:transparent}
+.epc-root .epc-gallery-control-group:last-child button:last-child{min-width:84px}
+.epc-root .epc-gallery-controls button:hover:not(:disabled){background:var(--epc-soft)}
+.epc-gallery-controls button:disabled{opacity:.45;cursor:default}
+.epc-gallery-hint{margin-top:7px;font-size:11px;color:var(--epc-muted);text-align:center}
+.epc-preview[data-ep-gallery-viewer]:not([data-state=ready]) .epc-gallery-hint{display:none}
+.epc-preview[data-ep-gallery-viewer]:has(.epc-preview-status:not([hidden])) .epc-gallery-hint{display:none}
+.epc-preview[data-ep-gallery-viewer]>.epc-actions{display:none}
+.epc-preview[data-ep-gallery-viewer]:is([data-state=failed],[data-state=stalled],[data-state=partial],
+  [data-state=ready]:has(.epc-preview-status:not([hidden])))>.epc-actions{display:flex;justify-content:flex-end}
+.epc-preview[data-ep-gallery-viewer]>.epc-actions>:not(.epc-preview-retry){display:none}
+@media(max-width:400px){
+  .epc-gallery-controls{flex-direction:column}
+  .epc-preview[data-ep-gallery-viewer] .epc-preview-heading button{min-height:44px}
+}
 .epc-preview[data-mode=zoom] .epc-preview-status:empty{display:none}
 .epc-preview[data-mode=tooltip]{padding:8px;overflow:hidden}
 .epc-preview[data-mode=tooltip] .epc-preview-frame{min-height:0;background:none}
@@ -284,7 +316,7 @@ a.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;poi
     inline-size:100%;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr))
   }
 }
-#content .epc-detail-preview-links{margin-block:6px 10px}
+#content :is(.epc-detail-preview-links,.epc-detail-other-images){margin-block:6px 10px}
 #content .epc-detail-preview-extras>div{margin-block:8px}
 #content .epc-detail-spoiler>strong,#content .epc-detail-spoiler>b{margin-inline-end:8px}
 #content .epc-detail-spoiler-gallery>blockquote>a{display:inline-block;vertical-align:top;margin:3px}

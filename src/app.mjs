@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { DEFAULTS, validateSettings, escapeHTML, safeImageURL, canonicalImageURL,
+import { DEFAULTS, validateSettings, escapeHTML, safeImageURL, canonicalImageURL, clamp,
   legacyOriginal, fullSizeURL, thumbnailCandidates, parseOverlayDefinitions,
   imageState, editableTarget, isSaveShortcut, SEARCH_NAMES, validateSearches, MediaPool } from './core.mjs';
 import { mountFilterControls, adoptRuleMenu, styleRowControls, applyWorkspaceTheme, adoptNotificationControls, optionGroup, setupSettingsSearch, keyboardShortcutList, companionIcon, toolbarPageName } from './workspace.mjs';
@@ -11,7 +11,7 @@ import { PersistentImageCache, cacheBytes, cacheActivityWindows } from './image-
 import { createSavedSearchEditor } from './search-editor.mjs';
 import { VersionGroups, TagHighlights } from './result-tools.mjs';
 import { ResultGrid, gridCardSizeChoices } from './grid-view.mjs';
-import { DetailLayout } from './detail-layout.mjs';
+import { DetailLayout, detailImageLink } from './detail-layout.mjs';
 import { ResultFilters } from './result-filters.mjs';
 import { compileConditionalRules } from './conditional-rules.mjs';
 import { mountLuminanceImport } from './luminance-import.mjs';
@@ -25,7 +25,12 @@ const CACHE_STATS_PIN_KEY = 'ep.cacheStatsPinned';
 const DIAGNOSTIC_LIMIT = 3000;
 const OWN = '.epc-root,.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback,.epc-media-retry,.epc-engine,.epc-version-control,.epc-version-columns,.epc-grid-card-actions,#nseOuter,#nseFloatyBoi';
 const hiddenMedia = '.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden,[data-ep-detail-original-hidden]';
-const galleryImageSelector = '.epc-detail-preview-images img';
+const detailGalleryRoot = '.epc-detail-preview-images,.epc-detail-spoiler-gallery';
+const galleryImageSelector = `:is(${detailGalleryRoot}) img`;
+function galleryTrigger(image) {
+  const anchor = image.closest('a[href]');
+  return anchor?.querySelectorAll('img').length === 1 ? anchor : image;
+}
 // Image URLs can be extensionless, and formats such as WebP can carry animation.
 const coverMayAnimate = source => !/\.(?:jpe?g|bmp|ico)$/i.test(new URL(source).pathname);
 const loadLabels = {
@@ -2560,20 +2565,24 @@ export class PreviewController {
     const actions = this.actions = this.app.node('div', null, 'epc-actions');
     this.pinButton = this.app.button('Pin', () => this.pin());
     this.retryButton = this.app.button('Retry', () => this.retry());
+    this.retryButton.classList.add('epc-preview-retry');
     this.syncShortcutLabels();
     this.details = this.app.node('a', 'Details'); this.details.target = '_blank'; this.details.rel = 'noopener noreferrer';
     actions.append(this.pinButton, this.retryButton, this.details);
-    this.element.append(heading, this.frame, this.status, this.summary, actions); this.doc.body.append(this.element);
+    this.buildGalleryControls();
+    this.element.append(heading, this.galleryControls, this.frame, this.galleryHint, this.status, this.summary, actions); this.doc.body.append(this.element);
     this.element.addEventListener('pointerenter', () => { this.inside = true; this.win.clearTimeout(this.hideTimer); });
     this.element.addEventListener('pointerleave', event => {
       this.inside = false;
       if (this.zoom && this.anchor?.contains(event.relatedTarget)) return;
       this.deferHide();
     });
-    this.frame.addEventListener('click', () => {
+    this.frame.addEventListener('click', event => {
       if (this.open && this.zoom) {
         this.showFor(this.anchor, { pin: true });
         if (this.metadata?.galleryImage) this.element.focus({ preventScroll: true });
+      } else if (!this.galleryControls.hidden && event.target === this.image) {
+        if (event.timeStamp - (this.galleryGestureAt ?? -Infinity) > 350) this.toggleGalleryZoom(event);
       }
     });
     this.element.addEventListener('pointercancel', () => { if (this.zoom) this.hide(); });
@@ -2604,6 +2613,176 @@ export class PreviewController {
       this.resize = new this.win.ResizeObserver(() => this.position());
       this.resize.observe(this.element);
     }
+  }
+  buildGalleryControls() {
+    const app = this.app;
+    this.galleryControls = app.node('div', null, 'epc-gallery-controls');
+    this.galleryControls.hidden = true;
+    this.galleryNavigation = app.node('div', null, 'epc-gallery-control-group');
+    this.galleryIndex = app.node('span');
+    this.galleryIndex.setAttribute('role', 'status');
+    const previous = app.button('‹', () => this.stepGallery(-1), 'Previous image');
+    const next = app.button('›', () => this.stepGallery(1), 'Next image');
+    this.galleryNavigation.append(previous, this.galleryIndex, next);
+    const zoom = app.node('div', null, 'epc-gallery-control-group');
+    this.galleryZoomOut = app.button('−', () => this.adjustGalleryZoom(1 / 1.5), 'Zoom out');
+    this.galleryZoomIn = app.button('+', () => this.adjustGalleryZoom(1.5), 'Zoom in');
+    this.galleryFit = app.button('Actual size', () => this.toggleGalleryZoom());
+    zoom.append(this.galleryZoomOut, this.galleryZoomIn, this.galleryFit);
+    this.galleryHint = app.node('small', null, 'epc-gallery-hint');
+    this.galleryHint.hidden = true;
+    this.galleryControls.append(this.galleryNavigation, zoom);
+    this.element.addEventListener('keydown', event => {
+      if (this.galleryControls.hidden || event.isComposing || event.defaultPrevented) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.hide(true);
+        return;
+      }
+      if (!app.settings.keyboardShortcuts || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') this.stepGallery(event.key === 'ArrowLeft' ? -1 : 1);
+      else if (['+', '=', '-'].includes(event.key)) this.adjustGalleryZoom(event.key === '-' ? 1 / 1.5 : 1.5);
+      else if (event.key === '0') this.setGalleryZoom(0);
+      else return;
+      event.preventDefault();
+    });
+    this.frame.addEventListener('wheel', event => {
+      if (this.galleryControls.hidden || this.galleryNavigation.hidden || this.galleryScale || event.ctrlKey || event.metaKey) return;
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (!delta) return;
+      event.preventDefault();
+      if (event.timeStamp - (this.galleryWheelAt ?? -Infinity) < 260) return;
+      this.galleryWheelAt = event.timeStamp;
+      this.stepGallery(delta < 0 ? -1 : 1);
+    }, { passive: false });
+    this.frame.addEventListener('pointerdown', event => {
+      if (this.galleryControls.hidden || event.button !== 0) return;
+      const pan = !!this.galleryScale && event.pointerType === 'mouse' && event.target === this.image;
+      const swipe = !this.galleryScale && event.pointerType === 'touch' && !this.galleryNavigation.hidden;
+      if (pan || swipe) this.galleryGesture = { id: event.pointerId, x: event.clientX, y: event.clientY,
+        pan, left: this.frame.scrollLeft, top: this.frame.scrollTop, moved: false };
+    });
+    this.frame.addEventListener('pointermove', event => {
+      const start = this.galleryGesture;
+      if (!start?.pan || start.id !== event.pointerId) return;
+      const dx = event.clientX - start.x, dy = event.clientY - start.y;
+      if (!start.moved) {
+        if (Math.hypot(dx, dy) < 5) return;
+        start.moved = true;
+        this.frame.setPointerCapture?.(event.pointerId);
+        this.frame.setAttribute('data-ep-panning', '');
+      }
+      this.frame.scrollLeft = start.left - dx;
+      this.frame.scrollTop = start.top - dy;
+      event.preventDefault();
+    });
+    this.frame.addEventListener('pointerup', event => {
+      const start = this.galleryGesture;
+      if (!start || start.id !== event.pointerId) return;
+      this.clearGalleryGesture();
+      if (start.pan) {
+        if (start.moved) this.galleryGestureAt = event.timeStamp;
+        return;
+      }
+      const dx = event.clientX - start.x, dy = event.clientY - start.y;
+      if (Math.abs(dx) < 45 || Math.abs(dx) <= Math.abs(dy)) return;
+      this.galleryGestureAt = event.timeStamp;
+      this.stepGallery(dx > 0 ? -1 : 1);
+    });
+    this.frame.addEventListener('pointercancel', () => this.clearGalleryGesture());
+    this.frame.addEventListener('lostpointercapture', () => this.clearGalleryGesture());
+    this.frame.addEventListener('pointerleave', () => {
+      if (this.galleryGesture?.pan && !this.galleryGesture.moved) this.clearGalleryGesture();
+    });
+  }
+  clearGalleryGesture() {
+    const id = this.galleryGesture?.id;
+    this.galleryGesture = null;
+    this.frame?.removeAttribute('data-ep-panning');
+    if (id !== undefined && this.frame?.hasPointerCapture?.(id)) this.frame.releasePointerCapture(id);
+  }
+  galleryItems() {
+    const current = this.metadata?.galleryImage;
+    const group = current?.closest(detailGalleryRoot);
+    return group ? [...group.querySelectorAll('img')].filter(image =>
+      !image.closest(`${hiddenMedia},details:not([open])`) &&
+      this.bound.has(galleryTrigger(image)) && this.galleryMetadata(image)) : [];
+  }
+  syncGalleryControls(sameImage) {
+    if (!this.galleryControls) return;
+    const active = this.pinned && !!this.metadata?.galleryImage;
+    this.galleryControls.hidden = !active;
+    this.galleryHint.hidden = !active;
+    this.element.toggleAttribute('data-ep-gallery-viewer', active);
+    this.element.setAttribute('aria-label', active ? 'Image gallery' : 'Image preview');
+    if (!active || !sameImage) {
+      this.clearGalleryGesture();
+      this.galleryScale = 0;
+      this.frame.scrollLeft = this.frame.scrollTop = 0;
+      this.frame.removeAttribute('data-ep-magnified');
+      this.frame.removeAttribute('tabindex');
+    }
+    if (!active) return;
+    const items = this.galleryItems();
+    this.galleryNavigation.hidden = items.length < 2;
+    this.galleryIndex.textContent = `${items.indexOf(this.metadata.galleryImage) + 1} of ${items.length}`;
+    this.layoutGalleryZoom();
+  }
+  stepGallery(direction) {
+    const items = this.galleryItems();
+    const index = items.indexOf(this.metadata?.galleryImage);
+    if (index >= 0 && items.length > 1) this.showFor(galleryTrigger(items[(index + direction + items.length) % items.length]), { pin: true });
+  }
+  galleryFitScale() {
+    const { naturalWidth, naturalHeight } = this.image;
+    return naturalWidth && naturalHeight ? Math.min(1, this.frame.clientWidth / naturalWidth,
+      parseFloat(this.frame.style.maxHeight) / naturalHeight) : 0;
+  }
+  layoutGalleryZoom() {
+    if (this.galleryControls.hidden) return;
+    const ready = !this.image.hidden && !!this.image.naturalWidth;
+    this.frame.toggleAttribute('data-ep-magnified', !!this.galleryScale && ready);
+    if (this.galleryScale && ready) this.frame.tabIndex = 0;
+    else this.frame.removeAttribute('tabindex');
+    if (this.galleryScale && ready) this.frame.style.setProperty('--epc-gallery-image-width', `${this.image.naturalWidth * this.galleryScale}px`);
+    else this.frame.style.removeProperty('--epc-gallery-image-width');
+    this.galleryZoomIn.disabled = !ready || this.galleryScale >= 4;
+    this.galleryZoomOut.disabled = !ready || !this.galleryScale;
+    this.galleryFit.disabled = !ready || !this.galleryScale && this.galleryFitScale() >= 1;
+    const label = this.galleryScale ? 'Fit' : 'Actual size';
+    if (this.galleryFit.textContent !== label) this.galleryFit.textContent = label;
+    const hint = this.galleryScale ? 'Drag or scroll to move around the image.' :
+      this.galleryNavigation.hidden ? 'Click or tap to zoom.' : 'Scroll or swipe to browse.';
+    if (this.galleryHint.textContent !== hint) this.galleryHint.textContent = hint;
+  }
+  adjustGalleryZoom(factor) {
+    this.setGalleryZoom((this.galleryScale || this.galleryFitScale()) * factor);
+  }
+  toggleGalleryZoom(point) {
+    const fit = this.galleryFitScale();
+    this.setGalleryZoom(this.galleryScale ? 0 : fit < 1 ? 1 : 1.5, point);
+  }
+  setGalleryZoom(scale, point) {
+    const fit = this.galleryFitScale();
+    if (this.galleryControls.hidden || this.image.hidden || !fit) return;
+    const anchor = this.galleryZoomAnchor(point);
+    this.galleryScale = scale > fit + 0.001 ? Math.min(scale, 4) : 0;
+    this.layoutGalleryZoom();
+    if (!this.galleryScale) this.frame.scrollLeft = this.frame.scrollTop = 0;
+    else this.restoreGalleryZoomAnchor(anchor);
+  }
+  galleryZoomAnchor(point) {
+    const old = this.image.getBoundingClientRect(), box = this.frame.getBoundingClientRect();
+    if (!old.width || !old.height) return null;
+    const x = point?.clientX ?? box.left + this.frame.clientWidth / 2;
+    const y = point?.clientY ?? box.top + this.frame.clientHeight / 2;
+    return { x, y, imageX: clamp((x - old.left) / old.width, 0, 1), imageY: clamp((y - old.top) / old.height, 0, 1) };
+  }
+  restoreGalleryZoomAnchor(anchor) {
+    if (!anchor) return;
+    const now = this.image.getBoundingClientRect();
+    this.frame.scrollLeft += now.left + anchor.imageX * now.width - anchor.x;
+    this.frame.scrollTop += now.top + anchor.imageY * now.height - anchor.y;
   }
   clearPendingImage() {
     if (!this.pendingImage) return;
@@ -2651,9 +2830,23 @@ export class PreviewController {
     delete this.image.dataset.epImageSource;
   }
   displayImage(image) {
+    const upgradingGallery = this.image !== image && !this.galleryControls.hidden && this.galleryScale &&
+      !this.image.hidden && image.naturalWidth && image.naturalHeight;
+    const previousFit = upgradingGallery && this.galleryFitScale();
+    const anchor = previousFit ? this.galleryZoomAnchor() : null;
     image.alt = ''; image.draggable = false; image.hidden = false;
     if (this.image !== image) this.frame.replaceChildren(image);
     this.image = image;
+    if (previousFit) {
+      const fit = this.galleryFitScale();
+      if (fit) {
+        const scale = Math.min(4, fit * this.galleryScale / previousFit);
+        this.galleryScale = scale > fit + 0.001 ? scale : 0;
+        this.clearGalleryGesture();
+        this.layoutGalleryZoom();
+        this.restoreGalleryZoomAnchor(anchor);
+      }
+    }
   }
   displayLoaded(entry, version, update) {
     const displayURL=entry.displayURL||entry.actualURL;
@@ -2697,9 +2890,7 @@ export class PreviewController {
     if (this.app.settings.enabled && this.app.detailLayout?.torrentID) {
       const gallery = root.matches?.(galleryImageSelector) ? [root] : root.querySelectorAll(galleryImageSelector);
       for (const image of gallery) {
-        const anchor = image.closest('a[href]');
-        const trigger = anchor?.querySelectorAll('img').length === 1 ? anchor : image;
-        this.bind(trigger, { galleryImage: image });
+        this.bind(galleryTrigger(image), { galleryImage: image });
       }
     }
     const links = root.matches?.('a[onmouseover*="overlib"]') ? [root] :
@@ -2795,8 +2986,10 @@ export class PreviewController {
     const src = safeImageURL(image.currentSrc || image.getAttribute('src'), base) ||
       this.app.media.records.get(image)?.source || safeImageURL(image.getAttribute('data-src') || image.getAttribute('data-lazy-src'), base);
     if (!src) return null;
-    const linked = safeImageURL(image.closest('a[href]')?.getAttribute('href'), base);
-    return { galleryImage: image, src, original: fullSizeURL(linked || src), title: image.alt.trim().slice(0, 400) };
+    const linked = detailImageLink(image);
+    const alt = image.alt.trim();
+    const title = /^(?:https?:)?\/\//i.test(alt) ? '' : alt.slice(0, 400);
+    return { galleryImage: image, src, original: fullSizeURL(linked || src), title };
   }
   showFor(link, options = {}) {
     const retainedPin = this.pinned && options.pin === true && this.anchor === link && this.metadata;
@@ -2811,7 +3004,10 @@ export class PreviewController {
     this.win.clearTimeout(this.showTimer); this.win.clearTimeout(this.hideTimer);
     // hide() clears the displayed image. Remembering the previous item does not
     // mean its pixels are still visible when a new hover session starts.
-    const same = this.open && this.metadata?.src === metadata.src;
+    const previousGalleryImage = this.open && this.metadata?.galleryImage;
+    const same = this.open && this.metadata?.src === metadata.src &&
+      (!galleryImage || previousGalleryImage === galleryImage && this.metadata.original === metadata.original);
+    const sameGalleryImage = this.pinned && this.metadata?.galleryImage === galleryImage;
     if (!same) this.clearLoadStats();
     const previousUnsubscribe = this.unsubscribe; this.unsubscribe = null;
     this.anchor = link; this.metadata = metadata;
@@ -2822,10 +3018,14 @@ export class PreviewController {
     this.element.toggleAttribute('data-ep-gallery-preview', !!galleryImage);
     this.element.setAttribute('role', this.zoom || titleHover ? 'tooltip' : 'dialog');
     this.heading.hidden = this.actions.hidden = this.zoom || titleHover;
-    this.summary.hidden = this.zoom;
+    this.summary.hidden = this.zoom || !!galleryImage && !metadata.summary;
     this.element.style.pointerEvents = titleHover || !this.pinned && this.hoveredTrigger === link ? 'none' : '';
-    this.element.hidden = false; this.title.textContent = metadata.title || 'Image preview';
+    this.element.hidden = false;
+    this.title.textContent = metadata.title || (galleryImage && this.pinned ? 'Image gallery' : 'Image preview');
+    this.title.title = galleryImage ? metadata.title : '';
     this.summary.textContent = metadata.summary || '';
+    this.syncGalleryControls(sameGalleryImage);
+    if (previousGalleryImage && previousGalleryImage !== galleryImage) this.app.detailLayout?.separateOtherImage(previousGalleryImage);
     this.syncShortcutLabels();
     this.pinButton.setAttribute('aria-pressed', String(this.pinned));
     this.clearPendingImage();
@@ -2933,6 +3133,7 @@ export class PreviewController {
   }
   hide(force = false) {
     if (this.pinned && !force) return;
+    const galleryImage = this.open && this.metadata?.galleryImage;
     this.clearLoadStats();
     this.win.clearTimeout(this.showTimer); this.win.clearTimeout(this.hideTimer);
     if (force) this.dismissed = this.anchor;
@@ -2941,8 +3142,14 @@ export class PreviewController {
     this.unsubscribe?.(); this.unsubscribe = null; this.renderEntry = null; this.version++;
     this.progressEntry = null; this.app.scheduleHealth();
     this.open = false; this.pinned = false; this.inside = false; this.zoom = false; this.titleHover = false;
+    this.galleryGestureAt = this.galleryWheelAt = undefined;
+    this.syncGalleryControls(false);
     if (this.element) this.element.hidden = true;
-    if (restoreFocus) this.anchor?.focus({ preventScroll: true });
+    if (galleryImage) this.app.detailLayout?.separateOtherImage(galleryImage);
+    if (restoreFocus) {
+      const summary = this.anchor?.closest('details:not([open])')?.querySelector(':scope > summary');
+      (summary || this.anchor)?.focus({ preventScroll: true });
+    }
     if (!this.anchor?.isConnected) { this.anchor = null; this.metadata = null; this.dismissed = null; }
     this.app.media.pool.trim();
   }
@@ -2975,10 +3182,13 @@ export class PreviewController {
       const style = this.element.style;
       const assignments = { width: popupWidth + 'px', maxHeight: popupHeight + 'px' };
       for (const [key, value] of Object.entries(assignments)) if (style[key] !== value) style[key] = value;
-      const imageSpace = gallery ? (this.pinned ? popupHeight - 110 : Math.min(height * .56, popupHeight - 50)) :
+      const galleryChrome = gallery && this.pinned ? this.heading.offsetHeight + this.galleryControls.offsetHeight +
+        this.galleryHint.offsetHeight + this.actions.offsetHeight + (this.status.hidden ? 0 : this.status.offsetHeight + 16) + 48 : 0;
+      const imageSpace = gallery ? (this.pinned ? popupHeight - galleryChrome : Math.min(height * .56, popupHeight - 50)) :
         popupHeight - (this.zoom ? this.status.textContent ? 60 : 14 : this.titleHover ? 130 : 190);
       const frameHeight = Math.max(60, imageSpace) + 'px';
       if (this.frame.style.maxHeight !== frameHeight) this.frame.style.maxHeight = frameHeight;
+      this.layoutGalleryZoom();
       const anchor = (this.metadata?.cover || this.anchor)?.getBoundingClientRect();
       const rect = this.element.getBoundingClientRect();
       let left = this.pinned ? offsetX + (width - rect.width) / 2 :

@@ -322,7 +322,7 @@ export function adoptNotificationControls(app) {
 export const workspacePaletteKeys = ['--epc-bg', '--epc-fg', '--epc-accent', '--epc-line'];
 
 export function applyWorkspaceTheme(app, roots = [app.root, app.backfill?.footer, app.preview?.element, app.onboarding?.element,
-  app.doc.getElementById('nseRCMBox'), ...app.doc.querySelectorAll('.epc-detail-files,.epc-detail-preview-links,.epc-notification-control,.epc-search-feedback,.epc-media-retry')]) {
+  app.doc.getElementById('nseRCMBox'), ...app.doc.querySelectorAll('.epc-detail-files,.epc-detail-preview-links,.epc-detail-other-images,.epc-notification-control,.epc-search-feedback,.epc-media-retry')]) {
   const selected = app.storage.get('nseSelectedTheme', null);
   const palettes = {
     nseThemeLegacy: ['#23395a', '#eef4ff', '#91c5ff', '#526b8e'],
