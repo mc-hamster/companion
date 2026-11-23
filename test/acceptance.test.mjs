@@ -93,7 +93,9 @@ test('[BOOT-02] [PREF-01] [TAG-04] rules, highlight lists and customized setting
   let f=await boot({}, {store});
   try{
     pane(f,'filters');await field(f,'#nseBlacklistTaglistArea','blocked.tag');
-    await field(f,'[data-setting=favoriteTags]','sample.tag');f.close();
+    const liked = f.doc.querySelector('[data-tag-category=favorite]');
+    liked.querySelector('textarea').value = 'sample.tag';
+    [...liked.querySelectorAll('button')].find(button => button.textContent === 'Save tags').click(); f.close();
     f=await boot({}, {store});pane(f,'settings');
     assert.equal(f.doc.querySelector('[data-setting=thumbnailSize]').value,'88');assert.equal(store.get('ep.settings').concurrency,4);
     pane(f,'filters');assert.equal(f.doc.getElementById('nseBlacklistTaglistArea').value,'blocked.tag');

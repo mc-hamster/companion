@@ -145,9 +145,9 @@ test('favorites, cautions and search matches coexist without changing filter vis
     const [favorite, caution, query, excluded] = f.doc.querySelectorAll('.tags a');
     assert.equal(favorite.dataset.epTagTone, 'favorite'); assert.equal(caution.dataset.epTagTone, 'caution');
     assert.equal(query.classList.contains('epc-tag-match'), true); assert.equal(excluded.classList.contains('epc-tag-match'), false);
-    assert.match(favorite.title, /Favorite tag/); assert.match(query.title, /search tag/);
+    assert.match(favorite.title, /Liked tag/); assert.match(query.title, /search tag/);
     assert.equal(f.doc.querySelector('.torrent_table tr').classList.contains('hidden'), false);
-    favorite.classList.add('nseHiddenTag'); f.app.tags.refresh(); assert.match(favorite.title, /Blocked tag.*Favorite/);
+    favorite.classList.add('nseHiddenTag'); f.app.tags.refresh(); assert.match(favorite.title, /Blocked tag.*Liked/);
     f.app.settings.favoriteTags = ''; favorite.classList.remove('nseHiddenTag'); f.app.tags.refresh();
     assert.equal(favorite.hasAttribute('title'), false); assert.equal(favorite.hasAttribute('data-ep-tag-tone'), false);
   } finally { f.close(); }
@@ -173,6 +173,28 @@ test('highlight selection handles storage failure without changing the appearanc
     f.app.tags.choose('sample.tag', 'favorite');
     assert.equal(f.app.settings.favoriteTags, ''); assert.equal(f.doc.querySelector('.tags a').hasAttribute('data-ep-tag-tone'), false);
     assert.match(f.app.notice.textContent, /Could not save/);
+  } finally { f.close(); }
+});
+
+test('highlight edits and unrelated autosaves preserve newer assignments from another tab', async () => {
+  const f = await setup(undefined, { 'ep.settings': { favoriteTags: 'sample.tag' } });
+  try {
+    const tag = f.doc.querySelector('.tags a');
+    const saved = f.storage.get('ep.settings');
+    f.storage.set('ep.settings', { ...saved, favoriteTags: '', cautionTags: 'sample.tag' });
+    f.app.tags.choose('sample.tag', 'loved');
+    assert.equal(tag.dataset.epTagTone, 'caution');
+    assert.match(f.app.notice.textContent, /changed in another tab/);
+    assert.equal(f.storage.get('ep.settings').cautionTags, 'sample.tag');
+
+    const updated = f.storage.get('ep.settings');
+    f.storage.set('ep.settings', { ...updated, cautionTags: '', favoriteTags: 'sample.tag' });
+    f.app.setResultPreference('thumbnailSize', '90');
+    assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag');
+    assert.equal(f.storage.get('ep.settings').thumbnailSize, 90);
+    assert.equal(tag.dataset.epTagTone, 'favorite');
+    f.app.preferences.undo();
+    assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag');
   } finally { f.close(); }
 });
 

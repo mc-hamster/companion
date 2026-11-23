@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { canonicalImageURL, safeImageURL } from './core.mjs';
+import { canonicalImageURL, COMPANION_MIRRORS, safeImageURL } from './core.mjs';
 
 // No wildcard permission or cookie access. Other hosts retain native loading.
-export const IMAGE_CACHE_HOSTS = ['hamsterimg.net','hamster.is','empornium.sx','empornium.me','empornium.is','empornium.ph','emparadise.rs'];
+export const IMAGE_CACHE_HOSTS = ['hamsterimg.net', 'hamster.is',
+  ...COMPANION_MIRRORS.filter(mirror => mirror.imageCache).map(mirror => mirror.host)];
 const CACHE_ACTIVITY_KEYS=['hits','misses','downloads','savedBytes','sizedHits'];
 const CACHE_ACTIVITY_BUCKET_MS=5000, CACHE_ACTIVITY_HOUR_MS=3600000;
 function emptyCacheActivity(pending=false){return{hits:0,misses:0,downloads:0,savedBytes:0,sizedHits:0,recent:pending?new Map():[]};}

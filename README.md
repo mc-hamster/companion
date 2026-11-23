@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.15.9](dist/EmporniumCompanion-2.15.9.user.js)**
+**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.16.0](dist/EmporniumCompanion-2.16.0.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -10,7 +10,7 @@ Companion is a small add-on that runs through [Tampermonkey](https://www.tamperm
 
 - **Preview before opening.** See thumbnails beside results and hover over them for a larger image. Click a preview to keep it open.
 - **Browse in a grid.** Switch to thumbnail cards. Open an image preview to see a larger version. Choose card width in Settings or Getting started.
-- **Hide what you don't want.** Filter by tags, titles, or uploaders. Mark tags as favorites or cautions to make them easier to spot.
+- **Filter and recognize results.** Filter by tags, titles, or uploaders. Highlight tags with named colors and browse results in a category.
 - **Less clutter.** Similar releases are grouped together. Choose **Show versions** to compare them.
 - **Your searches, one click away.** Save a search and run it again from the toolbar.
 - **More results without page hopping.** Add the next few pages to your current search or collage, or let Companion load them automatically.
@@ -25,11 +25,13 @@ Companion is a small add-on that runs through [Tampermonkey](https://www.tamperm
 
 Already using Companion? Use **Check for updates** on your installed script in Tampermonkey to get the rename and keep your settings. Use the install link for a fresh copy.
 
+To install a shared `.user.js` file, open **Tampermonkey Dashboard → Utilities → Import from file**. Choose the file, confirm **Install** or **Update**, and reload any open Empornium tabs.
+
 If you use older scripts for the same features, back up their settings first, then disable them so you don't get duplicate controls. Companion can import NoShitEmpornium filter backups, including backups from mc-hamster's fork.
 
 ## Start browsing
 
-**Filters** lets you choose what to hide or highlight. Most changes save automatically. Turn on **Show filtered** beside Settings to reveal hidden results in the current Freeleech view. Companion remembers the switch across result pages.
+**Filters** lets you choose what to hide or highlight. Most changes save automatically. Turn on **Show filtered** beside Settings to reveal hidden results in the current Freeleech view. To see only hidden results, choose **Settings → Browsing → When Show filtered is on → Show filtered only**. The toolbar switch becomes **Filtered only**, and Companion remembers it across result pages.
 
 Open **Filters → Freeleech** to switch between **All results**, **Any freeleech**, and **Sitewide only**. Select the active filter chip to return to all results. Bookmarks remembers its own selection.
 
@@ -49,7 +51,7 @@ Hover over, focus, or tap the small gauge beside the Companion name to see load 
 
 Grid titles show up to two lines by default. Turn off **View options → Truncate titles** to show full titles. Stats, uploader, and category information are hidden by default. Enable **Settings → Appearance → Show details in grid cards** to display them.
 
-Tags are also hidden by default in grid view. **Settings → Appearance → Show tags in grid cards** controls them separately from the details block. Both choices are remembered; tag filtering and highlighting continue to work.
+Open **Tags** on any Grid card to see its tags and assign highlights. Use **Settings → Appearance → Show tags in grid cards** to keep tag lists open. Right-click a tag and choose **Highlight as**, or open **Filters → Tag highlights** to edit categories and browse their matches among loaded results.
 
 To add more results yourself, click **Load more** below the results. This brings the following pages into the page you're viewing. **Stop loading** stays visible while pages load and keeps the results already added. For automatic loading, look under **Settings → Browsing → Load more pages**.
 

@@ -138,24 +138,26 @@ export class ResultFilters {
     if (!reason) { node?.remove(); this.reasonNodes.delete(row); return; }
     if (!node) {
       const title = resultTitleLink(row);
-      if (!title) return;
+      if (!title && !row.matches('.torrent_grid__torrent')) return;
       node = this.app.node('span', null, 'epc-root epc-filter-reason');
-      title.after(node); this.reasonNodes.set(row, node);
+      if (title) title.after(node); else row.append(node);
+      this.reasonNodes.set(row, node);
     }
     if (node.textContent !== reason) node.textContent = reason;
   }
-  applyRow(row) {
+  applyRow(row, engineFiltered = false, outsideCategory = false) {
     const { app } = this;
     const { kind, icon } = findFreeleech(row);
     const previous = this.icons.get(row);
     if (previous && previous !== icon) delete previous.dataset.epFreeleech;
     if (icon) { icon.dataset.epFreeleech = kind; this.icons.set(row, icon); }
     else this.icons.delete(row);
-    const outsideView = this.outsideView(row, kind);
+    const outsideView = outsideCategory || this.outsideView(row, kind);
     const mode = app.settings.seenMode;
     const seen = mode !== 'show' && (this.seen ||= this.readSeenIDs()).has(torrentID(row, this.pageURL.href));
     const seenFiltered = seen && mode === 'hide';
-    row.classList.toggle('epc-filter-hidden', outsideView || seenFiltered && !app.revealingFiltered);
+    const hiddenByMode = app.showingFilteredOnly ? !engineFiltered && !seenFiltered : seenFiltered && !app.revealingFiltered;
+    row.classList.toggle('epc-filter-hidden', outsideView || hiddenByMode);
     row.classList.toggle('epc-seen-revealed', seenFiltered && !!app.revealingFiltered);
     row.classList.toggle('epc-seen-dim', seen && mode === 'dim');
     return { outsideView, seenFiltered };

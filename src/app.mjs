@@ -2,7 +2,7 @@
 import { DEFAULTS, validateSettings, escapeHTML, safeImageURL, canonicalImageURL, clamp,
   legacyOriginal, fullSizeURL, thumbnailCandidates, parseOverlayDefinitions,
   imageState, editableTarget, isSaveShortcut, SEARCH_NAMES, validateSearches, MediaPool } from './core.mjs';
-import { mountFilterControls, adoptRuleMenu, styleRowControls, applyWorkspaceTheme, adoptNotificationControls, optionGroup, setupSettingsSearch, keyboardShortcutList, companionIcon, toolbarPageName } from './workspace.mjs';
+import { mountFilterControls, adoptRuleMenu, positionTagMenu, styleRowControls, applyWorkspaceTheme, adoptNotificationControls, optionGroup, setupSettingsSearch, keyboardShortcutList, companionIcon, toolbarPageName } from './workspace.mjs';
 import { PreferencesController, captureFilterBaseline, restoreFilterBaseline } from './preferences.mjs';
 import { BackfillController, backfillURL, torrentID } from './backfill.mjs';
 import { CollageQuickAdd } from './collage-quick-add.mjs';
@@ -10,6 +10,7 @@ import { OnboardingController } from './onboarding.mjs';
 import { PersistentImageCache, cacheBytes, cacheActivityWindows } from './image-cache.mjs';
 import { createSavedSearchEditor } from './search-editor.mjs';
 import { VersionGroups, TagHighlights } from './result-tools.mjs';
+import { TagHighlightManager } from './tag-highlight-manager.mjs';
 import { ResultGrid, gridCardSizeChoices } from './grid-view.mjs';
 import { DetailLayout, detailImageLink } from './detail-layout.mjs';
 import { ResultFilters } from './result-filters.mjs';
@@ -95,6 +96,7 @@ export function applySearch(form, saved, append = false) {
 
 export class CompanionApp {
   get revealingFiltered() { return this.settings.showFilteredResults && !this.detailLayout?.torrentID; }
+  get showingFilteredOnly() { return this.revealingFiltered && this.settings.showFilteredMode === 'only'; }
 
   constructor(win, storage, options = {}) {
     this.win = win; this.doc = win.document; this.storage = storage; this.options = options;
@@ -221,7 +223,7 @@ export class CompanionApp {
     this.on(this.win, 'focus', () => { this.refreshSavedSearches(); this.resultFilters.refreshSeen(); });
     this.on(this.doc, 'visibilitychange', () => {
       if(this.doc.hidden)this.cancelCacheUsage();
-      else{this.refreshSavedSearches();this.resultFilters.refreshSeen();void this.refreshCacheUsage();}
+      else{this.refreshSavedSearches();this.resultFilters.refreshSeen();this.tags.refreshStoredPreferences();void this.refreshCacheUsage();}
     });
     this.observer = new this.win.MutationObserver(mutations => {
       if (this.media.coverGatePending) this.media.syncCoverGate();
@@ -230,9 +232,11 @@ export class CompanionApp {
       for (const mutation of mutations) {
         if (mutation.target.nodeType === 1 && mutation.target.closest?.(OWN)) continue;
         if (mutation.type === 'childList' && [...mutation.addedNodes, ...mutation.removedNodes].every(node =>
-          node.nodeType === 1 && node.matches('.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback'))) continue;
+          node.nodeType === 1 && node.matches('.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback,.epc-grid-card-actions'))) continue;
         if (presentationMutation(mutation)) continue;
-        const results = mutationChangesResults(mutation);
+        const categoryTagsChanged = this.tags.activeCategory && mutation.type === 'childList' &&
+          mutation.target.closest?.('tr.torrent div.tags');
+        const results = !!categoryTagsChanged || mutationChangesResults(mutation);
         if (mutation.type === 'attributes') this.schedule(mutation.target, results);
         else {
           for (const node of mutation.addedNodes) if (node.nodeType === 1) this.schedule(node, results);
@@ -367,6 +371,7 @@ export class CompanionApp {
     this.controls = new Map();
     this.grid.mount();
     this.resultFilters.mountFreeleech();
+    this.tags.mountView();
     if (!detailPage) this.toolbarContext.append(resultActions);
     this.toolbarContext.append(this.contextActions);
     this.backfill.mount();
@@ -376,7 +381,7 @@ export class CompanionApp {
     displaySection.append(setSettingHelp(this.node('h3','Appearance'), 'Choose how results, detail pages, thumbnails, and previews look.'));
     const settings = this.node('div', null, 'epc-basic-settings');displaySection.append(settings);
     this.basicAppearance = this.node('div'); settings.append(this.basicAppearance);
-    const browsingSection=this.node('section',null,'epc-settings-section');browsingSection.dataset.settingsGroup='Browsing';browsingSection.append(setSettingHelp(this.node('h3','Browsing'), 'Choose how Companion loads extra pages and groups alternate versions.'));
+    const browsingSection=this.node('section',null,'epc-settings-section');browsingSection.dataset.settingsGroup='Browsing';browsingSection.append(setSettingHelp(this.node('h3','Browsing'), 'Choose how Companion loads extra pages, groups alternate versions, and shows filtered results.'));
     const browsing=this.node('div',null,'epc-basic-settings');browsingSection.append(browsing);
     this.panes.settings.append(displaySection,browsingSection);
     this.cacheUsage=this.node('section',null,'epc-cache-usage');this.cacheUsage.setAttribute('aria-label','Image cache');
@@ -462,13 +467,14 @@ export class CompanionApp {
       ['reformatDetailPages', 'Reformat torrent detail pages', 'checkbox'],
       ['animatedCovers', 'Animated Covers', 'checkbox'],
       ['showFilteredResults', 'Show filtered', 'checkbox'],
+      ['showFilteredMode', 'When Show filtered is on', ['inline', 'only']],
       ['resultsView', 'Results layout', ['list', 'grid']],
       ['gridCardWidth', 'Grid card size', [240, 320, 420, 540]],
       ['gridSpacing', 'Grid spacing', ['standard', 'compact']],
       ['gridTruncateTitles', 'Truncate titles in Grid', 'checkbox'],
       ['gridShowDetails', 'Show details in grid cards', 'checkbox'],
       ['gridShowTags', 'Show tags in grid cards', 'checkbox'],
-      ['gridTagCues', 'Show Favorite and Caution cues in Grid', 'checkbox'],
+      ['gridTagCues', 'Show highlight categories in Grid', 'checkbox'],
       ['adaptiveDetailTags', 'Use a responsive layout for detail tags', 'checkbox'],
       ['previewWidth', 'Preview width', 'number', 240, 800],
       ['hoverDelay', 'Title hover delay (ms)', 'number', 0, 1500],
@@ -511,6 +517,7 @@ export class CompanionApp {
           const label = key === 'thumbnailMode' ? ({ auto: 'Small first', supplied: 'Page preview', original: 'Full original' })[value] :
             key === 'navigationScope' ? ({ off: 'Off', results: 'Results only', site: 'All supported pages' })[value] :
             key === 'backfillMode' ? ({ off: 'When I click Backfill', pages: 'Automatically load a few pages', all: 'Automatically load all pages' })[value] :
+            key === 'showFilteredMode' ? ({ inline: 'Reveal in place', only: 'Show filtered only' })[value] :
             key === 'resultsView' ? ({ list: 'List', grid: 'Grid' })[value] :
             key === 'gridSpacing' ? ({ standard: 'Standard', compact: 'Compact' })[value] : value;
           const option = this.node('option', label); option.value = value; control.append(option);
@@ -535,6 +542,7 @@ export class CompanionApp {
         } else if (key === 'showFilteredResults') {
           control.dataset.epReveal = '';
           this.toggleFiltered = control;
+          this.filteredCaption = caption;
           this.filteredCount = this.node('span', '', 'epc-filtered-count');
           this.filteredCount.setAttribute('aria-hidden', 'true');
           this.filteredCount.hidden = true;
@@ -554,7 +562,7 @@ export class CompanionApp {
         this.paneButtons.get('settings').before(row);
         continue;
       }
-      const parent = ['thumbnailSize','previews','reformatDetailPages','resultsView','gridCardWidth','gridSpacing','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions','showResultHideButton'].includes(key)?browsing :
+      const parent = ['thumbnailSize','previews','reformatDetailPages','resultsView','gridCardWidth','gridSpacing','gridShowDetails','gridShowTags'].includes(key) ? settings : ['backfillMode','backfillPages','groupVersions','showResultHideButton','showFilteredMode'].includes(key)?browsing :
         ['persistentImages','persistentCacheMB'].includes(key)?this.cacheDetails:key.startsWith('backfill') ? this.optionGroups.results :
         ['gridTruncateTitles', 'gridTagCues', 'adaptiveDetailTags'].includes(key) ? this.optionGroups.appearance :
         key === 'diagnostics' ? this.optionGroups.diagnostics : ['keyboardShortcuts', 'navigationScope'].includes(key) ? this.optionGroups.interaction :
@@ -729,6 +737,10 @@ export class CompanionApp {
     const row=pages.closest('[data-option-item]');row.querySelector('span').textContent=mode==='off'?'Pages per click':'Additional pages';
     const searching=!!this.settingsSearch?.value.trim();if(!searching)row.hidden=mode==='all';
     if(mode==='all'&&!pages.checkValidity())pages.value=this.settings.backfillPages;
+    if (this.filteredCaption) {
+      const caption = this.settings.showFilteredMode === 'only' ? 'Filtered only' : 'Show filtered';
+      if (this.filteredCaption.textContent !== caption) this.filteredCaption.textContent = caption;
+    }
     const list = this.controls.get('resultsView').value === 'list';
     if (!searching) for (const key of ['gridCardWidth', 'gridSpacing', 'gridTruncateTitles', 'gridShowDetails', 'gridShowTags', 'gridTagCues']) {
       this.controls.get(key).closest('label').hidden = list;
@@ -845,7 +857,7 @@ export class CompanionApp {
     if (this.resultFilters.historyVisible()) this.resultFilters.renderHistory();
   }
   syncFilterActions() {
-    const available = this.options.resultActionsAvailable?.() !== false;
+    const available = !this.showingFilteredOnly && this.options.resultActionsAvailable?.() !== false;
     if (this.openVisibleAction) this.openVisibleAction.hidden = !available || !this.storage.get('nseOpenAllButtonEnabled', true);
     if (this.hideVisibleAction) this.hideVisibleAction.hidden = !available || !this.storage.get('nseFilterAllButtonEnabled', true) ||
       !this.storage.get('nseIndividualUploadHidingEnabled', true);
@@ -871,7 +883,10 @@ export class CompanionApp {
   updateMediaPreferences(previous) {
     this.syncSettingsUI();
     if (previous.reformatDetailPages !== this.settings.reformatDetailPages) this.detailLayout.sync();
-    const revealChanged = previous.showFilteredResults !== this.settings.showFilteredResults;
+    const revealChanged = previous.showFilteredResults !== this.settings.showFilteredResults ||
+      this.revealingFiltered && previous.showFilteredMode !== this.settings.showFilteredMode;
+    const highlightsChanged = previous.favoriteTags !== this.settings.favoriteTags || previous.cautionTags !== this.settings.cautionTags ||
+      JSON.stringify(previous.tagCategories) !== JSON.stringify(this.settings.tagCategories);
     gridCardSizeChoices(this.controls.get('gridCardWidth'), this.settings.gridCardWidth);
     if (!revealChanged && previous.resultsView === this.settings.resultsView) this.grid?.refresh();
     this.backfill?.sync();
@@ -880,18 +895,21 @@ export class CompanionApp {
     if (previous.seenMode !== this.settings.seenMode) this.resultFilters.seen = null;
     if (revealChanged) {
       this.syncGridFilters();
+      this.syncFilterActions();
       this.media.demandListener?.();
-    } else if (previous.resultsView !== this.settings.resultsView || previous.groupVersions !== this.settings.groupVersions || previous.seenMode !== this.settings.seenMode ||
+    } else if (highlightsChanged && this.tags.activeCategory || previous.resultsView !== this.settings.resultsView ||
+        previous.groupVersions !== this.settings.groupVersions || previous.seenMode !== this.settings.seenMode ||
         previous[this.resultFilters.freeleechKey] !== this.settings[this.resultFilters.freeleechKey]) {
       this.resultFilters.refreshView();
     }
-    if (['favoriteTags', 'cautionTags', 'collapsedDetailTags', 'adaptiveDetailTags', 'resultsView', 'gridShowTags', 'gridTagCues']
+    if (highlightsChanged || ['collapsedDetailTags', 'adaptiveDetailTags', 'resultsView', 'gridShowTags', 'gridTagCues']
       .some(key => previous[key] !== this.settings[key])) this.tags.refresh();
+    if (highlightsChanged) this.tags.manager?.refresh();
     if (previous.keyboardShortcuts !== this.settings.keyboardShortcuts) this.preview.syncShortcutLabels();
-    const other = new Set(['groupVersions', 'favoriteTags', 'cautionTags', 'backfillEnabled', 'backfillPages', 'backfillMode',
+    const other = new Set(['groupVersions', 'favoriteTags', 'cautionTags', 'tagCategories', 'backfillEnabled', 'backfillPages', 'backfillMode',
       'keyboardShortcuts', 'navigationScope', 'globalArrowNavigation', 'diagnostics', 'persistentImages', 'persistentCacheMB',
       'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView', 'collapsedDetailTags',
-      'adaptiveDetailTags', 'gridTagCues', 'listHiddenColumns', 'showResultHideButton', 'reformatDetailPages', 'showFilteredResults']);
+      'adaptiveDetailTags', 'gridTagCues', 'listHiddenColumns', 'showResultHideButton', 'reformatDetailPages', 'showFilteredResults', 'showFilteredMode']);
     if (!Object.keys(this.settings).some(key => !other.has(key) && previous[key] !== this.settings[key])) return;
     if (previous.enabled !== this.settings.enabled) {
       this.restartMedia(); return;
@@ -914,6 +932,8 @@ export class CompanionApp {
       if (this.resultFilters.bookmarks) {
         this.panes.filters.replaceChildren(this.resultFilters.freeleechControl);
         this.resultFilters.mountHistory(this.panes.filters);
+        this.mountTagHighlightManager();
+        this.mountBookmarkTagMenu();
       } else this.panes.filters.replaceChildren(this.resultFilters.freeleechControl,
         this.node('p', 'Filtering is available on torrent lists and detail pages.'));
       return;
@@ -931,6 +951,36 @@ export class CompanionApp {
     // Saved names stay visible; management opens only when requested.
   }
   adoptRuleMenu(event, kind, value) { adoptRuleMenu(this, event, kind, value); }
+  mountTagHighlightManager() {
+    const section = optionGroup(this, this.panes.filters, 'Tag highlights', { key: 'tag-highlights' });
+    this.tags.manager = new TagHighlightManager(this, section);
+    this.tags.manager.syncAvailability(this.resultViewAvailable);
+  }
+  mountBookmarkTagMenu() {
+    this.on(this.doc, 'contextmenu', event => {
+      if (event.defaultPrevented || event.shiftKey || !this.storage.get('nseRightClickManagementEnabled', true) ||
+          !this.storage.get('nseRCMTagsEnabled', true)) return;
+      if (!this.settings.keyboardShortcuts && event.isTrusted && !event.pointerType &&
+          (event.pointerId === -1 || event.button !== 2 && !event.ctrlKey)) return;
+      const tag = event.target.closest?.('#content div.tags > a');
+      if (!tag || !tag.textContent.trim()) return;
+      event.preventDefault();
+      this.ruleMenuOrigin = tag;
+      let menu = this.doc.getElementById('nseRCMBox');
+      if (!menu) {
+        menu = this.node('section', null, 'epc-root'); menu.id = 'nseRCMBox';
+        menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', 'Tag highlight');
+        const close = this.button('Close', () => {
+          menu.classList.add('hidden'); this.ruleMenuOrigin?.focus({ preventScroll: true });
+        });
+        close.id = 'nseRCMClose';
+        menu.append(close); this.doc.body.append(menu); applyWorkspaceTheme(this);
+      }
+      this.tags.menu(menu, 'tag', tag.textContent.trim());
+      menu.classList.remove('hidden');
+      positionTagMenu(this.win, menu, event);
+    });
+  }
   readFile(file) {
     if (file.text) return file.text();
     return new Promise((resolve, reject) => {
@@ -1269,6 +1319,16 @@ export class CompanionApp {
     if (target.origin !== this.win.location.origin || target.searchParams.get('action') === 'download') return;
     if (this.options.navigate) this.options.navigate(target.href); else this.win.location.assign(target.href);
   }
+  openTagMenu(tag, position = tag) {
+    const rect = position.getBoundingClientRect();
+    const menuEvent = new this.win.MouseEvent('contextmenu', { bubbles: true, cancelable: true,
+      clientX: rect.left, clientY: rect.bottom });
+    tag.dispatchEvent(menuEvent);
+    if (!menuEvent.defaultPrevented) return false;
+    (this.doc.querySelector('#nseRCMBox .nseRCMButton') || this.doc.querySelector('#nseRCMBox .epc-highlight-choices button') ||
+      this.doc.getElementById('nseRCMClose'))?.focus();
+    return true;
+  }
   keydown(event) {
     if (!this.settings.keyboardShortcuts || this.onboarding?.open || event.isComposing || event.defaultPrevented) return;
     if (isSaveShortcut(event) &&
@@ -1285,15 +1345,7 @@ export class CompanionApp {
     }
     if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') {
       const tag = event.target.closest?.('div.tags>a,ul#torrent_tags_list>li>a');
-      if (tag) {
-        const rect = tag.getBoundingClientRect();
-        const menuEvent = new this.win.MouseEvent('contextmenu', { bubbles: true, cancelable: true,
-          clientX: rect.left, clientY: rect.bottom });
-        tag.dispatchEvent(menuEvent);
-        if (menuEvent.defaultPrevented) {
-          event.preventDefault(); this.doc.querySelector('#nseRCMBox .nseRCMButton')?.focus();
-        }
-      }
+      if (tag && this.openTagMenu(tag)) event.preventDefault();
       return;
     }
     if (editableTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -1318,8 +1370,9 @@ export class CompanionApp {
       if (refreshTags) this.tags?.refresh();
       return;
     }
-    const previous = appended && !this.resultsDirty ? this.resultCounts : null;
+    const previous = appended && !this.resultsDirty && !this.resultCounts?.standalone ? this.resultCounts : null;
     const newRows = previous ? appended : null;
+    const highlighted = this.tags.activeView();
     let revealable = previous?.revealable || 0;
     const seenFiltered = new Set();
     let rows;
@@ -1332,27 +1385,27 @@ export class CompanionApp {
       }
       rows = newRows ? newRows.filter(row => row.isConnected) : [...this.doc.querySelectorAll('tr.torrent')];
       for (const row of rows) {
-        const filtered = row.getAttribute('isNSEHidden') === '1';
-        const revealed = !!this.revealingFiltered && filtered;
+        const engineFiltered = row.getAttribute('isNSEHidden') === '1';
+        const revealed = !!this.revealingFiltered && engineFiltered;
         // Native themes may hide .hidden with a more specific !important rule.
         // Keep the filter identity in isNSEHidden; remove the native hiding class
         // while revealing, just as the site's own visibility toggle does.
         const wasRevealed = row.classList.contains('epc-revealed');
-        const hidden = filtered && !revealed;
-        if ((filtered || wasRevealed) && row.classList.contains('hidden') !== hidden) row.classList.toggle('hidden', hidden);
+        const hidden = engineFiltered && !revealed;
+        if ((engineFiltered || wasRevealed) && row.classList.contains('hidden') !== hidden) row.classList.toggle('hidden', hidden);
         if (wasRevealed !== revealed) row.classList.toggle('epc-revealed', revealed);
-        const { seenFiltered: seen, outsideView } = this.resultFilters.applyRow(row);
+        const { seenFiltered: seen, outsideView } = this.resultFilters.applyRow(row, engineFiltered, !this.tags.matchesView(row, highlighted));
         if (seen) seenFiltered.add(row);
-        if (!outsideView && (filtered || seen)) revealable++;
+        if (!outsideView && (engineFiltered || seen)) revealable++;
         let reason;
         if (this.revealingFiltered && !outsideView) {
-          if (filtered) reason = this.resultFilters.engineReasons.get(row) || 'Hidden by a filter';
+          if (engineFiltered) reason = this.resultFilters.engineReasons.get(row) || 'Hidden by a filter';
           else if (seen) reason = 'Already seen';
         }
         this.resultFilters.renderReason(row, reason);
       }
     });
-    const cards = this.doc.querySelectorAll('.torrent_grid__torrent'), affectedCards = [];
+    const cards = this.doc.querySelectorAll('.torrent_grid__torrent'), affectedCards = [], standaloneCards = [];
     if (cards.length) {
       const visibility = new Map(newRows ? [] : Array.from(this.removedFilterIDs, id => [id, { hidden: true }]));
       for (const row of newRows || rows) {
@@ -1365,12 +1418,21 @@ export class CompanionApp {
         });
       }
       for (const card of cards) {
-        const state = visibility.get(torrentID(card, this.win.location.href));
+        const id = torrentID(card, this.win.location.href);
+        const state = visibility.get(id);
         if (state) {
           card.classList.toggle('epc-filter-hidden', state.hidden);
           card.classList.toggle('epc-seen-dim', !!state.dim);
+          this.resultFilters.renderReason(card, null);
           affectedCards.push(card);
-        } else if (!newRows) this.resultFilters.applyRow(card);
+        } else if (!newRows) {
+          const { seenFiltered: seen, outsideView } = this.resultFilters.applyRow(card, false, !this.tags.matchesView(card, highlighted));
+          if (!id) continue;
+          standaloneCards.push(card);
+          if (seen) seenFiltered.add(card);
+          if (seen && !outsideView) revealable++;
+          this.resultFilters.renderReason(card, this.revealingFiltered && seen && !outsideView ? 'Already seen' : null);
+        }
       }
     }
     this.resultFilters.syncFreeleech(!!(rows.length || cards.length || previous?.total || this.detachedFilterRows.size));
@@ -1383,23 +1445,30 @@ export class CompanionApp {
     if (this.filterSummary) {
       const archived = newRows ? newRows.filter(row => this.detachedFilterRows.has(row)) : [...this.detachedFilterRows.keys()];
       const removed = (previous?.removed || 0) + archived.filter(row => !row.isConnected).length;
-      revealable += archived.filter(row => !row.isConnected && !this.resultFilters.outsideView(row)).length;
-      const filtered = (previous?.filtered || 0) + rows.filter(row => row.getAttribute('isNSEHidden') === '1' || seenFiltered.has(row)).length;
+      revealable += archived.filter(row => !row.isConnected && !this.resultFilters.outsideView(row) && this.tags.matchesView(row, highlighted)).length;
+      const results = standaloneCards.length ? rows.concat(standaloneCards) : rows;
+      const filtered = (previous?.filtered || 0) + results.filter(row => row.getAttribute('isNSEHidden') === '1' || seenFiltered.has(row)).length;
       const grouped = this.versions?.collapsed || 0;
-      const eligible = rows.filter(row => !row.hidden && !row.classList.contains('epc-filter-hidden') &&
+      const eligible = results.filter(row => !row.hidden && !row.classList.contains('epc-filter-hidden') &&
         (newRows || !row.classList.contains('epc-version-hidden')) &&
         (row.classList.contains('epc-revealed') || !row.classList.contains('nseHardPassRemove') && !row.classList.contains('hidden'))).length;
       // A new version can also collapse existing rows that had no group before.
       const shown = previous ? previous.shown + eligible - (grouped - previous.grouped) : eligible;
-      this.resultCounts = { total: (previous?.total || 0) + rows.length, shown, grouped, filtered, removed, revealable }; this.renderResultSummary();
+      this.resultCounts = { total: (previous?.total || 0) + results.length, shown, grouped, filtered, removed, revealable,
+        standalone: standaloneCards.length };
       const page = this.win.location.href;
       const hasResultsView = rows.length || cards.length || this.detachedFilterRows.size || this.backfill.table() ||
         this.resultFilters.bookmarks || backfillURL(page, page);
-      this.toggleFiltered.closest('label').hidden = !hasResultsView || !this.storage.get('nseFloatingToggleButtonEnabled', true);
+      this.resultViewAvailable = !!hasResultsView;
+      this.toggleFiltered.closest('label').hidden = !hasResultsView ||
+        !this.showingFilteredOnly && !this.storage.get('nseFloatingToggleButtonEnabled', true);
       this.controls.get('animatedCovers').closest('label').hidden = !hasResultsView;
       this.syncCoverMotionControls();
       this.filteredCount.textContent = revealable.toLocaleString();
       this.filteredCount.hidden = !revealable;
+      this.tags.syncView(shown + grouped);
+      this.tags.manager?.syncAvailability(this.resultViewAvailable);
+      this.renderResultSummary();
       styleRowControls(this, newRows ? rows : undefined);
     }
     this.backfill?.sync();
@@ -1418,7 +1487,9 @@ export class CompanionApp {
     if (!this.resultCounts || !this.filterSummary) return;
     const { total, shown, grouped, filtered, removed, revealable } = this.resultCounts;
     const revealed = this.revealingFiltered ? revealable : 0;
-    const caption = total || removed ? shown + ' shown' + (grouped ? ' · ' + grouped + ' grouped' : '') +
+    const caption = this.tags.activeCategory ? (shown + grouped ? '' : 'No results match this category in the current view.') :
+      this.showingFilteredOnly && !this.toggleFiltered.closest('label').hidden && !shown ? 'No filtered results in this view' :
+      total || removed ? shown + ' shown' + (grouped ? ' · ' + grouped + ' grouped' : '') +
       (revealed ? ' · ' + revealed + ' revealed' : filtered ? ' · ' + filtered + ' filtered' : '') +
       (removed ? ' · ' + removed + ' removed' : '') : '';
     if (this.filterSummary.textContent !== caption) this.filterSummary.textContent = caption;

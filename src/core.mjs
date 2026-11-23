@@ -1,5 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // New companion implementation. Reference projects are attributed in THIRD_PARTY.md.
+export const LEGACY_TAG_LISTS = new Map([['favorite', 'favoriteTags'], ['caution', 'cautionTags']]);
+const defaultTagCategories = Object.freeze([
+  ['favorite', 'Liked', '#ccefe0'], ['loved', 'Loved', '#75c399'],
+  ['liked-performer', 'Liked performer', '#d0e4ff'], ['loved-performer', 'Loved performer', '#82aff1'],
+  ['new-performer', 'New performer', '#f6ecaa'], ['liked-site', 'Liked site', '#ead6f9'],
+  ['loved-site', 'Loved site', '#cda4ef'], ['caution', 'Caution', '#ffe2a8']
+].map(([id, name, color]) => Object.freeze({ id, name, color, enabled: true, ...(LEGACY_TAG_LISTS.has(id) ? {} : { tags: '' }) })));
+
 export const DEFAULTS = Object.freeze({
   enabled: true, previews: true, inlineThumbnails: true,
   thumbnailPlacement: 'title', categoryDisplay: 'keep', thumbnailMode: 'auto',
@@ -7,6 +15,7 @@ export const DEFAULTS = Object.freeze({
   resultsView: 'list', gridCardWidth: 320, gridSpacing: 'standard', animatedCovers: false,
   gridTruncateTitles: true, gridShowDetails: false, gridShowTags: false, gridTagCues: true, adaptiveDetailTags: false,
   listHiddenColumns: '', collapsedDetailTags: '', showResultHideButton: false, reformatDetailPages: false, showFilteredResults: false,
+  showFilteredMode: 'inline',
   concurrency: 8, maxRetries: 2, stallMs: 8000, timeoutMs: 24000, thumbnailTimeoutMs: 4500,
   cacheEntries: 24, cacheMegapixels: 48, preloadScreens: 0.8,
   persistentImages: true, persistentCacheMB: 512,
@@ -14,9 +23,49 @@ export const DEFAULTS = Object.freeze({
   prepareGalleries: true, reserveImageSpace: true, compactBodyImages: false,
   progressBar: true, keyboardShortcuts: true, globalArrowNavigation: false, navigationScope: 'off', diagnostics: false,
   backfillEnabled: true, backfillPages: 5, backfillMode: 'off', groupVersions: true,
-  favoriteTags: '', cautionTags: '', conditionalRules: '', seenMode: 'show',
+  favoriteTags: '', cautionTags: '', tagCategories: defaultTagCategories, conditionalRules: '', seenMode: 'show',
   freeleechView: 'all', bookmarkFreeleechView: 'all'
 });
+
+export function tagListTokens(value) {
+  return typeof value === 'string' ? value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean) : [];
+}
+
+export function tagHighlightPreferences({ favoriteTags, cautionTags, tagCategories }) {
+  return { favoriteTags, cautionTags, tagCategories };
+}
+
+function normalizeTagCategories(input, settings) {
+  const presets = new Map(defaultTagCategories.map(group => [group.id, group]));
+  const usedIDs = new Set();
+  const assignedTags = new Set();
+  const groups = [];
+  for (const group of [...(Array.isArray(input) ? input : []), ...defaultTagCategories]) {
+    if (!group || typeof group.id !== 'string' || usedIDs.has(group.id)) continue;
+    const preset = presets.get(group.id);
+    if (!preset && !/^custom-[a-f0-9-]{36}$/.test(group.id)) continue;
+    const name = typeof group.name === 'string' && group.name.trim().slice(0, 64);
+    if (!name && !preset) continue;
+    const color = typeof group.color === 'string' && /^#[0-9a-f]{6}$/i.test(group.color)
+      ? group.color.toLowerCase() : preset?.color || '#ccefe0';
+    const next = { id: group.id, name: name || preset.name, color, enabled: group.enabled !== false };
+    if (!LEGACY_TAG_LISTS.has(group.id)) {
+      if (typeof group.tags === 'string' && group.tags.length > 50000) throw new Error('Tag highlight list exceeds 50,000 characters.');
+      next.tags = tagListTokens(group.tags).filter(tag => {
+        if (assignedTags.has(tag)) return false;
+        assignedTags.add(tag);
+        return true;
+      }).join(' ');
+    }
+    groups.push(next);
+    usedIDs.add(group.id);
+  }
+  // Legacy-only edits can add tags without knowing about assignments in other categories.
+  for (const key of LEGACY_TAG_LISTS.values()) {
+    settings[key] = tagListTokens(settings[key]).filter(tag => !assignedTags.has(tag)).join(' ');
+  }
+  return groups;
+}
 
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, Number(value)));
@@ -63,14 +112,14 @@ export function validateSettings(input = {}) {
     thumbnailMode: ['auto', 'small', 'supplied', 'original'], navigationScope: ['off', 'results', 'site'],
     backfillMode: ['off', 'pages', 'all'], resultsView: ['list', 'grid'], gridSpacing: ['standard', 'compact'],
     seenMode: ['show', 'dim', 'hide'], freeleechView: ['all', 'freeleech', 'sitewide'],
-    bookmarkFreeleechView: ['all', 'freeleech', 'sitewide']
+    bookmarkFreeleechView: ['all', 'freeleech', 'sitewide'], showFilteredMode: ['inline', 'only']
   })) if (options.includes(input[key])) result[key] = input[key];
   if (typeof input.conditionalRules === 'string') result.conditionalRules = input.conditionalRules;
   if (result.thumbnailMode === 'small') result.thumbnailMode = 'auto';
   for (const key of ['favoriteTags', 'cautionTags', 'collapsedDetailTags']) {
     if (typeof input[key] === 'string') {
       if (input[key].length > 50000) throw new Error('Tag highlight list exceeds 50,000 characters.');
-      result[key] = [...new Set(input[key].trim().toLocaleLowerCase().split(/\s+/).filter(Boolean))].join(' ');
+      result[key] = [...new Set(tagListTokens(input[key]))].join(' ');
     }
   }
   if (typeof input.listHiddenColumns === 'string') {
@@ -80,6 +129,7 @@ export function validateSettings(input = {}) {
   // A caution takes visual precedence if a manually edited list overlaps.
   const caution = new Set(result.cautionTags.split(' '));
   result.favoriteTags = result.favoriteTags.split(' ').filter(tag => !caution.has(tag)).join(' ');
+  result.tagCategories = normalizeTagCategories(input.tagCategories, result);
   return result;
 }
 
@@ -129,14 +179,15 @@ export function retryURL(value, nonce) {
 
 export function legacyOriginal(value) {
   const url = new URL(value);
-  if (!/^(?:fapping|jerking|cache)\.empornium\.(?:sx|me|is|ph)$/i.test(url.hostname)) return null;
+  if (!legacyImageHosts.has(url.hostname.toLowerCase())) return null;
   if (!/^\/images\/resize\/\d+\//.test(url.pathname)) return null;
   url.pathname = url.pathname.replace(/^\/images\/resize\/\d+\//, '/images/');
   return url.href;
 }
 
 export function isFriendlyImageHost(host) {
-  return /^(?:hamsterimg\.net|hamster\.is|(?:fapping|jerking|cache)\.empornium\.(?:sx|me|is|ph))$/i.test(host);
+  const name = String(host).toLowerCase();
+  return name === 'hamsterimg.net' || name === 'hamster.is' || legacyImageHosts.has(name);
 }
 
 export function fullSizeURL(value) {
@@ -194,8 +245,18 @@ export function editableTarget(target) {
   return !!target?.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="combobox"]');
 }
 
-export const COMPANION_HOSTS = ['empornium.sx', 'empornium.me', 'empornium.is', 'empornium.ph', 'emparadise.rs']
+export const COMPANION_MIRRORS = [
+  { host: 'empornium.sx', imageCache: true, legacyImageSubdomains: true },
+  { host: 'empornium.me', imageCache: true, legacyImageSubdomains: true },
+  { host: 'empornium.is', imageCache: true, legacyImageSubdomains: true },
+  { host: 'empornium.ph', imageCache: true, legacyImageSubdomains: true },
+  { host: 'emparadise.rs', imageCache: true }
+];
+
+export const COMPANION_HOSTS = COMPANION_MIRRORS.map(mirror => mirror.host)
   .flatMap(host => [host, 'www.' + host]);
+const legacyImageHosts = new Set(COMPANION_MIRRORS.filter(mirror => mirror.legacyImageSubdomains)
+  .flatMap(({ host }) => ['fapping.' + host, 'jerking.' + host, 'cache.' + host]));
 
 const companionPageActions = new Map([
   ['/torrents.php', ['', 'advanced', 'basic', 'search', 'view', 'notify']],
@@ -207,9 +268,12 @@ const companionPageActions = new Map([
   ['/user.php', ['notify']]
 ]);
 
-// Match the PHP path and its query separately so suffixes of that path stay out of scope.
-export const COMPANION_MATCH_PATHS = [...companionPageActions.keys()].flatMap(path => path === '/user.php'
-  ? [path + '?action=notify*', path + '?*&action=notify*'] : [path, path + '?*']).concat('/collage/*');
+// The PHP glob covers both bare URLs and queries. isCompanionPage checks the exact path and action before startup.
+export const COMPANION_MATCH_PATHS = [...companionPageActions.keys()].flatMap(path => {
+  if (path === '/user.php') return [path + '?action=notify*', path + '?*&action=notify*'];
+  if (path === '/collage') return [path, path + '?*', path + '/*'];
+  return [path + '*'];
+});
 
 export function isCompanionPage({ pathname, searchParams }) {
   const actions = searchParams.getAll('action');

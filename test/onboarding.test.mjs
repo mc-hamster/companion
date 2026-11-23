@@ -88,7 +88,7 @@ test('[ONB-03] invalid count blocks Finish; hidden count is ignored for manual m
     clickText(d,'Start browsing');await settle();assert.equal(dialog(f),null);assert.equal(store.get('ep.settings').backfillMode,'off');assert.equal(store.get('nseTaglist'),'blocked');
     assert.equal(f.doc.querySelector('[data-fixture-id="1"]').classList.contains('hidden'),true);
     assert.equal(store.get('ep.settings').favoriteTags,'sample.tag');assert.equal(store.get('ep.settings').cautionTags,'warning');
-    pane(f,'filters');assert.equal(f.doc.querySelector('[data-setting=favoriteTags]').value,'sample.tag');assert.equal(f.errors.length,0,f.errors.join('\n'));
+    pane(f,'filters');assert.equal(f.doc.querySelector('[data-tag-list=favorite]').value,'sample.tag');assert.equal(f.errors.length,0,f.errors.join('\n'));
   }finally{f.close();}
 });
 test('[ONB-03] failed persistence rolls back completion and preferences, retains the draft and allows retry',async()=>{

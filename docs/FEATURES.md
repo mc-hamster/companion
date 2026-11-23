@@ -1,5 +1,7 @@
 # Feature mapping
 
+Version 2.16.0 adds editable tag highlight categories, bulk tag editing, and category views for loaded results. In Grid, open **Tags** to classify tags and see which categories matched. The **Filtered only** setting gives hidden results their own view. The userscript header uses fewer URL patterns and draws mirror permissions from one registry. [Tag highlights and filter review](REFERENCE.md)
+
 Version 2.15.9 groups lightbox navigation and zoom controls and shows **Retry** when image loading needs attention. [Detail layout](REFERENCE.md)
 
 Version 2.15.8 preserves the lightbox zoom and viewing position when a linked original loads. Distinct originals can share a thumbnail, and the viewer waits until you leave an image before moving it into **Other images**. [Detail layout](REFERENCE.md)

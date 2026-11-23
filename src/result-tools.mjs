@@ -1,6 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Independently implemented after reviewing Collapse Duplicates, Coalesce
 // Variations, and the Emp++/Luminance tag highlighters. See THIRD_PARTY.md.
+import { DEFAULTS, LEGACY_TAG_LISTS, tagHighlightPreferences, tagListTokens, validateSettings } from './core.mjs';
+
+const resultTagSelector = 'div.tags > a';
+const detailTagSelector = 'ul#torrent_tags_list > li > a';
+
+export function styleHighlight(element, color) {
+  if (!color) {
+    element.style.removeProperty('--epc-tag-background');
+    element.style.removeProperty('--epc-tag-foreground');
+    return;
+  }
+  const channels = color.slice(1).match(/../g).map(hex => {
+    const channel = parseInt(hex, 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  element.style.setProperty('--epc-tag-background', color);
+  element.style.setProperty('--epc-tag-foreground', luminance > 0.179 ? '#000' : '#fff');
+}
 
 export function resultTitleLink(row) {
   return [...row.querySelectorAll('td a[href*="torrents.php"]')].find(link => {
@@ -270,10 +289,6 @@ export class VersionGroups {
   dispose() { this.clear(); this.rows.clear(); }
 }
 
-export function highlightTagList(value) {
-  return [...new Set(String(value || '').toLocaleLowerCase().split(/\s+/).filter(Boolean))];
-}
-
 // Extract positive tag terms without turning NOT/negative clauses into matches.
 // This annotates individual terms; it does not claim to evaluate a result's query.
 export function positiveTagTerms(query) {
@@ -313,22 +328,96 @@ export class TagHighlights {
   constructor(app) {
     this.app = app; this.originals = new Map(); this.index = new Map(); this.values = new WeakMap();
     this.cues = new Map();
+    this.touchPointer = app.win.matchMedia?.('(any-pointer: coarse)');
+    this.touchPickers = new WeakMap();
+  }
+  storedPreferences() {
+    const { app } = this;
+    try { return tagHighlightPreferences(validateSettings(tagHighlightPreferences(app.storage.get('ep.settings', {})))); }
+    catch { return tagHighlightPreferences(app.settings); }
+  }
+  refreshStoredPreferences(report = false) {
+    const { app } = this, stored = this.storedPreferences();
+    const before = app.settings;
+    if (JSON.stringify(stored) === JSON.stringify(tagHighlightPreferences(before))) return false;
+    app.settings = { ...before, ...stored };
+    if (app.mounted) app.updateMediaPreferences(before);
+    if (report) app.toast('Tag highlights changed in another tab. Review them and try again.');
+    return true;
+  }
+  categories() {
+    const { tagCategories, favoriteTags, cautionTags } = this.app.settings;
+    if (this.categorySource !== tagCategories || this.favoriteSource !== favoriteTags || this.cautionSource !== cautionTags || !this.groups) {
+      this.categorySource = tagCategories; this.favoriteSource = favoriteTags; this.cautionSource = cautionTags;
+      this.groups = (tagCategories || DEFAULTS.tagCategories).map(group => ({
+        ...group, tags: LEGACY_TAG_LISTS.has(group.id) ? this.app.settings[LEGACY_TAG_LISTS.get(group.id)] : group.tags
+      }));
+      this.assignments = new Map();
+      this.members = new Map();
+      for (const group of this.groups) {
+        const tags = new Set(tagListTokens(group.tags));
+        this.members.set(group.id, tags);
+        for (const tag of tags) this.assignments.set(tag, group);
+      }
+    }
+    return this.groups;
+  }
+  activeView() {
+    const group = this.categories().find(group => group.id === this.activeCategory && group.enabled);
+    if (!group) this.activeCategory = null;
+    return group ? this.members.get(group.id) : null;
+  }
+  matchesView(row, matches) {
+    return !matches || Array.from(row.querySelectorAll(resultTagSelector)).some(tag => matches.has(tag.textContent.trim().toLocaleLowerCase()));
+  }
+  showMatches(id) {
+    const { app } = this;
+    if (id && app.activePane) app.closePane();
+    this.activeCategory = id;
+    app.resultFilters.refreshView();
+    app.media.demandListener?.();
+    if (id && !this.viewChip.hidden) this.viewChip.focus();
+    else app.paneButtons.get('filters')?.focus();
+  }
+  mountView() {
+    if (this.app.detailLayout?.torrentID) return;
+    this.viewChip = this.app.button('', () => this.showMatches(null));
+    this.viewChip.className = 'epc-active-filter epc-category-view';
+    this.viewChip.hidden = true;
+    this.app.toolbarStatus.append(this.viewChip);
+  }
+  syncView(count) {
+    if (!this.viewChip) return;
+    const group = this.categories().find(group => group.id === this.activeCategory);
+    this.viewChip.hidden = !group;
+    if (!group) return;
+    const caption = group.name + ' · ' + count.toLocaleString() + (count === 1 ? ' result' : ' results') + ' ×';
+    if (caption !== this.viewChip.textContent) this.viewChip.textContent = caption;
+    this.viewChip.setAttribute('aria-label', 'Clear ' + group.name + ' view. ' + count + (count === 1 ? ' result' : ' results'));
   }
   refresh(root) {
     if (root?.matches?.('img,source,video,canvas')) return;
     const { app } = this, { doc, settings } = app;
     const query = new URL(app.win.location.href).searchParams.get('taglist') ?? doc.querySelector('#search_form [name=taglist]')?.defaultValue ?? '';
-    const changed = settings.favoriteTags !== this.favoriteSource || settings.cautionTags !== this.cautionSource;
+    const groups = this.categories();
+    const changed = groups !== this.renderedGroups;
     const queryChanged = query !== this.querySource;
+    const layout = [settings.resultsView, settings.gridShowTags, settings.gridTagCues].join();
+    const layoutChanged = layout !== this.cueLayout;
+    this.cueLayout = layout;
     const affected = new Set();
     if (changed) {
-      const favorites = new Set(highlightTagList(settings.favoriteTags)), caution = new Set(highlightTagList(settings.cautionTags));
-      for (const [before, after] of [[this.favorites || new Set(), favorites], [this.caution || new Set(), caution]]) {
-        for (const value of before) if (!after.has(value)) affected.add(value);
-        for (const value of after) if (!before.has(value)) affected.add(value);
+      const before = this.renderedAssignments || new Map();
+      for (const value of new Set([...before.keys(), ...this.assignments.keys()])) {
+        const old = before.get(value), next = this.assignments.get(value);
+        if (old?.id !== next?.id || old?.name !== next?.name || old?.color !== next?.color || old?.enabled !== next?.enabled) affected.add(value);
       }
-      this.favoriteSource = settings.favoriteTags; this.cautionSource = settings.cautionTags;
-      this.favorites = favorites; this.caution = caution;
+      // Order changes affect cue labels even when the individual tags keep their styles.
+      if (groups.map(group => group.id).join() !== this.renderedGroups?.map(group => group.id).join()) {
+        for (const value of this.assignments.keys()) affected.add(value);
+      }
+      this.renderedGroups = groups;
+      this.renderedAssignments = this.assignments;
     }
     if (queryChanged) {
       this.querySource = query;
@@ -336,13 +425,12 @@ export class TagHighlights {
       this.exact = new Set(terms.filter(term => !term.includes('*')));
       this.wildcards = terms.filter(term => term.includes('*')).map(term => term.split('*'));
     }
-    const { favorites, caution } = this;
     const selector = '#content div.tags>a,#content ul#torrent_tags_list>li>a';
     const tags = new Set();
     const rows = new Set();
-    if (this.initialized && changed && !queryChanged) {
+    if (this.initialized && changed && !queryChanged && !layoutChanged) {
       for (const value of affected) for (const tag of this.index.get(value) || []) tags.add(tag);
-    } else if (!root || queryChanged || !this.initialized) root = doc;
+    } else if (!root || queryChanged || layoutChanged || !this.initialized) root = doc;
     if (root) {
       for (const scope of Array.isArray(root) ? root : [root]) {
         const row = scope.closest?.('tr.torrent');
@@ -362,54 +450,86 @@ export class TagHighlights {
         if (!this.index.has(value)) this.index.set(value, new Set());
         this.index.get(value).add(tag); this.values.set(tag, value);
       }
-      const tone = caution.has(value) ? 'caution' : favorites.has(value) ? 'favorite' : '';
+      const assignment = this.assignments.get(value);
+      const group = assignment?.enabled ? assignment : null;
+      const tone = group?.id || '';
       const matched = this.exact.has(value) || this.wildcards.some(parts => matchesTagParts(value, parts));
       const reasons = [tag.classList.contains('nseHardPassTag') ? 'Hard Pass' : tag.classList.contains('nseHiddenTag') ? 'Blocked tag' :
-        tag.classList.contains('nseWhitelistedTag') ? 'Allowed tag' : '', tone === 'favorite' ? 'Favorite tag' : tone === 'caution' ? 'Caution tag' : '',
+        tag.classList.contains('nseWhitelistedTag') ? 'Allowed tag' : '', group ? group.name + ' tag' : '',
         matched ? 'Matches a search tag' : ''].filter(Boolean);
       if (tone || matched || reasons.length) {
         if (!this.originals.has(tag)) this.originals.set(tag, tag.getAttribute('title'));
         if (tag.dataset.epTagTone !== tone) tag.dataset.epTagTone = tone;
+        if (tag.style.getPropertyValue('--epc-tag-background') !== (group?.color || '')) styleHighlight(tag, group?.color);
         if (tag.classList.contains('epc-tag-match') !== matched) tag.classList.toggle('epc-tag-match', matched);
         const title = [this.originals.get(tag), ...reasons].filter(Boolean).join(' · ');
         if (tag.title !== title) tag.title = title;
       } else this.restore(tag);
     }
     if (root === doc) for (const row of this.cues.keys()) rows.add(row);
-    const showCues = settings.resultsView === 'grid' && settings.gridTagCues && !settings.gridShowTags;
-    if (showCues || this.cues.size) for (const row of rows) this.refreshCue(row, showCues);
+    const showTagsDrawer = settings.resultsView === 'grid' && !settings.gridShowTags;
+    if (showTagsDrawer || this.cues.size) for (const row of rows) this.refreshCue(row, showTagsDrawer);
     this.refreshDetailTags();
   }
   refreshCue(row, enabled) {
     const { app } = this;
-    const favorites = new Set(), cautions = new Set();
-    if (enabled && row.isConnected) for (const tag of row.querySelectorAll('div.tags > a')) {
-      const value = this.values.get(tag);
-      if (this.caution.has(value)) cautions.add(value);
-      else if (this.favorites.has(value)) favorites.add(value);
-    }
+    const tags = enabled && row.isConnected ? [...row.querySelectorAll('div.tags:not(.hidden,[hidden]) > a')] : [];
     let cue = this.cues.get(row);
-    if (!favorites.size && !cautions.size) { removeGridCardAction(cue); this.cues.delete(row); return; }
+    if (!tags.length) { removeGridCardAction(cue); this.cues.delete(row); return; }
     if (!cue) {
       const title = resultTitleLink(row);
       if (!title) return;
       cue = app.node('details', null, 'epc-root epc-grid-tag-cue');
-      cue.append(app.node('summary'), app.node('div', null, 'epc-grid-tag-matches'));
+      cue.append(app.node('summary'));
+      cue.addEventListener('toggle', () => {
+        if (cue.open) this.refreshTouchPicker(cue, row);
+        app.media.invalidateLayout();
+      });
       gridCardActions(app, title).prepend(cue); this.cues.set(row, cue);
     }
-    const caption = [
-      cautions.size === 1 ? 'Caution' : cautions.size ? cautions.size + ' cautions' : '',
-      favorites.size === 1 ? 'Favorite' : favorites.size ? favorites.size + ' favorites' : ''
-    ].filter(Boolean).join(' · ');
-    if (cue.firstElementChild.textContent !== caption) cue.firstElementChild.textContent = caption;
-    const contents = [
-      cautions.size ? 'Caution · ' + [...cautions].join(', ') : '',
-      favorites.size ? 'Favorite · ' + [...favorites].join(', ') : ''
-    ].filter(Boolean);
-    if (cue.lastElementChild.textContent !== contents.join('')) {
-      cue.lastElementChild.replaceChildren(...contents.map(text => app.node('div', text)));
+    if (cue.open) this.refreshTouchPicker(cue, row);
+    const matched = new Set(tags.map(tag => this.assignments.get(this.values.get(tag))));
+    const groups = app.settings.gridTagCues ? this.categories().filter(group => group.enabled && matched.has(group)) : [];
+    const summary = cue.firstElementChild;
+    const signature = JSON.stringify(groups.map(({ name, color }) => [name, color]));
+    if (summary.dataset.epCategories === signature) return;
+    summary.dataset.epCategories = signature;
+    summary.setAttribute('aria-label', ['Tags', ...groups.map(group => group.name)].join(', '));
+    summary.replaceChildren(app.node('span', 'Tags'), ...groups.map(group => {
+      const label = app.node('span', group.name, 'epc-tag-swatch');
+      styleHighlight(label, group.color);
+      return label;
+    }));
+  }
+  refreshTouchPicker(cue, row) {
+    const { app } = this;
+    let entry = this.touchPickers.get(cue);
+    const available = this.touchPointer?.matches && app.storage.get('nseRightClickManagementEnabled', true) &&
+      app.storage.get('nseRCMTagsEnabled', true) && (app.engineReady || app.resultFilters.bookmarks);
+    if (!available) { if (entry) entry.control.hidden = true; return; }
+    if (!entry) {
+      const control = app.node('div', null, 'epc-grid-tag-picker');
+      const select = app.node('select'); select.setAttribute('aria-label', 'Tag to highlight');
+      const open = app.button('Highlight', () => {
+        const link = entry.links[Number(select.value)];
+        if (select.value && link?.isConnected) app.openTagMenu(link, open);
+      });
+      select.addEventListener('change', () => { open.disabled = !select.value; });
+      control.append(select, open); cue.append(control);
+      this.touchPickers.set(cue, entry = { control, select, open });
     }
-    cue.toggleAttribute('data-caution', !!cautions.size);
+    entry.control.hidden = false;
+    const links = [...row.querySelectorAll('div.tags:not(.hidden,[hidden]) > a')];
+    const names = links.map(link => link.textContent.trim());
+    const signature = JSON.stringify(names);
+    entry.links = links;
+    if (signature === entry.signature) return;
+    entry.signature = signature;
+    const placeholder = app.node('option', 'Choose a tag'); placeholder.value = '';
+    entry.select.replaceChildren(placeholder, ...names.map((name, index) => {
+      const option = app.node('option', name); option.value = String(index); return option;
+    }));
+    entry.open.disabled = true;
   }
   refreshDetailTags() {
     const { app } = this;
@@ -423,7 +543,7 @@ export class TagHighlights {
     const { adaptiveDetailTags, collapsedDetailTags } = app.settings;
     list.toggleAttribute('data-ep-adaptive-tags', adaptiveDetailTags);
     list.toggleAttribute('data-ep-tags-expanded', this.detailExpanded);
-    const collapsed = new Set(highlightTagList(collapsedDetailTags));
+    const collapsed = new Set(tagListTokens(collapsedDetailTags));
     let count = 0;
     for (const item of list.children) {
       const tag = item.matches('li') && item.querySelector(':scope > a');
@@ -459,7 +579,7 @@ export class TagHighlights {
     for (const row of [root, ...root.querySelectorAll('tr.torrent')]) {
       removeGridCardAction(this.cues.get(row)); this.cues.delete(row);
     }
-    for (const tag of [root, ...root.querySelectorAll('div.tags>a,ul#torrent_tags_list>li>a')]) {
+    for (const tag of [root, ...root.querySelectorAll(resultTagSelector + ',' + detailTagSelector)]) {
       const value = this.values.get(tag), entries = this.index.get(value);
       entries?.delete(tag); if (entries && !entries.size) this.index.delete(value);
       this.values.delete(tag); this.restore(tag);
@@ -469,41 +589,61 @@ export class TagHighlights {
     if (!this.originals.has(tag)) return;
     const title = this.originals.get(tag);
     if (title == null) tag.removeAttribute('title'); else tag.title = title;
+    styleHighlight(tag, null);
     tag.removeAttribute('data-ep-tag-tone'); tag.classList.remove('epc-tag-match'); this.originals.delete(tag);
+  }
+  commit(edit) {
+    const app = this.app;
+    if (this.refreshStoredPreferences(true) || !app.preferences.flush()) return false;
+    const groups = this.categories().map(group => ({ ...group }));
+    edit(groups);
+    const changes = { tagCategories: groups.map(({ tags, ...group }) => LEGACY_TAG_LISTS.has(group.id) ? group : { ...group, tags }) };
+    for (const [id, key] of LEGACY_TAG_LISTS) changes[key] = groups.find(group => group.id === id).tags;
+    if (app.preferences.flush(undefined, changes)) return true;
+    app.toast('Could not save the highlight changes.');
+    return false;
+  }
+  assign(tags, id) {
+    return this.commit(groups => {
+      for (const group of groups) {
+        const remaining = tagListTokens(group.tags).filter(tag => !tags.has(tag));
+        group.tags = (group.id === id ? remaining.concat([...tags]) : remaining).join(' ');
+      }
+    });
   }
   choose(tag, tone) {
     const app = this.app;
-    // Flush an in-progress form edit before a contextual action updates its lists.
-    if (!app.preferences.flush()) return;
-    try {
-      app.preferences.beforeChange();
-      const next = { ...app.settings };
-      for (const [key, kind] of [['favoriteTags', 'favorite'], ['cautionTags', 'caution']]) {
-        const list = highlightTagList(next[key]).filter(item => item !== tag);
-        if (tone === kind) list.push(tag);
-        next[key] = list.join(' ');
-      }
-      app.storage.set('ep.settings', next); app.settings = next;
-      for (const key of ['favoriteTags', 'cautionTags']) if (app.controls.has(key)) app.controls.get(key).value = next[key];
-      this.refresh(); app.refreshOptionSummaries?.();
-      app.doc.getElementById('nseRCMBox')?.classList.add('hidden');
-      app.ruleMenuOrigin?.focus({ preventScroll: true });
-      app.toast(tone === 'favorite' ? 'Favorite highlighted. Visibility unchanged.' : tone === 'caution' ? 'Caution highlighted. Visibility unchanged.' : 'Highlight cleared.');
-    } catch { app.toast('Could not save the highlight. Your previous choices are intact.'); }
+    this.categories();
+    const group = this.groups.find(group => group.id === tone && group.enabled);
+    if (tone && !group) return;
+    if (!this.assign(new Set([tag]), tone)) return;
+    app.doc.getElementById('nseRCMBox')?.classList.add('hidden');
+    const anchor = app.ruleMenuOrigin;
+    if (anchor?.closest('.epc-filter-hidden')) this.viewChip?.focus();
+    else anchor?.focus({ preventScroll: true });
+    app.toast(group ? 'Highlighted as ' + group.name + '.' : 'Highlight cleared.');
   }
   menu(menu, kind, value) {
     menu.querySelector('.epc-highlight-actions')?.remove();
     if (kind !== 'tag') return;
     const tag = value.trim().toLocaleLowerCase(), app = this.app;
     const group = app.node('section', null, 'epc-highlight-actions'); group.setAttribute('aria-label', 'Tag highlight');
-    group.append(app.node('p', 'Highlight only', 'epc-caption'));
-    const selected = highlightTagList(app.settings.cautionTags).includes(tag) ? 'caution' :
-      highlightTagList(app.settings.favoriteTags).includes(tag) ? 'favorite' : '';
-    for (const [tone, label] of [['favorite', 'Favorite'], ['caution', 'Caution'], ['', 'Clear highlight']]) {
-      const button = app.button(label, () => this.choose(tag, tone)); button.dataset.highlight = tone || 'clear';
-      if (tone) button.setAttribute('aria-pressed', String(selected === tone)); else button.hidden = !selected;
-      group.append(button);
+    group.append(app.node('p', 'Highlight as', 'epc-caption'));
+    const choices = app.node('div', null, 'epc-highlight-choices');
+    group.append(choices);
+    const categories = this.categories();
+    const selected = this.assignments.get(tag)?.id;
+    for (const category of categories.filter(category => category.enabled)) {
+      const button = app.button(category.name, () => this.choose(tag, category.id));
+      button.dataset.highlight = category.id;
+      button.prepend(app.node('i', null, 'epc-tag-color-dot'));
+      button.firstChild.setAttribute('aria-hidden', 'true');
+      styleHighlight(button, category.color);
+      button.setAttribute('aria-pressed', String(selected === category.id));
+      choices.append(button);
     }
+    const clear = app.button('Clear highlight', () => this.choose(tag, ''));
+    clear.dataset.highlight = 'clear'; clear.hidden = !selected; group.append(clear);
     menu.append(group);
   }
   dispose() {

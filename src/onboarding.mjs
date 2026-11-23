@@ -87,9 +87,12 @@ export class OnboardingController {
     const shortcuts = keyboardShortcutList(app); shortcuts.id = 'epc-welcome-shortcuts';
     const syncShortcuts = () => { shortcuts.hidden = !this.shortcuts.checked; };
     this.shortcuts.addEventListener('change', syncShortcuts); syncShortcuts(); form.append(shortcuts);
-    const tags = app.node('details'); tags.append(app.node('summary', 'Personalize tags (optional)'), app.node('p', 'Separate tags with spaces. Blocked tags hide matching results; Favorite and Caution only highlight them.', 'epc-caption'));
+    const tags = app.node('details'); tags.append(app.node('summary', 'Personalize tags (optional)'), app.node('p', 'Separate tags with spaces. Blocked tags hide matching results. Highlight categories change how tags look.', 'epc-caption'));
     this.tags = new Map();
-    for (const [key, label, value] of [['blocked', 'Blocked tags', app.storage.get('nseTaglist', '')], ['favoriteTags', 'Favorite tags', app.settings.favoriteTags], ['cautionTags', 'Caution tags', app.settings.cautionTags]]) {
+    const groups = app.tags.categories();
+    for (const [key, label, value] of [['blocked', 'Blocked tags', app.storage.get('nseTaglist', '')],
+      ['favoriteTags', groups.find(group => group.id === 'favorite').name + ' tags', app.settings.favoriteTags],
+      ['cautionTags', groups.find(group => group.id === 'caution').name + ' tags', app.settings.cautionTags]]) {
       const input = app.node('textarea'); input.rows = 2; input.maxLength = 50000; input.value = value;
       field(tags, label, input); this.tags.set(key, input);
     }

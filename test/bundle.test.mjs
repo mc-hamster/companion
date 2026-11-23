@@ -43,6 +43,7 @@ async function setup(initial = {}, rows = rowHTML(1) + rowHTML(2), extra = '', u
   win.GM_addStyle = css => { const style = win.document.createElement('style'); style.textContent = css; win.document.head.append(style); };
   win.Image = clock.env.Image;
   win.confirm = () => true;
+  if (options.touch) win.matchMedia = query => ({ matches: query === '(any-pointer: coarse)', addEventListener() {}, removeEventListener() {} });
   if (options.fetch) win.fetch = options.fetch;
   for (let i = 0; i < (options.injections ?? 1); i++) win.eval(bundle);
   await until(() => f.doc.querySelector('.epc-workspace[data-ep-ready="true"]'), 'Built userscript readiness');
@@ -55,7 +56,7 @@ test('built artifact is self-contained and restricted to Empornium', () => {
   assert.ok(matches.length >= 6);
   assert.ok(matches.every(line => /(?:empornium\.(?:sx|me|is|ph)|emparadise\.rs)/.test(line)));
 });
-test('userscript metadata matches browsing pages on each mirror and skips unrelated URLs', () => {
+test('userscript metadata uses one pattern per PHP browse page on each explicit mirror', () => {
   const matches = [...bundle.matchAll(/^\/\/ @match\s+(\S+)$/gm)].map(([, pattern]) =>
     new RegExp('^' + pattern.split('*').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$'));
   for (const domain of ['empornium.sx', 'empornium.me', 'empornium.is', 'empornium.ph', 'emparadise.rs']) {
@@ -64,13 +65,15 @@ test('userscript metadata matches browsing pages on each mirror and skips unrela
       for (const path of ['/torrents.php', '/torrents.php?id=1', '/torrents.php?action=advanced&page=2',
         '/top10.php?type=torrents', '/bookmarks.php?type=torrents', '/collages.php', '/collage/42?page=2',
         '/requests.php', '/user.php?action=notify', '/user.php?id=10&action=notify']) {
-        assert.ok(matches.some(pattern => pattern.test(origin + path)), origin + path);
+        assert.equal(matches.filter(pattern => pattern.test(origin + path)).length, 1, origin + path);
       }
-      for (const path of ['/', '/index.php', '/login.php', '/register.php', '/forums.php', '/user.php?id=10', '/torrents.php.old']) {
+      for (const path of ['/', '/index.php', '/login.php', '/register.php', '/forums.php', '/user.php?id=10']) {
         assert.ok(!matches.some(pattern => pattern.test(origin + path)), origin + path);
       }
     }
+    assert.ok(!matches.some(pattern => pattern.test('https://other.' + domain + '/torrents.php')));
   }
+  assert.equal(matches.length, 100);
 });
 test('the built script leaves logged-out screens and pages without browsing features untouched', async t => {
   const landing = '<main><h1>Welcome</h1><a href="/">Home</a> <a href="/login.php">Login</a></main>';
@@ -78,6 +81,7 @@ test('the built script leaves logged-out screens and pages without browsing feat
   const pages = [
     ['/', landing], ['/login.php', signIn], ['/forums.php', fixtureHTML()], ['/user.php?id=10', fixtureHTML()],
     ['/user.php?action=edit', fixtureHTML()], ['/torrents.php?id=1&action=edit', fixtureHTML()],
+    ['/torrents.php.old', fixtureHTML()], ['/bookmarks.php/backup', fixtureHTML()],
     ['/torrents.php?action=download&id=1', fixtureHTML()], ['/torrents.php?action=advanced&action=download', fixtureHTML()],
     ['/collage/42/manage', fixtureHTML()], ['/top10.php?type=users', fixtureHTML()], ['/bookmarks.php?type=artist', fixtureHTML()],
     ['/torrents.php', landing, true],
@@ -297,6 +301,76 @@ test('filter review counts only revealable results and identifies the effective 
   } finally { f.close(); }
 });
 
+test('Filtered only follows the saved switch, Freeleech, and backfilled results in List and Grid', async t => {
+  const sitewide = 'sitewide_leech';
+  const rows = rowHTML(1, { extra: sitewide }) + rowHTML(2, { tags: 'blocked', extra: sitewide }) +
+    rowHTML(3, { tags: 'hard', extra: sitewide }) + rowHTML(4, { extra: sitewide }) + rowHTML(5, { tags: 'blocked' });
+  const cards = [1, 2, 3, 4, 5].map(id => '<div class="torrent_grid__torrent" data-card="' + id + '">' +
+    '<a href="/torrents.php?id=' + id + '">Cover</a></div>').join('');
+  const initial = { 'ep.settings': { inlineThumbnails: false, backfillPages: 1, seenMode: 'hide', freeleechView: 'sitewide' },
+    'ep.seen.4': { title: 'Example 4', time: 1 }, nseTaglist: 'blocked', nseHardPassTaglist: 'hard',
+    nseHardPassEnabled: true, nseRemoveHardPassResults: true };
+  const page = fixtureHTML(rowHTML(6, { extra: sitewide }) + rowHTML(7, { tags: 'blocked', extra: sitewide }))
+    .replace(/<a class="pager_next"[^>]*>.*?<\/a>/, '');
+  const f = await setup(initial, rows, cards, 'https://www.empornium.sx/torrents.php?page=2', {
+    fetch: async url => ({ ok: true, url, text: async () => page })
+  });
+  t.after(f.close);
+  const visibleIDs = (fixture, key = 'fixture-id') => [...fixture.doc.querySelectorAll('[data-' + key + ']')]
+    .filter(node => fixture.win.getComputedStyle(node).display !== 'none').map(node => Number(node.getAttribute('data-' + key)));
+  const select = (fixture, key, value) => {
+    const field = fixture.doc.querySelector('[data-setting=' + key + ']');
+    field.value = value;
+    field.dispatchEvent(new fixture.win.Event('change', { bubbles: true }));
+  };
+  const toggle = f.doc.querySelector('[data-ep-reveal]');
+  const label = toggle.closest('label');
+  assert.deepEqual(visibleIDs(f), [1]);
+  assert.equal(f.doc.querySelector('[data-setting=showFilteredMode]').closest('[data-settings-group]').dataset.settingsGroup, 'Browsing');
+  select(f, 'showFilteredMode', 'only');
+  await until(() => label.textContent.includes('Filtered only'));
+  assert.deepEqual(visibleIDs(f), [1]);
+  toggle.click();
+  assert.deepEqual(visibleIDs(f), [2, 3, 4]);
+  assert.deepEqual(visibleIDs(f, 'card'), [2, 3, 4]);
+  assert.deepEqual([...f.doc.querySelectorAll('tr .epc-filter-reason')].map(node => node.textContent),
+    ['Blocked tag · blocked', 'Hard Pass tag · hard', 'Already seen']);
+
+  f.doc.querySelector('[data-ep-layout=grid]').click();
+  f.doc.querySelector('[data-ep-backfill]').click();
+  await until(() => f.doc.querySelector('[data-fixture-id="7"]'));
+  assert.deepEqual(visibleIDs(f), [2, 3, 4, 7]);
+  const saved = JSON.parse(JSON.stringify(Object.fromEntries(f.storage.data)));
+  const reopened = await setup(saved, rows, cards);
+  t.after(reopened.close);
+  assert.equal(reopened.doc.querySelector('[data-ep-reveal]').checked, true);
+  assert.deepEqual(visibleIDs(reopened), [2, 3, 4]);
+
+  select(f, 'showFilteredMode', 'inline');
+  await until(() => label.textContent.includes('Show filtered'));
+  assert.equal(toggle.checked, true);
+  assert.deepEqual(visibleIDs(f), [1, 2, 3, 4, 6, 7]);
+  select(f, 'showFilteredMode', 'only');
+  await until(() => label.textContent.includes('Filtered only'));
+  assert.deepEqual(visibleIDs(f), [2, 3, 4, 7]);
+  toggle.click();
+  assert.deepEqual(visibleIDs(f), [1, 6]);
+  assert.equal(f.errors.length, 0, f.errors.join('\n'));
+});
+
+test('Filtered only shows an empty state and keeps the switch available to exit', async () => {
+  const f = await setup({ 'ep.settings': { showFilteredMode: 'only', showFilteredResults: true },
+    nseFloatingToggleButtonEnabled: false });
+  try {
+    const toggle = f.doc.querySelector('[data-ep-reveal]');
+    assert.equal(toggle.closest('label').hidden, false);
+    assert.match(f.doc.querySelector('.epc-result-summary').textContent, /No filtered results in this view/);
+    toggle.click();
+    assert.equal(f.doc.querySelectorAll('tr.epc-filter-hidden').length, 0);
+    assert.equal(toggle.closest('label').hidden, true);
+  } finally { f.close(); }
+});
+
 test('Luminance import previews a merge, preserves existing choices and can undo without reverting searches', async () => {
   const f = await setup({ nseTaglist: 'old.block', nseWhitelist: 'allowed', 'ep.settings': { favoriteTags: 'existing' } });
   try {
@@ -338,10 +412,12 @@ test('Grid cues reveal matching tags while detail collapse and responsive layout
   rowHTML(1, { tags: 'fern woodland orchid' }), detail);
   try {
     const cue = f.doc.querySelector('.epc-grid-tag-cue');
-    assert.match(cue.querySelector('summary').textContent, /Caution · 2 favorites/);
+    assert.deepEqual([...cue.querySelectorAll('.epc-tag-swatch')].map(node => node.textContent), ['Liked', 'Caution']);
+    const nativeTags = f.doc.querySelector('tr.torrent .tags');
+    assert.equal(f.win.getComputedStyle(nativeTags).display, 'none');
     cue.querySelector('summary').click();
     assert.equal(cue.open, true);
-    assert.match(cue.lastElementChild.textContent, /fern, woodland/);
+    assert.notEqual(f.win.getComputedStyle(nativeTags).display, 'none');
     const list = f.doc.querySelector('#torrent_tags_list');
     assert.equal(list.hasAttribute('data-ep-adaptive-tags'), true);
     const tag = list.querySelector('[data-ep-low-priority-tag]');
@@ -709,7 +785,7 @@ test('the simplified interface shows three task areas and keeps Grid preferences
     f.doc.querySelector('.epc-navigation [data-pane="settings"]').click();
     const pane = f.doc.querySelector('.epc-pane[data-pane="settings"]');
     const visible = [...pane.querySelectorAll('input,select,textarea')].filter(exposed);
-    assert.equal(visible.length, 10);
+    assert.equal(visible.length, 11);
     assert.ok(visible.some(control => control.id === 'nseThemeDropdown'));
     assert.ok(visible.some(control => control.dataset.setting === 'thumbnailSize'));
     assert.ok(visible.some(control => control.dataset.setting === 'reformatDetailPages' && !control.checked));
@@ -932,6 +1008,168 @@ test('one contextual tag menu offers exclusive highlights without altering visib
   } finally { f.close(); }
 });
 
+test('custom tag categories support conflict review, bulk moves, colors, order, and undo', async () => {
+  const f = await setup({ 'ep.settings': { inlineThumbnails: false, favoriteTags: 'sample.tag sample.other' } });
+  try {
+    const click = (scope, caption) => [...scope.querySelectorAll('button')].find(button => button.textContent === caption).click();
+    const change = (field, value) => {
+      if (field.type === 'checkbox') field.checked = value; else field.value = value;
+      field.dispatchEvent(new f.win.Event('change', { bubbles: true }));
+    };
+    f.doc.querySelector('[data-pane=filters]').click();
+    const manager = f.doc.querySelector('[data-option-group=tag-highlights]');
+    assert.equal(manager.querySelectorAll('[data-tag-category]').length, 8);
+    click(manager, 'Add category');
+    const custom = manager.querySelector('[data-tag-category^=custom-]');
+    const id = custom.dataset.tagCategory;
+    assert.equal(f.doc.activeElement, custom.querySelector('input[type=text]'));
+    change(custom.querySelector('input[type=text]'), 'Standouts');
+    change(custom.querySelector('input[type=color]'), '#203050');
+    click(custom, 'Move up');
+    assert.equal(custom.nextElementSibling.dataset.tagCategory, 'caution');
+    custom.querySelector('textarea').value = 'sample.tag sample.extra';
+    click(custom, 'Save tags');
+    assert.match(custom.querySelector('[role=status]').textContent, /sample\.tag \(Liked\)/);
+    assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag sample.other');
+    click(custom, 'Move conflicting tags');
+    assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.other');
+    const tag = f.doc.querySelector('.tags a');
+    assert.equal(tag.dataset.epTagTone, id);
+    assert.equal(tag.style.getPropertyValue('--epc-tag-background'), '#203050');
+    assert.equal(tag.style.getPropertyValue('--epc-tag-foreground'), '#fff');
+    change(custom.querySelector('input[type=checkbox]'), false);
+    assert.equal(tag.hasAttribute('data-ep-tag-tone'), false);
+    change(custom.querySelector('input[type=checkbox]'), true);
+    assert.equal(tag.dataset.epTagTone, id);
+
+    const search = manager.querySelector('.epc-tag-search');
+    const query = search.querySelector('input[type=search]'); query.value = 'sample.';
+    query.dispatchEvent(new f.win.Event('input', { bubbles: true }));
+    assert.equal(search.querySelectorAll('.epc-tag-search-row').length, 3);
+    for (const input of search.querySelectorAll('input[type=checkbox]')) input.click();
+    search.querySelector('select').value = 'loved';
+    click(search, 'Move selected');
+    assert.equal(tag.dataset.epTagTone, 'loved');
+    assert.equal(f.storage.get('ep.settings').tagCategories.find(group => group.id === id).tags, '');
+    assert.deepEqual(f.storage.get('ep.settings').tagCategories.find(group => group.id === 'loved').tags.split(' ').sort(),
+      ['sample.extra', 'sample.other', 'sample.tag']);
+    click(f.doc, 'Undo changes');
+    assert.equal(manager.querySelector('[data-tag-category^=custom-]'), null);
+    assert.equal(tag.dataset.epTagTone, 'favorite');
+    assert.equal(f.errors.length, 0, f.errors.join('\n'));
+  } finally { f.close(); }
+});
+
+test('Grid tag discovery and category view follow Freeleech, reveal and backfill', async () => {
+  const rows = rowHTML(1, { tags: 'coast', extra: 'sitewide_leech' }) + rowHTML(2, { tags: 'coast blocked', extra: 'sitewide_leech' }) +
+    rowHTML(3, { tags: 'coast' }) + rowHTML(4, { tags: 'forest', extra: 'sitewide_leech' });
+  const next = fixtureHTML(rowHTML(5, { tags: 'coast', extra: 'sitewide_leech' }) + rowHTML(6, { tags: 'forest', extra: 'sitewide_leech' }))
+    .replace(/<a class="pager_next"[^>]*>.*?<\/a>/, '');
+  const f = await setup({ nseTaglist: 'blocked', 'ep.settings': { resultsView: 'grid', inlineThumbnails: false, backfillPages: 1,
+    freeleechView: 'sitewide' } }, rows, '', 'https://www.empornium.sx/torrents.php?page=2', {
+    fetch: async url => ({ ok: true, url, text: async () => next })
+  });
+  try {
+    const row = id => f.doc.querySelector('[data-fixture-id="' + id + '"]');
+    const visible = () => [...f.doc.querySelectorAll('tr.torrent')].filter(node => f.win.getComputedStyle(node).display !== 'none')
+      .map(node => +node.dataset.fixtureId);
+    const tag = row(1).querySelector('.tags a');
+    const tags = row(1).querySelector('.epc-grid-tag-cue summary');
+    assert.equal(tags.textContent, 'Tags');
+    tags.click();
+    assert.notEqual(f.win.getComputedStyle(tag.parentElement).display, 'none');
+    tag.dispatchEvent(new f.win.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    f.doc.querySelector('[data-highlight=new-performer]').click();
+    assert.match(tags.textContent, /New performer/);
+    f.doc.querySelector('[data-pane=filters]').click();
+    const group = f.doc.querySelector('[data-tag-category=new-performer]');
+    [...group.querySelectorAll('button')].find(button => button.textContent === 'Show matches').click();
+    const chip = f.doc.querySelector('.epc-category-view');
+    assert.match(chip.textContent, /New performer · 1 result/);
+    assert.deepEqual(visible(), [1]);
+    const reveal = f.doc.querySelector('[data-ep-reveal]');
+    reveal.click();
+    assert.deepEqual(visible(), [1, 2]);
+    assert.match(chip.textContent, /2 results/);
+    f.doc.querySelector('[data-ep-backfill]').click();
+    await until(() => row(6));
+    assert.deepEqual(visible(), [1, 2, 5]);
+    assert.match(chip.textContent, /3 results/);
+    tag.dispatchEvent(new f.win.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    f.doc.querySelector('[data-highlight=loved-performer]').click();
+    assert.deepEqual(visible(), []);
+    assert.match(chip.textContent, /0 results/);
+    assert.match(f.doc.querySelector('.epc-result-summary').textContent, /No results match this category/);
+    assert.equal(f.doc.activeElement, chip);
+    chip.click();
+    assert.deepEqual(visible(), [1, 2, 4, 5, 6]);
+    assert.equal(chip.hidden, true);
+    assert.equal(f.storage.get('nseTaglist'), 'blocked');
+    assert.equal(f.errors.length, 0, f.errors.join('\n'));
+  } finally { f.close(); }
+});
+
+test('a touch Grid card can assign an unclassified tag through its picker', async () => {
+  const f = await setup({ 'ep.settings': { resultsView: 'grid', inlineThumbnails: false } },
+    rowHTML(1, { tags: 'landscape coast' }), '', undefined, { touch: true });
+  try {
+    const drawer = f.doc.querySelector('.epc-grid-tag-cue'); drawer.querySelector('summary').click();
+    await until(() => drawer.querySelector('.epc-grid-tag-picker'));
+    const picker = drawer.querySelector('.epc-grid-tag-picker');
+    const select = picker.querySelector('select'), highlight = picker.querySelector('button');
+    assert.equal(highlight.disabled, true);
+    select.value = '1';
+    select.dispatchEvent(new f.win.Event('change'));
+    highlight.click();
+    f.doc.querySelector('[data-highlight=loved]').click();
+    assert.equal(f.doc.querySelector('.tags a').hasAttribute('data-ep-tag-tone'), false);
+    assert.equal(f.doc.querySelector('.tags a:last-child').dataset.epTagTone, 'loved');
+    assert.equal(drawer.querySelector('.epc-tag-swatch').textContent, 'Loved');
+    assert.equal(f.errors.length, 0, f.errors.join('\n'));
+  } finally { f.close(); }
+});
+
+test('Bookmarks tags support keyboard assignment without torrent visibility actions', async () => {
+  const f = await setup({ 'ep.settings': { keyboardShortcuts: true, inlineThumbnails: false } }, rowHTML(1), '',
+    'https://www.empornium.sx/bookmarks.php?type=torrents');
+  try {
+    const tag = f.doc.querySelector('.tags a'); tag.focus();
+    const shortcut = new f.win.KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true });
+    tag.dispatchEvent(shortcut);
+    const menu = f.doc.getElementById('nseRCMBox');
+    assert.ok(shortcut.defaultPrevented);
+    assert.ok(menu.contains(f.doc.activeElement));
+    assert.doesNotMatch(menu.textContent, /Block tag|Allow tag/);
+    menu.querySelector('[data-highlight=loved]').click();
+    assert.equal(tag.dataset.epTagTone, 'loved');
+    assert.equal(f.doc.activeElement, tag);
+    assert.equal(menu.classList.contains('hidden'), true);
+  } finally { f.close(); }
+});
+
+test('tag drafts show their unsaved state and support keyboard saving and discarding', async () => {
+  const f = await setup({ 'ep.settings': { keyboardShortcuts: true, inlineThumbnails: false } });
+  try {
+    f.doc.querySelector('button[data-pane=filters]').click();
+    const group = f.doc.querySelector('[data-tag-category=loved]');
+    const tags = group.querySelector('textarea');
+    const action = name => [...group.querySelectorAll('button')].find(button => button.textContent === name);
+    const draft = text => { tags.value = text; tags.dispatchEvent(new f.win.Event('input', { bubbles: true })); };
+    draft('sample.tag');
+    assert.match(group.querySelector('summary').textContent, /Unsaved edits/);
+    assert.equal(action('Show matches').disabled, true);
+    const shortcut = new f.win.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true });
+    tags.dispatchEvent(shortcut);
+    assert.equal(shortcut.defaultPrevented, true);
+    assert.equal(f.doc.querySelector('.tags a').dataset.epTagTone, 'loved');
+    assert.equal(action('Show matches').disabled, false);
+    draft('discard.me');
+    action('Discard tag edits').click();
+    assert.equal(tags.value, 'sample.tag');
+    assert.equal(action('Discard tag edits').hidden, true);
+  } finally { f.close(); }
+});
+
 test('tag highlighting remains keyboard accessible and returns focus when the menu closes', async () => {
   const f = await setup();
   try {
@@ -945,18 +1183,18 @@ test('tag highlighting remains keyboard accessible and returns focus when the me
   } finally { f.close(); }
 });
 
-test('highlight lists autosave in the folded Filters section without adding primary controls', async () => {
+test('highlight lists save within the folded category manager without adding primary controls', async () => {
   const f = await setup({ 'ep.settings': { inlineThumbnails: false, favoriteTags: 'retained' } });
   try {
     f.doc.querySelector('.epc-navigation [data-pane="filters"]').click();
     const section = f.doc.querySelector('[data-option-group="tag-highlights"]'); assert.equal(section.open, false);
-    assert.match(section.querySelector('summary').textContent, /1 favorite/);
-    const field = section.querySelector('[data-setting=favoriteTags]'); field.value = 'sample.tag';
-    field.dispatchEvent(new f.win.Event('change', { bubbles: true })); await settle(80);
+    assert.match(section.querySelector('summary').textContent, /1 tag/);
+    const field = section.querySelector('[data-tag-list=favorite]'); field.value = 'sample.tag';
+    [...field.closest('details').querySelectorAll('button')].find(button => button.textContent === 'Save tags').click();
     assert.equal(f.doc.querySelector('.tags a').dataset.epTagTone, 'favorite');
     assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag');
     assert.equal(f.doc.querySelectorAll('.epc-navigation button[data-pane]').length, 3);
-    assert.equal(f.doc.querySelectorAll('.epc-basic-settings input,.epc-basic-settings select').length, 13);
+    assert.equal(f.doc.querySelector('.epc-basic-settings [data-setting=favoriteTags],.epc-basic-settings [data-setting=cautionTags]'), null);
     f.doc.querySelector('[data-setting=groupVersions]').checked = false;
     f.doc.querySelector('[data-setting=groupVersions]').dispatchEvent(new f.win.Event('change', { bubbles: true })); await settle(80);
     assert.equal(f.storage.get('ep.settings').favoriteTags, 'sample.tag');
@@ -978,15 +1216,16 @@ test('opening visible results includes the representative and expanded versions 
   } finally { f.close(); }
 });
 
-test('oversized highlight drafts are rejected before either filter or Companion preferences are written', async () => {
+test('oversized highlight drafts are rejected and retain the draft', async () => {
   const f = await setup();
   try {
     f.doc.querySelector('.epc-navigation [data-pane="filters"]').click();
-    const favorite = f.doc.querySelector('[data-setting=favoriteTags]'); favorite.value = 'x'.repeat(50001);
-    const block = f.doc.getElementById('nseBlacklistTaglistArea'); block.value = 'sample.tag';
-    block.dispatchEvent(new f.win.Event('change', { bubbles: true })); await settle(70);
+    const favorite = f.doc.querySelector('[data-tag-list=favorite]'); favorite.value = 'x'.repeat(50001);
+    const category = favorite.closest('details');
+    [...category.querySelectorAll('button')].find(button => button.textContent === 'Save tags').click();
     assert.equal(f.storage.get('nseTaglist'), ''); assert.equal(f.storage.get('ep.settings').favoriteTags || '', '');
-    assert.match(f.doc.querySelector('.epc-savebar [role=status]').textContent, /Could not save/);
+    assert.match(category.querySelector('[role=status]').textContent, /exceeds 50,000/);
+    assert.equal(favorite.value.length, 50001);
   } finally { f.close(); }
 });
 

@@ -39,6 +39,8 @@ Commit `dist/EmporniumCompanion.user.js`, `dist/EmporniumCompanion.meta.js`, `di
 
 Keep the existing `@namespace`, update and download URLs, storage keys, and backup format identifier. The display name changed to Companion in 2.14.2. Tampermonkey's update check applies the rename to the existing installation. Opening the install URL directly during the rename can offer a separate installation.
 
+Update the mirror registry in `src/core.mjs` when Empornium adds or changes a domain. The build and runtime use it for the bare and `www` hostnames and the explicitly enabled image-cache permissions. The generated browsing PHP patterns match bare URLs and queries, and startup checks the exact path and action.
+
 ## Future releases
 
 1. Make the changes and increase `version` in `package.json` before publishing an update. Tampermonkey uses `@version` to detect newer releases.

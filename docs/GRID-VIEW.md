@@ -11,7 +11,7 @@ Grid title links show up to two lines by default. Turn off **View options → Tr
 
 Tags are hidden by default in Grid. **Settings → Appearance → Show tags in grid cards** independently restores the native tag links. This only changes their presentation: tag filters, highlights and saved rules still apply. The preference persists across pages and sessions and participates in backup/restore. List tags retain their native display.
 
-With the full tag list hidden, Grid shows a compact disclosure on cards with Favorite or Caution matches. Open it to see the matching tags. The cue can be turned off under **Settings → Advanced settings → Appearance**.
+With the full tag list hidden, open **Tags** on a card to see its original tag links. Right-click a tag to assign a highlight. On a touch device, choose a tag and tap **Highlight**. Matching categories appear beside **Tags**. Toggle their labels under **Settings → Advanced settings → Appearance → Show highlight categories in Grid**.
 
 Use **View options** beside the List and Grid switches. In Grid it offers card size, spacing, title truncation, tags, and details. In List it shows the column choices for tables with recognized column headings. Hidden sortable columns retain a **Sort** link. Changes apply immediately and are included in backups.
 

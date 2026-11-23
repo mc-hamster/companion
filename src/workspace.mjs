@@ -134,14 +134,7 @@ export function mountFilterControls(app) {
   field(grid, 'nseWhitelistTaglistArea', 'Allowed tags', 'Allowed matches override ordinary blocks.');
   app.resultFilters.mountRules(app.panes.filters);
   app.resultFilters.mountHistory(app.panes.filters);
-  const highlights = optionGroup(app, app.panes.filters, 'Tag highlights', { key: 'tag-highlights' });
-  highlights.append(app.node('p', 'Favorites are green; caution tags are amber. Both keep visibility unchanged. Search tags are emphasized automatically. Right-click a tag for a quick choice.', 'epc-caption'));
-  for (const [key, label] of [['favoriteTags', 'Favorite tags'], ['cautionTags', 'Caution tags']]) {
-    const row = app.node('label', null, 'epc-field');
-    const input = app.node('textarea'); input.rows = 2; input.maxLength = 50000; input.value = app.settings[key];
-    input.dataset.setting = key; input.setAttribute('aria-label', label);
-    row.append(setSettingHelp(app.node('span', label), settingHelp[key], input), input); highlights.append(row); app.controls.set(key, input);
-  }
+  app.mountTagHighlightManager();
   const lowPriority = optionGroup(app, app.panes.filters, 'Collapse tags on detail pages', { key: 'collapsed-detail-tags' });
   const lowPriorityField = app.node('label', null, 'epc-field');
   const lowPriorityInput = app.node('textarea'); lowPriorityInput.rows = 2; lowPriorityInput.maxLength = 50000;
@@ -149,11 +142,6 @@ export function mountFilterControls(app) {
   lowPriorityField.append(setSettingHelp(app.node('span', 'Low-priority tags'), settingHelp.collapsedDetailTags, lowPriorityInput), lowPriorityInput);
   lowPriority.append(app.node('p', 'Matching tags stay available under Show other tags on detail pages.', 'epc-caption'), lowPriorityField);
   app.controls.set('collapsedDetailTags', lowPriorityInput);
-  summarize(highlights, () => {
-    const count = key => app.controls.get(key).value.trim().split(/\s+/).filter(Boolean).length;
-    const favorite = count('favoriteTags'), caution = count('cautionTags');
-    return favorite || caution ? favorite + (favorite === 1 ? ' favorite' : ' favorites') + ' · ' + caution + ' caution' : 'Search matches automatically';
-  });
   for (const [title, hint, ids, separator] of [
     ['Title rules', 'Hide or allow results by words in their titles. Separate phrases with semicolons.', [['nseBlacklistTitleListArea', 'Blocked title phrases'], ['nseWhitelistTitleListArea', 'Allowed title phrases']], ';'],
     ['Uploader rules', 'Separate usernames with spaces.', [['nseBlacklistUploadersArea', 'Blocked uploaders'], ['nseWhitelistUploadersArea', 'Allowed uploaders']], /\s+/]
@@ -277,9 +265,13 @@ export function adoptRuleMenu(app, event, kind, value = '') {
       rule.className = 'epc-uploader-rule'; menu.append(rule);
     }
   }
+  positionTagMenu(app.win, menu, event);
+}
+
+export function positionTagMenu(win, menu, event) {
   const rect = menu.getBoundingClientRect();
-  menu.style.left = Math.max(12, Math.min(event.clientX, app.win.innerWidth - rect.width - 12)) + 'px';
-  menu.style.top = Math.max(12, Math.min(event.clientY, app.win.innerHeight - rect.height - 12)) + 'px';
+  menu.style.left = Math.max(12, Math.min(event.clientX, win.innerWidth - rect.width - 12)) + 'px';
+  menu.style.top = Math.max(12, Math.min(event.clientY, win.innerHeight - rect.height - 12)) + 'px';
 }
 
 export function styleRowControls(app, roots = [app.doc]) {

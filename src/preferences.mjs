@@ -19,25 +19,25 @@ export class PreferencesController {
     const app = this.app;
     if (!this.checkpoint || Date.now() - this.checkpoint.time > 30000) {
       const current = app.exportData();
-      const next = { time: Date.now(), settings: current.settings, nse: current.nse };
+      const next = { time: Date.now(), settings: { ...current.settings, ...app.tags.storedPreferences() }, nse: current.nse };
       app.storage.set('ep.preferenceUndo', next); this.checkpoint = next;
     }
     if (app.undoPreferences) app.undoPreferences.hidden = false;
   }
-  flush(conditionalRules = this.app.settings.conditionalRules) {
+  flush(conditionalRules = this.app.settings.conditionalRules, highlightChanges) {
     const app = this.app;
     app.win.clearTimeout(this.timer); this.timer = null;
     const wasDirty = app.dirty;
     const updatingRules = conditionalRules !== app.settings.conditionalRules;
-    if (app.composing || app.disposed) return !updatingRules;
-    if (!wasDirty && !updatingRules) return true;
+    if (app.composing || app.disposed) return !updatingRules && !highlightChanges;
+    if (!wasDirty && !updatingRules && !highlightChanges) return true;
     const focused = app.doc.activeElement;
     const restore = focused?.matches?.('textarea[data-ep-filter-control],input[type=text][data-ep-filter-control]') ?
       { node: focused, value: focused.value, start: focused.selectionStart, end: focused.selectionEnd, scroll: focused.scrollTop } : null;
     let snapshot, checkpointBefore = this.checkpoint, filterChanged, conditionalChanged;
     const previousSettings = app.settings;
     try {
-      const next = { ...app.settings, conditionalRules };
+      const next = { ...app.settings, ...app.tags.storedPreferences(), conditionalRules };
       for (const [key, control] of app.controls) {
         const numeric = control.type === 'number' || control.hasAttribute('data-numeric');
         if (numeric && !control.checkValidity()) {
@@ -48,6 +48,7 @@ export class PreferencesController {
       }
       filterChanged = app.filterDirty;
       next.globalArrowNavigation = next.navigationScope === 'site';
+      Object.assign(next, highlightChanges);
       const checked = validateSettings(next);
       conditionalChanged = checked.conditionalRules !== previousSettings.conditionalRules;
       if (conditionalChanged) compileConditionalRules(checked.conditionalRules);
