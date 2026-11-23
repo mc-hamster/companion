@@ -49,12 +49,13 @@ async function setup(initial = {}, rows = rowHTML(1) + rowHTML(2), extra = '', u
   await until(() => f.doc.querySelector('.epc-workspace[data-ep-ready="true"]'), 'Built userscript readiness');
   return { ...f, storage, clock, menuCommands };
 }
-test('built artifact is self-contained and restricted to Empornium', () => {
+test('built artifact is self-contained and restricted to Empornium and the Hamsterimg picker', () => {
   assert.doesNotMatch(bundle, /@require|GM_download|eval\(/);
   assert.doesNotMatch(bundle, /epBench|cpu-bench|perf-dashboard/, 'profiling hooks stay in the local fixture');
   const matches = bundle.match(/^\/\/ @match.*$/gm);
   assert.ok(matches.length >= 6);
-  assert.ok(matches.every(line => /(?:empornium\.(?:sx|me|is|ph)|emparadise\.rs)/.test(line)));
+  assert.ok(matches.every(line => /(?:empornium\.(?:sx|me|is|ph)|emparadise\.rs)/.test(line) ||
+    line === '// @match        https://hamsterimg.net/*'));
 });
 test('userscript metadata uses one pattern per PHP browse page on each explicit mirror', () => {
   const matches = [...bundle.matchAll(/^\/\/ @match\s+(\S+)$/gm)].map(([, pattern]) =>
@@ -75,7 +76,18 @@ test('userscript metadata uses one pattern per PHP browse page on each explicit 
     }
     assert.ok(!matches.some(pattern => pattern.test('https://other.' + domain + '/torrents.php')));
   }
-  assert.equal(matches.length, 150);
+  assert.equal(matches.length, 151);
+});
+test('an ordinary Hamsterimg page does not start Companion or read its storage', () => {
+  const f = domFixture('<main>Image library</main>', 'https://hamsterimg.net/tester');
+  try {
+    const actions = [];
+    f.win.GM_getValue = () => actions.push('read');
+    f.win.GM_addStyle = () => actions.push('style');
+    f.win.eval(bundle);
+    assert.deepEqual(actions, []);
+    assert.equal(f.doc.querySelector('.epc-hamster-picker'), null);
+  } finally { f.close(); }
 });
 test('the built script leaves logged-out screens and pages without browsing features untouched', async t => {
   const landing = '<main><h1>Welcome</h1><a href="/">Home</a> <a href="/login.php">Login</a></main>';

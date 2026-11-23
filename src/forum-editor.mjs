@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { Schema } from 'prosemirror-model';
+import { Fragment, Schema, Slice } from 'prosemirror-model';
 import { EditorState, Selection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { baseKeymap, exitCode } from 'prosemirror-commands';
@@ -226,6 +226,7 @@ export function createForumEditor(root, doc, onChange, options) {
   });
 
   let disabled = false;
+  let imageBookmark = null;
   let toolbar;
   const view = new EditorView(surface, {
     state: EditorState.create({ doc, selection: Selection.atEnd(doc),
@@ -233,15 +234,31 @@ export function createForumEditor(root, doc, onChange, options) {
     editable: () => !disabled,
     attributes: { role: 'textbox', 'aria-label': 'Reply text', 'aria-multiline': 'true', spellcheck: 'true' },
     dispatchTransaction(transaction) {
-      view.updateState(view.state.apply(transaction));
+      const result = view.state.applyTransaction(transaction);
+      for (const applied of result.transactions) if (imageBookmark) imageBookmark = imageBookmark.map(applied.mapping);
+      view.updateState(result.state);
       toolbar?.sync();
-      if (transaction.docChanged) onChange(writeForumBBCode(view.state.doc.toJSON()));
+      if (result.transactions.some(applied => applied.docChanged)) onChange(writeForumBBCode(view.state.doc.toJSON()));
     }
   });
   toolbar = mountForumToolbar(root, view, commands, options);
   root.append(surface);
   return {
     focus: () => view.focus(),
+    captureImages() { imageBookmark = view.state.selection.getBookmark(); },
+    insertImages(urls) {
+      const { state } = view;
+      const selection = imageBookmark?.resolve(state.doc) || state.selection;
+      imageBookmark = null;
+      const content = [];
+      for (const href of urls) {
+        if (content.length) content.push(nodes.hard_break.create());
+        const resize = urls.length === 1 && selection.node?.type === nodes.image ? selection.node.attrs.resize : '';
+        content.push(nodes.image.create({ href, resize }));
+      }
+      const slice = new Slice(Fragment.fromArray(content), 0, 0);
+      view.dispatch(state.tr.setSelection(selection).replaceSelection(slice).scrollIntoView());
+    },
     setDisabled(value) {
       disabled = value;
       view.setProps({ editable: () => !disabled });

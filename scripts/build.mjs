@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { COMPANION_HOSTS, COMPANION_MATCH_PATHS } from '../src/core.mjs';
 import { IMAGE_CACHE_HOSTS } from '../src/image-cache.mjs';
+import { HAMSTER_FIXTURE_PATH, HAMSTER_ORIGIN, HAMSTER_PICKER_HASH, HAMSTER_PICKER_SESSION } from '../src/hamster-media.mjs';
 
 const root = new URL('../', import.meta.url);
 const read = path => readFile(new URL(path, root), 'utf8');
@@ -254,9 +255,11 @@ const header = [
   '// @author       Companion contributors; filtering engine by ceodoe',
   '// @license      GPL-3.0-or-later',
   ...COMPANION_HOSTS.flatMap(host => COMPANION_MATCH_PATHS.map(path => '// @match        https://' + host + path)),
+  '// @match        ' + HAMSTER_ORIGIN + '/*',
   '// @run-at       document-start',
   '// @noframes',
-  ...['GM_getValue','GM_setValue','GM_listValues','GM_deleteValue','GM_addStyle','GM_registerMenuCommand','GM_xmlhttpRequest','GM_setClipboard'].map(grant => '// @grant        ' + grant),
+  ...['GM_getValue','GM_setValue','GM_listValues','GM_deleteValue','GM_addValueChangeListener','GM_removeValueChangeListener',
+    'GM_addStyle','GM_registerMenuCommand','GM_xmlhttpRequest','GM_setClipboard'].map(grant => '// @grant        ' + grant),
   ...IMAGE_CACHE_HOSTS.map(host => '// @connect      ' + host),
   '// ==/UserScript=='
 ].join('\n');
@@ -264,6 +267,10 @@ const bootstrap = (await read('src/bootstrap.inc.js'))
   .replace('/*NSE_SCHEMA*/', JSON.stringify(schema))
   .replace('/*COMPANION_CSS*/', JSON.stringify(css))
   .replace('/*FORUM_CSS*/', JSON.stringify(forumCSS))
+  .replace('/*HAMSTER_ORIGIN*/', JSON.stringify(HAMSTER_ORIGIN))
+  .replace('/*HAMSTER_FIXTURE_PATH*/', JSON.stringify(HAMSTER_FIXTURE_PATH))
+  .replace('/*HAMSTER_PICKER_HASH*/', JSON.stringify(HAMSTER_PICKER_HASH))
+  .replace('/*HAMSTER_PICKER_SESSION*/', JSON.stringify(HAMSTER_PICKER_SESSION))
   .replace('/*NSE_BODY*/', nse);
 await mkdir(new URL('dist/', root), { recursive: true });
 const artifact = header + '\n\n(function () {\n"use strict";\n' + core + '\n' + imageCache + '\n' + preferences + '\n' + backfill + '\n' + collageQuickAdd + '\n' + detailLayout + '\n' + onboarding + '\n' + searchEditor + '\n' + resultTools + '\n' + gridView + '\n' + scheduling + '\n' + tooltips + '\n' + workspace + '\n' + tagHighlightManager + '\n' + conditionalRules + '\n' + conditionalRuleEditor + '\n' + resultFilters + '\n' + luminanceImport + '\n' + templateWords + '\n' + templateSync + '\n' + app + '\n' + settings + '\n' + forumBundle + '\n' + bootstrap + '\n})();\n';

@@ -1,21 +1,42 @@
 const epPage = new URL(location.href);
-if (!isCompanionPage(epPage)) return;
 const epHost = epPage.protocol === 'https:' && COMPANION_HOSTS.includes(epPage.hostname);
 const epFixture = ['127.0.0.1', 'localhost'].includes(epPage.hostname) &&
-  document.querySelector('meta[name="ep-companion-fixture"][content="local-test-only"]');
-if (!epHost && !epFixture) return;
+  Boolean(document.querySelector('meta[name="ep-companion-fixture"][content="local-test-only"]'));
+const epHamster = epPage.origin === /*HAMSTER_ORIGIN*/ ||
+  (epFixture && epPage.pathname.startsWith(/*HAMSTER_FIXTURE_PATH*/));
+if (epHamster) {
+  let pending = new URLSearchParams(epPage.hash.slice(1)).has(/*HAMSTER_PICKER_HASH*/);
+  if (!pending) {
+    try { pending = Boolean(sessionStorage.getItem(/*HAMSTER_PICKER_SESSION*/)); } catch {}
+  }
+  if (!pending) return;
+} else if ((!epHost && !epFixture) || !isCompanionPage(epPage)) return;
+
 const epStyle = /*COMPANION_CSS*/;
+const epForumStyle = /*FORUM_CSS*/;
 const epStorage = {
   get: (key, fallback) => GM_getValue(key, fallback),
   set: (key, value) => GM_setValue(key, value),
   list: () => GM_listValues(),
-  delete: key => GM_deleteValue(key)
+  delete: key => GM_deleteValue(key),
+  watch: (key, fn) => {
+    if (typeof GM_addValueChangeListener !== 'function' || typeof GM_removeValueChangeListener !== 'function') return null;
+    const id = GM_addValueChangeListener(key, fn);
+    return () => GM_removeValueChangeListener(id);
+  }
 };
+const epRequest = typeof GM_xmlhttpRequest === 'function' ? details => GM_xmlhttpRequest(details) : null;
 
 const epForum = companionForumPage(epPage);
-if (epForum) {
-  const startForum = () => epLoadForum().mountCompanionForum(window, epStorage, epPage, epForum,
-    css => GM_addStyle(css), epStyle + /*FORUM_CSS*/);
+if (epForum || epHamster) {
+  const startForum = () => {
+    const bundle = epLoadForum();
+    const addStyle = css => GM_addStyle(css);
+    const service = bundle.hamsterServiceBase(epPage, epFixture);
+    if (epHamster) bundle.mountHamsterPicker(window, epStorage, service, addStyle, epStyle + epForumStyle);
+    else bundle.mountCompanionForum(window, epStorage, epPage, epForum, addStyle, epStyle + epForumStyle,
+      { service, request: epRequest });
+  };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startForum, { once: true });
   else startForum();
   return;
@@ -61,7 +82,7 @@ function epStart() {
   }
   const epApp = createApp(window, epStorage, {
     waitForFilters: true, startNSE: epRunNSE,
-    requestImage: typeof GM_xmlhttpRequest === 'function' ? details => GM_xmlhttpRequest(details) : null,
+    requestImage: epRequest,
     empTemplate: epHost ? {
       nseSchema: epSchema,
       prompt: window.prompt?.bind(window),

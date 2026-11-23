@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { createForumEditor, readForumVisualSource } from './forum-editor.mjs';
 import { formatForumQuote, forumLiteralText, forumMarkValue, forumQuoteSource, safeForumMediaURL } from './forum-bbcode.mjs';
+import { ForumMedia } from './forum-media.mjs';
+import { forumButton, forumElement } from './forum-ui.mjs';
 
 const forumVisualPreference = 'ep.forum.visual';
 const forumPostID = /^[1-9]\d{0,14}$/;
@@ -45,19 +47,6 @@ function forumPreviewMarkup(doc, page, markup) {
     }
   }
   return template.innerHTML;
-}
-
-export function forumElement(doc, tag, className = '', text = '') {
-  const element = doc.createElement(tag);
-  if (className) element.className = className;
-  if (text) element.textContent = text;
-  return element;
-}
-
-function forumButton(doc, text, className = '') {
-  const button = forumElement(doc, 'button', className, text);
-  button.type = 'button';
-  return button;
 }
 
 export function forumReplyForm(content, page, thread) {
@@ -139,13 +128,15 @@ class ForumDraftStore {
 }
 
 export class ForumComposer {
-  constructor(win, storage, page, thread, account, controls) {
+  constructor(win, storage, page, thread, account, controls, mediaOptions) {
     Object.assign(this, controls);
     this.win = win;
     this.doc = win.document;
     this.storage = storage;
     this.page = page;
     this.thread = thread;
+    this.account = account;
+    this.mediaOptions = mediaOptions;
     this.drafts = new ForumDraftStore(win, storage, 'ep.forum.draft.' + page.origin + '.' + account + '.' + thread);
     this.abort = new win.AbortController();
     this.moves = [];
@@ -210,6 +201,18 @@ export class ForumComposer {
     this.preview.title = 'Empornium reply preview';
     this.preview.setAttribute('sandbox', '');
     this.sourceArea.after(this.visualArea, this.preview);
+    this.media = new ForumMedia({
+      win: this.win, storage: this.storage, page: this.page, account: this.account, thread: this.thread,
+      ...this.mediaOptions, insert: urls => this.insertImages(urls), busyChanged: () => this.refreshSubmit(),
+      close: () => this.focusEditor()
+    });
+    this.switcher.after(this.media.root);
+    this.sourceImages = forumButton(doc, 'Add images', 'epc-forum-source-images');
+    this.sourceImages.setAttribute('aria-controls', 'epc-forum-media');
+    this.sourceImages.setAttribute('aria-expanded', 'false');
+    this.on(this.sourceImages, 'click', () => this.openImages(null, this.sourceImages));
+    this.switcher.append(this.sourceImages);
+    this.listenForImages();
 
     const tools = this.sourceArea.querySelector(':scope > .bb_holder, :scope > .bbcode_assistant, :scope > table');
     if (tools) {
@@ -315,6 +318,55 @@ export class ForumComposer {
     else this.modes.get('preview').focus();
   }
 
+  listenForImages() {
+    const accept = event => {
+      if (!event.isTrusted || this.sending || !event.target.closest?.('.ProseMirror,#quickpost,.epc-forum-media')) return;
+      const files = (event.clipboardData || event.dataTransfer)?.files;
+      if (!files?.length) return;
+      if (!this.media.uploading) this.captureImages();
+      if (this.media.addFiles(files)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    for (const event of ['paste', 'drop']) this.form.addEventListener(event, accept, { capture: true, signal: this.abort.signal });
+    this.on(this.form, 'dragover', event => {
+      if (event.isTrusted && event.dataTransfer?.types.includes('Files') &&
+        event.target.closest?.('.ProseMirror,#quickpost,.epc-forum-media')) {
+        event.preventDefault();
+      }
+    });
+  }
+
+  captureImages() {
+    if (this.mode === 'visual') this.editor.captureImages();
+    else this.imageSource = { body: this.source.value, start: this.source.selectionStart, end: this.source.selectionEnd };
+  }
+
+  openImages(href, trigger) {
+    if (this.sending) return;
+    this.captureImages();
+    this.media.show(href ? 'url' : 'upload', href || '', trigger);
+  }
+
+  insertImages(urls) {
+    if (this.sending || !urls.length) return false;
+    this.open(false);
+    if (this.mode === 'preview') this.setMode(this.writeMode, { focus: false });
+    if (this.mode === 'visual') this.editor.insertImages(urls);
+    else {
+      const range = this.imageSource?.body === this.source.value ? this.imageSource : null;
+      const start = range?.start ?? this.source.selectionStart;
+      const end = range?.end ?? this.source.selectionEnd;
+      this.source.setRangeText(urls.map(href => '[img]' + href + '[/img]').join('\n'), start, end, 'end');
+      this.imageSource = null;
+      this.changed();
+    }
+    this.save();
+    this.focusEditor();
+    return true;
+  }
+
   setMode(mode, { remember = false, focus = true } = {}) {
     if (this.sending) return;
     this.previewRequest?.abort();
@@ -330,18 +382,20 @@ export class ForumComposer {
         this.editor = createForumEditor(this.visualArea, parsed, source => {
           this.visualSource = this.source.value = source;
           this.changed();
-        }, { page: this.page, fonts: fonts.length ? fonts : undefined });
+        }, { page: this.page, fonts: fonts.length ? fonts : undefined, openImages: (href, trigger) => this.openImages(href, trigger) });
       } else {
         unavailable = true;
         mode = 'bbcode';
       }
     }
     this.mode = mode;
+    this.sourceImages.hidden = mode !== 'bbcode';
     this.sourceArea.hidden = mode !== 'bbcode';
     this.visualArea.hidden = mode !== 'visual';
     this.preview.hidden = true;
     for (const [name, button] of this.modes) button.setAttribute('aria-pressed', String(name === mode));
     if (mode === 'preview') {
+      this.media.hide(false);
       this.showPreview();
       return;
     }
@@ -387,7 +441,8 @@ export class ForumComposer {
   }
 
   refreshSubmit() {
-    this.submit.disabled = this.initialDisabled || Boolean(this.sending) || this.pendingQuotes > 0 || !this.source.value.trim();
+    this.submit.disabled = this.initialDisabled || Boolean(this.sending) || Boolean(this.media?.uploading) ||
+      this.pendingQuotes > 0 || !this.source.value.trim();
   }
 
   async showPreview() {
@@ -487,6 +542,7 @@ export class ForumComposer {
         return;
       }
       this.drafts.posted(draft);
+      this.media.endRequest();
       this.draft = null;
       this.source.value = this.savedBody = '';
       this.editor?.destroy();
@@ -516,6 +572,7 @@ export class ForumComposer {
     this.save();
     this.abort.abort();
     this.previewRequest?.abort();
+    this.media.destroy();
     this.editor?.destroy();
     this.sourceArea.hidden = this.initialSourceHidden;
     this.sourceArea.classList.remove('epc-forum-source');

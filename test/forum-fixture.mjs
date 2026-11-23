@@ -81,13 +81,18 @@ function forumListHTML(kind) {
     '[<a href="/forum/unread">Unread Posts</a>]</div>' + main;
 }
 
+export const forumFixtureScripts = '<script>' +
+  'window.GM_getValue=(key,fallback)=>JSON.parse(localStorage.getItem(key)??"null")??fallback;' +
+  'window.GM_setValue=(key,value)=>localStorage.setItem(key,JSON.stringify(value));' +
+  'window.GM_listValues=()=>Object.keys(localStorage);window.GM_deleteValue=key=>localStorage.removeItem(key);' +
+  'window.GM_addStyle=css=>{const style=document.createElement("style");style.textContent=css;document.head.append(style)};' +
+  'window.GM_addValueChangeListener=(key,fn)=>{const listener=e=>{if(e.key===key)fn(key,e.oldValue,e.newValue,true)};' +
+  'window.addEventListener("storage",listener);return listener};' +
+  'window.GM_removeValueChangeListener=fn=>window.removeEventListener("storage",fn);' +
+  '</script><script src="/EmporniumCompanion.js"></script>';
+
 export function forumFixtureHTML(url, { bundle = false, posted = '', account = 7 } = {}) {
-  const scripts = bundle ? '<script>' +
-    'window.GM_getValue=(key,fallback)=>JSON.parse(localStorage.getItem(key)??"null")??fallback;' +
-    'window.GM_setValue=(key,value)=>localStorage.setItem(key,JSON.stringify(value));' +
-    'window.GM_listValues=()=>Object.keys(localStorage);window.GM_deleteValue=key=>localStorage.removeItem(key);' +
-    'window.GM_addStyle=css=>{const style=document.createElement("style");style.textContent=css;document.head.append(style)};' +
-    '</script><script src="/EmporniumCompanion.js"></script>' : '';
+  const scripts = bundle ? forumFixtureScripts : '';
   const kind = url.pathname.includes('unread') ? 'unread' : url.pathname === '/forum/search' ? 'search' :
     url.pathname.includes('userhistory') ? 'subscriptions' : /^\/forum\/\d+/.test(url.pathname) ? 'board' : 'boards';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +

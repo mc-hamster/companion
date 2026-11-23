@@ -160,12 +160,15 @@
 // @match        https://www.emparadise.rs/forum/*
 // @match        https://www.emparadise.rs/userhistory.php?action=subscriptions*
 // @match        https://www.emparadise.rs/userhistory.php?*&action=subscriptions*
+// @match        https://hamsterimg.net/*
 // @run-at       document-start
 // @noframes
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_listValues
 // @grant        GM_deleteValue
+// @grant        GM_addValueChangeListener
+// @grant        GM_removeValueChangeListener
 // @grant        GM_addStyle
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest

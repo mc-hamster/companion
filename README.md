@@ -61,11 +61,13 @@ On a torrent detail page, turn on **Reformat details** in the Companion toolbar 
 
 ## Forum
 
-On a forum page, select **Enable Companion Forum** for a responsive reader with **Continue** and **Latest** links, unread markers, collapsible quotes, and quick access to search and subscriptions. Select **Classic view** to switch back. On wide screens, expand the topics panel beside a thread to browse other topics in its board.
+On a forum page, select **Enable Companion Forum** for a responsive reader with **Continue** and **Latest** links, unread markers, collapsible quotes, and quick access to search and subscriptions. Open **Topics** in the thread header to browse that board. **Post link** opens the permanent link to an individual post. Select **Classic view** to switch back.
 
 Select **Reply** to open the composer. Use **Quote** on a post or select an excerpt and choose **Quote selection**. Drafts save in this browser per site, account, and thread. When two tabs have different drafts for the same thread, each tab restores its own draft after a reload.
 
 **Visual** supports fonts, sizes, colors, alignment, links, images, video links, tables, anchors, spoilers, site smilies, and post labels. Use **BBCode** for the full native toolbar and exact source editing. **Preview** uses Empornium's renderer so you can check your formatting before posting.
+
+In **Image → Upload**, select **Connect Hamsterimg** once. Sign in on the Hamsterimg tab and choose **Use displayed key**, or paste the key you saved earlier. The key is stored locally for your forum account and excluded from backups. Back in the reply, choose files or drop or paste images into the editor to upload and insert them. **Recent uploads** shows images uploaded through Companion, **My images** opens the signed-in Hamsterimg library, and **From URL** accepts an existing image link. In BBCode mode, these choices are under **Add images**.
 
 ## Updates and backups
 

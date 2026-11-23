@@ -153,7 +153,7 @@ async function loadForumSmilies(page, from, signal, win) {
   return { items, next: from + records.length, max: Number(xml.querySelector('maxsmilies')?.textContent) || 0 };
 }
 
-export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, page = root.ownerDocument.baseURI } = {}) {
+export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, page = root.ownerDocument.baseURI, openImages } = {}) {
   const doc = root.ownerDocument;
   const win = doc.defaultView;
   const controller = new win.AbortController();
@@ -344,14 +344,13 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
       changeForumMark(view, 'link', { href }, text || (!current && view.state.selection.empty && href), true);
     }, { label: 'Apply link', remove: current && (() => changeForumMark(view, 'link', null, '', true)) });
   });
-  panelButton(insertTools, 'image', 'Image', 'Insert image', trigger => {
+  const images = button(insertTools, 'image', 'Image', 'Insert image', () => {
     const current = view.state.selection.node;
-    configure(trigger, [{ label: 'Image URL', value: current?.type === nodes.image ? current.attrs.href : '', placeholder: 'https://…', inputMode: 'url' }], ([url]) => {
-      const href = safeForumMediaURL(url);
-      if (!href) return 'Enter an http or https image address.';
-      view.dispatch(view.state.tr.replaceSelectionWith(nodes.image.create({ href })));
-    }, { label: 'Insert image' });
+    closePanel(false);
+    openImages?.(current?.type === nodes.image ? current.attrs.href : null, images);
   });
+  images.setAttribute('aria-controls', 'epc-forum-media');
+  images.setAttribute('aria-expanded', 'false');
   panelButton(insertTools, 'video', 'Video', 'Insert video', trigger => {
     const current = view.state.selection.node;
     configure(trigger, [{ label: 'Video URL', value: current?.type === nodes.video ? current.attrs.href : '', placeholder: 'https://…', inputMode: 'url' }], ([href]) => {

@@ -78,6 +78,71 @@ test('the board exposes distinct native jumps, scoped search, and full titles wh
   } finally { f.close(); }
 });
 
+test('topics load from a compact menu on demand and post links retain their native destinations', async () => {
+  const requests = [];
+  const f = await start('/forum/thread/42', {
+    storage: memoryStorage({ 'ep.forum.reader': true }),
+    fetch: async url => {
+      requests.push(url);
+      return { ok: true, text: async () => forumFixtureHTML(new URL(url)) };
+    }
+  });
+  try {
+    const post = f.doc.getElementById('post12');
+    const link = post.querySelector('a.post_id');
+    assert.equal(link.textContent, 'Post link');
+    assert.equal(link.href, site + '/forum/thread/42?postid=12#post12');
+    const topics = f.doc.querySelector('.epc-forum-nav .epc-forum-topics');
+    assert.equal(topics.open, false);
+    assert.deepEqual(requests, []);
+    topics.open = true;
+    await until(() => topics.querySelector('.epc-forum-topics-list a'));
+    assert.deepEqual(requests, [site + '/forum/23']);
+    f.doc.querySelector('.epc-forum-toggle').click();
+    assert.equal(link.textContent, '#12');
+    assert.equal(f.doc.querySelector('.epc-forum-topics'), null);
+  } finally { f.close(); }
+});
+
+test('the image panel keeps URL insertion available in BBCode mode', async () => {
+  const f = await start('/forum/thread/42', { storage: memoryStorage({ 'ep.forum.reader': true }) });
+  try {
+    f.doc.querySelector('.epc-forum-launch').click();
+    f.doc.querySelector('.epc-forum-source-images').click();
+    const panel = f.doc.querySelector('.epc-forum-media');
+    assert.equal(panel.hidden, false);
+    assert.match(panel.textContent, /Connect Hamsterimg/);
+    assert.match(panel.textContent, /Recent uploads/);
+    assert.match(panel.textContent, /My images/);
+    [...panel.querySelectorAll('button')].find(button => button.textContent === 'From URL').click();
+    panel.querySelector('input[aria-label="Image URL"]').value = 'https://example.test/image.png';
+    [...panel.querySelectorAll('button')].find(button => button.textContent === 'Insert image').click();
+    assert.equal(f.doc.getElementById('quickpost').value, '[img]https://example.test/image.png[/img]');
+    assert.equal(panel.hidden, true);
+  } finally { f.close(); }
+});
+
+test('script-generated file changes and paste events cannot start an upload', async () => {
+  const f = await start('/forum/thread/42', { storage: memoryStorage({
+    'ep.forum.reader': true,
+    ['ep.forum.hamster.key.' + site + '.7']: 'chv_fixture_demo_key_only_0123456789'
+  }) });
+  try {
+    f.doc.querySelector('.epc-forum-launch').click();
+    const image = new f.win.File(['test'], 'test.png', { type: 'image/png' });
+    const paste = new f.win.Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, 'clipboardData', { value: { files: [image] } });
+    f.doc.getElementById('quickpost').dispatchEvent(paste);
+    assert.equal(f.doc.querySelector('.epc-forum-media').hidden, true);
+    f.doc.querySelector('.epc-forum-source-images').click();
+    const picker = f.doc.querySelector('.epc-forum-media input[type="file"]');
+    Object.defineProperty(picker, 'files', { value: [image] });
+    picker.dispatchEvent(new f.win.Event('change', { bubbles: true }));
+    assert.equal(f.doc.querySelector('.epc-forum-upload-queue'), null);
+    assert.equal(f.doc.getElementById('quickpost').value, '');
+  } finally { f.close(); }
+});
+
 test('Visual round-trips nested attribution, lists, code, spoilers, links, and spacing', () => {
   const source = '[quote=Jordan,f42,13]Start\n[quote=Riley,f42,12][b][i]Nested[/i][/b][/quote]\nEnd[/quote]\n' +
     '\n[*]First\n[*][url=https://example.test/report]Second[/url]\n[spoiler=Details]A detail[/spoiler]\n' +

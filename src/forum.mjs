@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { emporniumAccountID } from './core.mjs';
-import { ForumComposer, forumElement, forumReplyForm } from './forum-composer.mjs';
+import { ForumComposer, forumReplyForm } from './forum-composer.mjs';
+import { forumElement } from './forum-ui.mjs';
+export { mountHamsterPicker } from './hamster-picker.mjs';
+export { hamsterServiceBase } from './hamster-media.mjs';
 
 const forumReaderPreference = 'ep.forum.reader';
 const forumTopicPath = /^\/forum\/thread\/([1-9]\d{0,14})\/?$/;
@@ -20,8 +23,8 @@ function forumThreadTitle(link) {
 }
 
 class ForumReader {
-  constructor(win, storage, page, route, content, heading, account) {
-    Object.assign(this, { win, doc: win.document, storage, page, route, content, heading, account });
+  constructor(win, storage, page, route, content, heading, account, media) {
+    Object.assign(this, { win, doc: win.document, storage, page, route, content, heading, account, media });
     this.header = forumElement(this.doc, 'header', 'epc-root epc-forum-header');
     this.toggle = forumElement(this.doc, 'button', 'epc-forum-toggle');
     this.toggle.type = 'button';
@@ -204,7 +207,7 @@ class ForumReader {
     const { doc, page, route, content } = this;
     this.mark(content, 'epc-forum-thread');
     const controls = forumReplyForm(content, page, route.thread);
-    if (controls) this.composer = new ForumComposer(this.win, this.storage, page, route.thread, this.account, controls);
+    if (controls) this.composer = new ForumComposer(this.win, this.storage, page, route.thread, this.account, controls, this.media);
     this.posts = new Map();
     const pinned = new Map();
     let unread = false;
@@ -216,6 +219,19 @@ class ForumReader {
       this.mark(post, 'epc-forum-post');
       this.mark(head, 'epc-forum-post-head');
       this.mark(body, 'epc-forum-post-body');
+      const permalink = head.querySelector('a.post_id[href]');
+      if (permalink) {
+        const label = permalink.textContent;
+        const title = permalink.getAttribute('title');
+        permalink.textContent = 'Post link';
+        permalink.title = 'Permanent link to post #' + id;
+        this.changes.push(() => {
+          permalink.textContent = label;
+          if (title === null) permalink.removeAttribute('title');
+          else permalink.title = title;
+        });
+        this.move(permalink, head, head.querySelector('[id="bar' + id + '"]'), 'epc-forum-post-link');
+      }
       const profile = head.querySelector('.user_dropdown a[href*="user.php"],a.username[href],a[href^="/user.php?id="]');
       const user = profile?.textContent.trim();
       const avatar = post.querySelector('td.avatar > img.avatar');
@@ -345,17 +361,26 @@ class ForumReader {
 
   mountBoardTopics() {
     const { board, header, doc, page } = this;
-    const aside = forumElement(doc, 'aside', 'epc-forum-rail');
-    const topics = forumElement(doc, 'details', 'epc-forum-rail-panel');
-    topics.append(forumElement(doc, 'summary', '', 'Topics in ' + board.name));
-    const list = forumElement(doc, 'nav', 'epc-forum-rail-topics');
+    const topics = forumElement(doc, 'details', 'epc-forum-topics');
+    const summary = forumElement(doc, 'summary', '', 'Topics');
+    summary.setAttribute('aria-label', 'Topics in ' + board.name);
+    const panel = forumElement(doc, 'div', 'epc-forum-topics-panel');
+    const list = forumElement(doc, 'nav', 'epc-forum-topics-list');
     list.setAttribute('aria-label', 'Topics in ' + board.name);
-    const browse = forumElement(doc, 'a', 'epc-forum-rail-browse', 'Open board');
+    const browse = forumElement(doc, 'a', 'epc-forum-topics-browse', 'Open board');
     browse.href = board.url.href;
-    topics.append(list, browse);
-    aside.append(topics);
-    header.before(aside);
-    this.changes.push(() => aside.remove());
+    panel.append(list, browse);
+    topics.append(summary, panel);
+    header.querySelector('.epc-forum-nav').append(topics);
+    this.changes.push(() => topics.remove());
+    this.on(doc, 'pointerdown', event => {
+      if (topics.open && !topics.contains(event.target)) topics.open = false;
+    });
+    this.on(topics, 'keydown', event => {
+      if (event.key !== 'Escape' || !topics.open) return;
+      topics.open = false;
+      summary.focus();
+    });
     let loading = false;
     let loaded = false;
     const signal = this.abort.signal;
@@ -395,12 +420,12 @@ class ForumReader {
   }
 }
 
-export function mountCompanionForum(win, storage, page, route, addStyle, css) {
+export function mountCompanionForum(win, storage, page, route, addStyle, css, media) {
   const doc = win.document;
   const content = doc.getElementById('content');
   const heading = content?.querySelector('h2');
   const account = emporniumAccountID(doc, page);
   if (!heading || !account || doc.querySelector('.epc-forum-header,body#login,#loginform,form[action="/login.php"]')) return;
   addStyle(css);
-  return new ForumReader(win, storage, page, route, content, heading, account);
+  return new ForumReader(win, storage, page, route, content, heading, account, media);
 }
