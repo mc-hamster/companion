@@ -11,10 +11,15 @@ const bundle = await readFile(new URL('../dist/EmporniumCompanion.user.js', impo
 const site = 'https://www.empornium.sx';
 const draftKey = 'ep.forum.draft.' + site + '.7.42';
 
-async function start(path, { storage = memoryStorage(), account = 7, fetch } = {}) {
+function storedDraft(fixture) {
+  return fixture.storage.get(fixture.win.sessionStorage.getItem(draftKey), null);
+}
+
+async function start(path, { storage = memoryStorage(), account = 7, fetch, session = {} } = {}) {
   const url = new URL(path, site);
   const fixture = domFixture(forumFixtureHTML(url, { account }), url.href);
   const { win, doc } = fixture;
+  for (const [key, value] of Object.entries(session)) win.sessionStorage.setItem(key, value);
   Object.assign(win, {
     GM_getValue: storage.get, GM_setValue: storage.set, GM_listValues: storage.list, GM_deleteValue: storage.delete,
     GM_addStyle: css => doc.head.append(Object.assign(doc.createElement('style'), { textContent: css })),
@@ -127,7 +132,7 @@ test('reader and composer preserve post ids, source, native form fields, and a r
     assert.equal(calls[1].options.body.get('subscribe'), '1');
     assert.equal(calls[1].options.body.get('merge'), '1');
     assert.equal(calls[1].options.body.get('body'), advanced);
-    assert.equal(f.storage.get(draftKey).body, advanced);
+    assert.equal(storedDraft(f).body, advanced);
     doc.querySelector('.epc-forum-toggle').click();
     assert.equal(doc.getElementById('quickpostform'), origin);
     assert.equal(origin.closest('.epc-forum-dock'), null);
@@ -153,7 +158,7 @@ test('selected quotes are attributed locally and a reload restores only the curr
     const source = formatForumQuote('Riley', '42', '12', 'Uploads over 50') + '\n';
     await until(() => f.doc.getElementById('quickpost').value === source);
     f.doc.querySelector('.epc-forum-minimize').click();
-    assert.equal(storage.get(draftKey).body, source);
+    assert.equal(storedDraft(f).body, source);
     assert.equal(f.doc.querySelector('.epc-forum-launch').textContent, 'Resume draft');
   } finally { f.close(); }
   const restores = await start('/forum/thread/42?page=2', { storage });
@@ -166,4 +171,52 @@ test('selected quotes are attributed locally and a reload restores only the curr
     assert.equal(anotherThread.doc.getElementById('quickpost').value, '');
     assert.equal(locked.doc.querySelector('.epc-forum-dock'), null);
   } finally { restores.close(); other.close(); anotherThread.close(); locked.close(); }
+});
+
+test('two tabs can each save and reload a different draft for the same thread', async () => {
+  const storage = memoryStorage({ 'ep.forum.reader': true });
+  const first = await start('/forum/thread/42', { storage });
+  const second = await start('/forum/thread/42?page=2', { storage });
+  let firstSession, secondSession;
+  try {
+    first.doc.querySelector('.epc-forum-launch').click();
+    second.doc.querySelector('.epc-forum-launch').click();
+    changeBody(first, 'Reply to the first post');
+    changeBody(second, 'Separate reply to a later post');
+    first.doc.querySelector('.epc-forum-minimize').click();
+    second.doc.querySelector('.epc-forum-minimize').click();
+    firstSession = { ...first.win.sessionStorage };
+    secondSession = { ...second.win.sessionStorage };
+  } finally { first.close(); second.close(); }
+
+  const restoredFirst = await start('/forum/thread/42', { storage, session: firstSession });
+  const restoredSecond = await start('/forum/thread/42?page=2', { storage, session: secondSession });
+  try {
+    assert.equal(restoredFirst.doc.getElementById('quickpost').value, 'Reply to the first post');
+    assert.equal(restoredSecond.doc.getElementById('quickpost').value, 'Separate reply to a later post');
+    restoredFirst.doc.querySelector('.epc-forum-launch').click();
+    changeBody(restoredFirst, '');
+    restoredFirst.doc.querySelector('.epc-forum-minimize').click();
+    firstSession = { ...restoredFirst.win.sessionStorage };
+  } finally { restoredFirst.close(); restoredSecond.close(); }
+
+  const cleared = await start('/forum/thread/42', { storage, session: firstSession });
+  const fromNewTab = await start('/forum/thread/42', { storage });
+  try {
+    assert.equal(cleared.doc.getElementById('quickpost').value, '');
+    assert.equal(fromNewTab.doc.getElementById('quickpost').value, 'Separate reply to a later post');
+  } finally { cleared.close(); fromNewTab.close(); }
+});
+
+test('drafts from the first forum alpha are restored and moved to the tab on save', async () => {
+  const storage = memoryStorage({ 'ep.forum.reader': true, [draftKey]: { body: 'Older draft', revision: 'original' } });
+  const f = await start('/forum/thread/42', { storage });
+  try {
+    assert.equal(f.doc.getElementById('quickpost').value, 'Older draft');
+    f.doc.querySelector('.epc-forum-launch').click();
+    changeBody(f, 'Edited draft');
+    f.doc.querySelector('.epc-forum-minimize').click();
+    assert.equal(storage.get(draftKey, null), null);
+    assert.equal(storedDraft(f).body, 'Edited draft');
+  } finally { f.close(); }
 });

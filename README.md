@@ -63,7 +63,7 @@ On a torrent detail page, turn on **Reformat details** in the Companion toolbar 
 
 On a forum page, select **Enable Companion Forum** for a responsive reader with **Continue** and **Latest** links, unread markers, collapsible quotes, and quick access to search and subscriptions. Select **Classic view** to switch back. On wide screens, expand the topics panel beside a thread to browse other topics in its board.
 
-Select **Reply** to open the composer. Use **Quote** on a post or select an excerpt and choose **Quote selection**. Drafts save on this browser per site, account, and thread. **Visual** is an alpha editor for common formatting. Use **BBCode** for advanced tags and **Preview** to check Empornium's rendering before posting.
+Select **Reply** to open the composer. Use **Quote** on a post or select an excerpt and choose **Quote selection**. Drafts save in this browser per site, account, and thread. When two tabs have different drafts for the same thread, each tab restores its own draft after a reload. **Visual** is an alpha editor for common formatting. Use **BBCode** for advanced tags and **Preview** to check Empornium's rendering before posting.
 
 ## Updates and backups
 

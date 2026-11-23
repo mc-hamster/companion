@@ -39,6 +39,71 @@ export function forumReplyForm(content, page, thread) {
     : null;
 }
 
+class ForumDraftStore {
+  constructor(win, storage, key) {
+    Object.assign(this, { win, storage, key });
+    this.revisionPrefix = key + '.revision.';
+    try { this.selected = win.sessionStorage.getItem(key); } catch {}
+  }
+
+  read(key) {
+    const record = this.storage.get(key, null);
+    if (typeof record?.body !== 'string' || typeof record?.revision !== 'string') return null;
+    return { key, body: record.body, revision: record.revision, updatedAt: record.updatedAt ?? 0 };
+  }
+
+  restore() {
+    if (this.selected === '') return null;
+    try {
+      if (this.selected?.startsWith(this.revisionPrefix)) {
+        const selected = this.read(this.selected);
+        if (selected) return selected;
+      }
+      let latest = this.read(this.key);
+      for (const key of this.storage.list()) {
+        if (!key.startsWith(this.revisionPrefix)) continue;
+        const record = this.read(key);
+        if (record && (!latest || record.updatedAt >= latest.updatedAt)) latest = record;
+      }
+      return latest;
+    } catch { return null; }
+  }
+
+  select(key) {
+    this.selected = key;
+    try { this.win.sessionStorage.setItem(this.key, key); } catch {}
+  }
+
+  remove(record) {
+    if (!record) return;
+    try {
+      if (this.read(record.key)?.revision === record.revision) this.storage.delete(record.key);
+    } catch {}
+  }
+
+  save(body, previous) {
+    const owned = previous?.key && (previous.key === this.selected || previous.key === this.key) ? previous : null;
+    if (!body.trim()) {
+      this.select('');
+      this.remove(owned);
+      return null;
+    }
+    // Each write gets its own key. A tab can only delete the exact revision it replaced.
+    const revision = this.win.crypto.randomUUID();
+    const key = this.revisionPrefix + revision;
+    const record = { body, revision, updatedAt: this.win.Date.now() };
+    this.storage.set(key, record);
+    this.select(key);
+    this.remove(owned);
+    return { key, ...record };
+  }
+
+  posted(record) {
+    this.select('');
+    this.remove(record);
+  }
+}
+
 export class ForumComposer {
   constructor(win, storage, page, thread, account, controls) {
     Object.assign(this, controls);
@@ -47,13 +112,13 @@ export class ForumComposer {
     this.storage = storage;
     this.page = page;
     this.thread = thread;
-    this.key = 'ep.forum.draft.' + page.origin + '.' + account + '.' + thread;
+    this.drafts = new ForumDraftStore(win, storage, 'ep.forum.draft.' + page.origin + '.' + account + '.' + thread);
     this.abort = new win.AbortController();
     this.moves = [];
     this.mode = 'bbcode';
     this.writeMode = 'bbcode';
     this.pendingQuotes = 0;
-    this.draft = this.readDraft();
+    this.draft = this.drafts.restore();
     if (this.draft && !this.source.value) this.source.value = this.draft.body;
     this.savedBody = this.draft?.body ?? '';
     this.initialReadonly = this.source.readOnly;
@@ -246,26 +311,12 @@ export class ForumComposer {
     this.timer = this.win.setTimeout(() => this.save(), 250);
   }
 
-  readDraft() {
-    try {
-      const record = this.storage.get(this.key, null);
-      return typeof record?.body === 'string' && typeof record?.revision === 'string' ? record : null;
-    } catch { return null; }
-  }
-
   save() {
     this.win.clearTimeout(this.timer);
     const body = this.source.value;
     if (body === this.savedBody) return;
     try {
-      if (!body.trim()) {
-        if (this.draft && this.readDraft()?.revision === this.draft.revision) this.storage.delete(this.key);
-        this.draft = null;
-      } else {
-        const record = { body, revision: this.win.crypto.randomUUID() };
-        this.storage.set(this.key, record);
-        this.draft = record;
-      }
+      this.draft = this.drafts.save(body, this.draft);
       this.savedBody = body;
       this.updateLauncher();
       if (!this.sending && !this.pendingQuotes && this.mode !== 'preview' && this.status.dataset.error !== 'true') {
@@ -360,7 +411,7 @@ export class ForumComposer {
   async post() {
     if (this.sending || this.submit.disabled || !this.source.value.trim()) return;
     this.save();
-    const draft = this.draft;
+    const draft = this.draft?.body === this.source.value ? this.draft : null;
     const fields = new URLSearchParams(new this.win.FormData(this.form, this.submit));
     this.previewRequest?.abort();
     this.sending = true;
@@ -379,9 +430,7 @@ export class ForumComposer {
         this.setStatus('Empornium didn’t confirm the reply. Check the thread before trying again.', true);
         return;
       }
-      if (draft && this.readDraft()?.revision === draft.revision) {
-        try { this.storage.delete(this.key); } catch {}
-      }
+      this.drafts.posted(draft);
       this.draft = null;
       this.source.value = this.savedBody = '';
       this.editor?.destroy();
