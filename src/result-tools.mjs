@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Independently implemented after reviewing Collapse Duplicates, Coalesce
 // Variations, and the Emp++/Luminance tag highlighters. See THIRD_PARTY.md.
-import { DEFAULTS, LEGACY_TAG_LISTS, tagHighlightPreferences, tagListTokens, validateSettings } from './core.mjs';
+import { DEFAULTS, LEGACY_TAG_LISTS, relativeLuminance, tagHighlightPreferences, tagListTokens, validateSettings } from './core.mjs';
 
 const resultTagSelector = 'div.tags > a';
 const detailTagSelector = 'ul#torrent_tags_list > li > a';
@@ -12,11 +12,7 @@ export function styleHighlight(element, color) {
     element.style.removeProperty('--epc-tag-foreground');
     return;
   }
-  const channels = color.slice(1).match(/../g).map(hex => {
-    const channel = parseInt(hex, 16) / 255;
-    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-  });
-  const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  const luminance = relativeLuminance(color.slice(1).match(/../g).map(hex => parseInt(hex, 16)));
   element.style.setProperty('--epc-tag-background', color);
   element.style.setProperty('--epc-tag-foreground', luminance > 0.179 ? '#000' : '#fff');
 }

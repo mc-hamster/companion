@@ -7,8 +7,7 @@ import { forumButton, forumElement } from './forum-ui.mjs';
 const forumVisualPreference = 'ep.forum.visual';
 const forumPostID = /^[1-9]\d{0,14}$/;
 const forumPreviewStyle = [
-  'html{color-scheme:light dark}',
-  'body{margin:0;padding:14px 16px;font:15px/1.55 system-ui,sans-serif;overflow-wrap:anywhere}',
+  'body{margin:0;padding:14px 16px;background:Canvas;color:CanvasText;font:15px/1.55 system-ui,sans-serif;overflow-wrap:anywhere}',
   'a{color:LinkText}img,video{max-width:100%;height:auto}',
   'blockquote{margin:8px 0;padding:8px 12px;border-inline-start:3px solid GrayText;background:color-mix(in srgb,CanvasText 5%,Canvas)}',
   'pre{max-width:100%;overflow:auto}table{max-width:100%;border-collapse:collapse}td,th{padding:4px 8px;border:1px solid GrayText}',
@@ -461,9 +460,10 @@ export class ForumComposer {
       if (!response.ok) throw new Error('Preview was rejected.');
       const markup = await response.text();
       if (controller.signal.aborted) return;
+      const theme = this.doc.documentElement.dataset.epForumTheme === 'dark' ? 'dark' : 'light';
       this.preview.srcdoc = '<!doctype html><meta charset="utf-8">' +
         '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src https: http: data:; media-src https: http:; base-uri \'none\'; form-action \'none\'">' +
-        '<style>' + forumPreviewStyle + '</style>' + forumPreviewMarkup(this.doc, this.page, markup);
+        '<style>html{color-scheme:' + theme + '}' + forumPreviewStyle + '</style>' + forumPreviewMarkup(this.doc, this.page, markup);
       this.preview.hidden = false;
       this.setStatus('');
     } catch {

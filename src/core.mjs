@@ -31,6 +31,14 @@ export function tagListTokens(value) {
   return typeof value === 'string' ? value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean) : [];
 }
 
+export function relativeLuminance(rgb) {
+  const [red, green, blue] = rgb.map(value => {
+    const channel = value / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
 export function tagHighlightPreferences({ favoriteTags, cautionTags, tagCategories }) {
   return { favoriteTags, cautionTags, tagCategories };
 }

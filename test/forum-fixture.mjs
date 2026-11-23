@@ -67,7 +67,7 @@ function forumListHTML(kind) {
       '<tr><td><span class="forum_icon_container" title="Forum Thread"><i class="forum_hint_unread">●</i></span></td>' +
       '<td><h4><a href="/forum/23" title="Report bugs">Site Bugs</a></h4></td><td><a href="/forum/thread/42">' + articleTitle +
       '</a></td><td class="align_center">120</td><td class="align_center">12,399</td></tr></table>'
-    : '<table class="forum_list"><tr class="colhead"><td></td><td>Thread</td><td>Posts</td><td>Views</td><td>Latest</td></tr>' +
+    : '<table class="forum_list"><tr class="colhead"><td></td><td>Thread</td><td style="width:5%">Posts</td><td style="width:5%">Views</td><td>Latest</td></tr>' +
       '<tr class="sticky"><td><span class="forum_icon_container" title="Pinned Thread"><i class="forum_hint_unread">●</i></span></td>' +
       '<td><span class="last_thread"><strong><a href="/forum/thread/42" title="' + articleTitle + '">Photo uploads stall…</a></strong></span>' +
       '<span title="Jump to last read"><a href="/forum/thread/42?postid=12#post12"><i>↦</i></a></span>' +
@@ -93,6 +93,13 @@ export const forumFixtureScripts = '<script>' +
 
 export function forumFixtureHTML(url, { bundle = false, posted = '', account = 7 } = {}) {
   const scripts = bundle ? forumFixtureScripts : '';
+  const theme = url.searchParams.get('theme');
+  const wide = '#wrapper{width:min(1320px,94vw)}#content{padding:10px 18px}.forum_list{table-layout:fixed}';
+  const pageTheme = theme === 'site-dark'
+    ? wide + 'body{background:#19253d;color:#f4f6fc}#wrapper{background:rgba(22,29,41,.5)}' +
+      '#content{background:rgba(90,120,190,.3)}a{color:#bfd0ee}' +
+      'h2{padding:3px 40px 7px;background:linear-gradient(#ffffff19,#00000026);color:#def}'
+    : theme === 'site-light' ? wide + 'body{background:#f0f3f8;color:#18243a}a{color:#274f9d}' : '';
   const kind = url.pathname.includes('unread') ? 'unread' : url.pathname === '/forum/search' ? 'search' :
     url.pathname.includes('userhistory') ? 'subscriptions' : /^\/forum\/\d+/.test(url.pathname) ? 'board' : 'boards';
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
@@ -104,7 +111,7 @@ export function forumFixtureHTML(url, { bundle = false, posted = '', account = 7
     '.head{font-weight:700;padding:7px 10px}.forum_post,table{width:100%;border-spacing:0}.forum_post{margin:7px 0;background:white}' +
     '.smallhead{background:#e4e9f2}.smallhead td,.postbody,td.avatar{padding:8px}.postbody,td.avatar{vertical-align:top}' +
     '.colhead{background:#e4e9f2}.forum_list td,.forum_index td{padding:6px}.avatar img{width:52px;height:52px}.hidden{display:none}' +
-    '@media(prefers-color-scheme:dark){body{background:#151c28;color:#dce6f8}a{color:#b9cdff}}</style>' + scripts + '</head><body>' +
+    '@media(prefers-color-scheme:dark){body{background:#151c28;color:#dce6f8}a{color:#b9cdff}}' + pageTheme + '</style>' + scripts + '</head><body>' +
     '<div id="wrapper"><header id="header"><nav><strong>Empornium</strong><a href="/forum">Forum</a><a href="/forum/23">Site Bugs</a></nav>' +
     (account ? '<span id="userinfo_username"><a href="/user.php?id=' + account + '">Tester</a></span>' : '') + '</header>' +
     '<main id="content">' + (url.pathname.startsWith('/forum/thread/') ? forumThreadHTML(url, posted) : forumListHTML(kind)) + '</main></div>' +

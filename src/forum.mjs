@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { emporniumAccountID } from './core.mjs';
 import { ForumComposer, forumReplyForm } from './forum-composer.mjs';
-import { forumElement } from './forum-ui.mjs';
+import { forumElement, forumSiteTheme } from './forum-ui.mjs';
 export { mountHamsterPicker } from './hamster-picker.mjs';
 export { hamsterServiceBase } from './hamster-media.mjs';
 
@@ -31,6 +31,10 @@ class ForumReader {
     this.toggle.addEventListener('click', () => this.setEnabled(!this.abort));
     this.header.append(this.toggle);
     this.heading.after(this.header);
+    const updateTheme = () => { this.doc.documentElement.dataset.epForumTheme = forumSiteTheme(win, content); };
+    updateTheme();
+    if (this.doc.readyState !== 'complete') win.addEventListener('load', updateTheme, { once: true });
+    win.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change', updateTheme);
     if (this.preference()) this.setEnabled(true, false);
     else this.setToggle(false);
   }
@@ -77,7 +81,24 @@ class ForumReader {
     this.styleNativeNavigation();
     if (this.route.kind === 'thread') this.mountThread();
     else this.mountLists();
+    const fitWidth = () => this.fitWidth();
+    fitWidth();
+    this.on(this.win, 'resize', fitWidth);
+    if (this.doc.readyState !== 'complete') this.on(this.win, 'load', fitWidth);
+    this.changes.push(() => this.doc.documentElement.classList.remove('epc-forum-fit'));
     if (remember) this.toggle.focus({ preventScroll: true });
+  }
+
+  fitWidth() {
+    const { documentElement, body } = this.doc;
+    documentElement.classList.remove('epc-forum-fit');
+    const width = documentElement.clientWidth || this.win.innerWidth;
+    const overflow = [body, this.doc.getElementById('wrapper'), this.content].some(element => {
+      if (!element) return false;
+      const { left, right } = element.getBoundingClientRect();
+      return right > width + 1 || left < -1;
+    });
+    if (overflow) documentElement.classList.add('epc-forum-fit');
   }
 
   mark(element, name) {
@@ -154,6 +175,13 @@ class ForumReader {
     for (const table of tables) {
       this.mark(table, 'epc-forum-list');
       for (const row of table.rows) {
+        if (row.matches('.colhead,thead > tr')) {
+          this.mark(row, 'epc-forum-list-heading');
+          for (const cell of row.cells) {
+            if (/^(Posts|Views|Replies|Threads)$/i.test(cell.textContent.trim())) this.mark(cell, 'epc-forum-count-heading');
+          }
+          continue;
+        }
         const title = [...row.querySelectorAll('a[href]')].find(link => {
           const url = forumURL(link, page);
           return url && (forumTopicPath.test(url.pathname) || forumBoardPath.test(url.pathname)) &&
@@ -211,6 +239,7 @@ class ForumReader {
     this.posts = new Map();
     const pinned = new Map();
     let unread = false;
+    let openAwards = null;
     for (const post of content.querySelectorAll('table.forum_post[id^="post"]')) {
       const id = forumPostElement.exec(post.id)?.[1];
       const head = post.rows[0]?.cells[0];
@@ -239,17 +268,32 @@ class ForumReader {
       if (avatar) this.move(avatar, head, head.firstChild, 'epc-forum-author-avatar');
       if (awards?.childElementCount) {
         const details = forumElement(doc, 'details', 'epc-forum-awards');
-        details.append(forumElement(doc, 'summary', '', 'Awards'));
-        body.append(details);
+        const summary = forumElement(doc, 'summary', '', 'Awards');
+        const panel = forumElement(doc, 'div', 'epc-forum-awards-panel');
+        details.append(summary, panel);
+        if (avatar) avatar.after(details);
+        else head.prepend(details);
         this.changes.push(() => details.remove());
-        this.move(awards, details);
+        this.move(awards, panel);
+        this.on(details, 'toggle', () => {
+          if (details.open) {
+            if (openAwards && openAwards !== details) openAwards.open = false;
+            openAwards = details;
+          } else if (openAwards === details) openAwards = null;
+        });
+        this.on(details, 'keydown', event => {
+          if (event.key !== 'Escape' || !details.open) return;
+          details.open = false;
+          summary.focus();
+        });
       }
       this.mark(post.querySelector('td.avatar'), 'epc-forum-avatar-cell');
 
       const isPinned = Boolean(head.querySelector('.sticky_post'));
       if (!isPinned && !unread && post.classList.contains('forum_unread')) {
         unread = true;
-        const marker = forumElement(doc, 'div', 'epc-forum-unread-marker', 'Unread from here');
+        const marker = forumElement(doc, 'div', 'epc-forum-unread-marker');
+        marker.append(forumElement(doc, 'span', '', 'Unread from here'));
         post.before(marker);
         this.changes.push(() => marker.remove());
       }
@@ -275,6 +319,9 @@ class ForumReader {
       if (pinned.has(id)) pinned.get(id).open = true;
     };
     openPinned();
+    this.on(doc, 'pointerdown', event => {
+      if (openAwards?.open && !openAwards.contains(event.target)) openAwards.open = false;
+    });
     this.on(this.win, 'hashchange', openPinned);
     if (this.posts.size) this.mountSelectionQuote();
     if (this.board) this.mountBoardTopics();

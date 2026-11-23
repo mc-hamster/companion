@@ -15,7 +15,7 @@ function storedDraft(fixture) {
   return fixture.storage.get(fixture.win.sessionStorage.getItem(draftKey), null);
 }
 
-async function start(path, { storage = memoryStorage(), account = 7, fetch, session = {} } = {}) {
+async function start(path, { storage = memoryStorage(), account = 7, fetch, session = {}, darkSystem = false } = {}) {
   const url = new URL(path, site);
   const fixture = domFixture(forumFixtureHTML(url, { account }), url.href);
   const { win, doc } = fixture;
@@ -24,6 +24,7 @@ async function start(path, { storage = memoryStorage(), account = 7, fetch, sess
     GM_getValue: storage.get, GM_setValue: storage.set, GM_listValues: storage.list, GM_deleteValue: storage.delete,
     GM_addStyle: css => doc.head.append(Object.assign(doc.createElement('style'), { textContent: css })),
     GM_registerMenuCommand() {},
+    matchMedia: () => ({ matches: darkSystem }),
     fetch: fetch || (() => assert.fail('Forum should not fetch before a user action'))
   });
   win.eval(bundle);
@@ -68,6 +69,7 @@ test('the board exposes distinct native jumps, scoped search, and full titles wh
       ['Continue', '#post12'], ['Latest', '#post13']
     ]);
     assert.equal(f.doc.querySelector('.epc-forum-subject').textContent, 'Photo uploads stall on large files');
+    assert.deepEqual([...f.doc.querySelectorAll('.epc-forum-count-heading')].map(cell => cell.textContent), ['Posts', 'Views']);
     const search = [...f.doc.querySelectorAll('.epc-forum-nav a')].find(a => a.textContent === 'Search');
     assert.equal(new URL(search.href).searchParams.get('forums[]'), '23');
     toggle.click();
@@ -75,6 +77,33 @@ test('the board exposes distinct native jumps, scoped search, and full titles wh
     assert.match(f.doc.querySelector('.forum_list strong').textContent, /stall…$/);
     assert.equal(f.doc.querySelector('.epc-workspace'), null);
     assert.deepEqual(f.errors, []);
+  } finally { f.close(); }
+});
+
+test('the forum follows the site palette even when the system setting differs', async () => {
+  const dark = await start('/forum/23?theme=site-dark', { darkSystem: false });
+  const light = await start('/forum/23?theme=site-light', { darkSystem: true });
+  try {
+    assert.equal(dark.doc.documentElement.dataset.epForumTheme, 'dark');
+    assert.equal(light.doc.documentElement.dataset.epForumTheme, 'light');
+    dark.doc.querySelector('.epc-forum-toggle').click();
+    assert.equal(dark.doc.documentElement.dataset.epForumTheme, 'dark');
+  } finally { dark.close(); light.close(); }
+});
+
+test('awards sit directly beside the avatar and return to the native cell in Classic view', async () => {
+  const f = await start('/forum/thread/42', { storage: memoryStorage({ 'ep.forum.reader': true }) });
+  try {
+    const post = f.doc.getElementById('post12');
+    const avatar = post.querySelector('img.epc-forum-author-avatar');
+    const awards = avatar.nextElementSibling;
+    assert.ok(awards.matches('.epc-forum-awards'));
+    assert.equal(awards.querySelector('summary').textContent, 'Awards');
+    assert.equal(awards.querySelector('.badges a').textContent, 'Site contributor');
+    assert.equal(post.querySelector('.postbody .badges'), null);
+    f.doc.querySelector('.epc-forum-toggle').click();
+    assert.equal(avatar.closest('td').className, 'avatar');
+    assert.ok(post.querySelector('td.avatar .badges a'));
   } finally { f.close(); }
 });
 
