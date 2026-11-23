@@ -4,6 +4,22 @@ const epHost = epPage.protocol === 'https:' && COMPANION_HOSTS.includes(epPage.h
 const epFixture = ['127.0.0.1', 'localhost'].includes(epPage.hostname) &&
   document.querySelector('meta[name="ep-companion-fixture"][content="local-test-only"]');
 if (!epHost && !epFixture) return;
+const epStyle = /*COMPANION_CSS*/;
+const epStorage = {
+  get: (key, fallback) => GM_getValue(key, fallback),
+  set: (key, value) => GM_setValue(key, value),
+  list: () => GM_listValues(),
+  delete: key => GM_deleteValue(key)
+};
+
+const epForum = companionForumPage(epPage);
+if (epForum) {
+  const startForum = () => epLoadForum().mountCompanionForum(window, epStorage, epPage, epForum,
+    css => GM_addStyle(css), epStyle + /*FORUM_CSS*/);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startForum, { once: true });
+  else startForum();
+  return;
+}
 
 // The account header arrives before the covers. Start there to keep the early
 // image gate, and check for browsing markup once parsing ends on other layouts.
@@ -31,13 +47,7 @@ function epStart() {
   const epRunningEvent = 'ep-companion:running';
   if (!document.dispatchEvent(new Event(epRunningEvent, { cancelable: true }))) return;
   const epSchema = /*NSE_SCHEMA*/;
-  const epStorage = {
-    get: (key, fallback) => GM_getValue(key, fallback),
-    set: (key, value) => GM_setValue(key, value),
-    list: () => GM_listValues(),
-    delete: key => GM_deleteValue(key)
-  };
-  GM_addStyle(/*COMPANION_CSS*/);
+  GM_addStyle(epStyle);
   const epBridge = {};
   function epRunNSE(app) {
     const run = () => app.batchDOM(() => {

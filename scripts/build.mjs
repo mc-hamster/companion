@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
 import { COMPANION_HOSTS, COMPANION_MATCH_PATHS } from '../src/core.mjs';
 import { IMAGE_CACHE_HOSTS } from '../src/image-cache.mjs';
 
@@ -217,6 +219,27 @@ const gridView = stripExports((await read('src/grid-view.mjs')).replace(/import 
 const scheduling = stripExports(await read('src/scheduling.mjs'));
 const settings = stripExports(await read('src/nse-settings.mjs'));
 const css = await read('src/companion.css');
+const forumCSS = await read('src/forum.css');
+const forumBuild = await build({
+  absWorkingDir: fileURLToPath(root),
+  entryPoints: ['src/forum.mjs'],
+  bundle: true,
+  format: 'iife',
+  globalName: 'epForumBundle',
+  minify: true,
+  metafile: true,
+  write: false
+});
+const editorPackages = new Set();
+for (const path of Object.keys(forumBuild.metafile.inputs)) {
+  const packageRoot = /^(.*\bnode_modules\/[^/]+)\//.exec(path)?.[1];
+  if (packageRoot) editorPackages.add(packageRoot);
+}
+const editorLicenses = await Promise.all([...editorPackages].map(async path =>
+  path.split('/').at(-1) + '\n' + (await read(path + '/LICENSE')).trim()
+));
+const forumBundle = '\n/*\n' + editorLicenses.join('\n\n').replaceAll('*/', '* /') + '\n*/\n' +
+  'function epLoadForum() {\n' + forumBuild.outputFiles[0].text + '\nreturn epForumBundle;\n}\n';
 const header = [
   '// ==UserScript==',
   '// @name         Companion',
@@ -240,9 +263,10 @@ const header = [
 const bootstrap = (await read('src/bootstrap.inc.js'))
   .replace('/*NSE_SCHEMA*/', JSON.stringify(schema))
   .replace('/*COMPANION_CSS*/', JSON.stringify(css))
+  .replace('/*FORUM_CSS*/', JSON.stringify(forumCSS))
   .replace('/*NSE_BODY*/', nse);
 await mkdir(new URL('dist/', root), { recursive: true });
-const artifact = header + '\n\n(function () {\n"use strict";\n' + core + '\n' + imageCache + '\n' + preferences + '\n' + backfill + '\n' + collageQuickAdd + '\n' + detailLayout + '\n' + onboarding + '\n' + searchEditor + '\n' + resultTools + '\n' + gridView + '\n' + scheduling + '\n' + tooltips + '\n' + workspace + '\n' + tagHighlightManager + '\n' + conditionalRules + '\n' + conditionalRuleEditor + '\n' + resultFilters + '\n' + luminanceImport + '\n' + templateWords + '\n' + templateSync + '\n' + app + '\n' + settings + '\n' + bootstrap + '\n})();\n';
+const artifact = header + '\n\n(function () {\n"use strict";\n' + core + '\n' + imageCache + '\n' + preferences + '\n' + backfill + '\n' + collageQuickAdd + '\n' + detailLayout + '\n' + onboarding + '\n' + searchEditor + '\n' + resultTools + '\n' + gridView + '\n' + scheduling + '\n' + tooltips + '\n' + workspace + '\n' + tagHighlightManager + '\n' + conditionalRules + '\n' + conditionalRuleEditor + '\n' + resultFilters + '\n' + luminanceImport + '\n' + templateWords + '\n' + templateSync + '\n' + app + '\n' + settings + '\n' + forumBundle + '\n' + bootstrap + '\n})();\n';
 await writeFile(new URL('dist/EmporniumCompanion.meta.js', root), header + '\n');
 await writeFile(new URL('dist/EmporniumCompanion.user.js', root), artifact);
 await writeFile(new URL('dist/EmporniumCompanion-' + releaseVersion + '.user.js', root), artifact);

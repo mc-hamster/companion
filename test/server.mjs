@@ -12,7 +12,9 @@ import { collageBrowserHTML } from './collage-browser.mjs';
 import {persistentCacheHTML} from './persistent-cache-browser.mjs';
 import {onboardingHTML} from './onboarding-browser.mjs';
 import {filterRevealHTML} from './filter-reveal-browser.mjs';
+import {createForumFixture} from './forum-fixture.mjs';
 const counts = new Map();
+const forumFixture = createForumFixture();
 const progressClients = new Set();
 const qaProfiles=new Map(),qaRequests=new Map();
 try { watch(new URL('../docs/qa-progress.json',import.meta.url),()=>{for(const response of progressClients)response.write('data: changed\n\n');}); } catch {}
@@ -23,6 +25,7 @@ const svg = label => '<svg xmlns="http://www.w3.org/2000/svg" width="960" height
   '<text x="55" y="90" fill="white" font-family="sans-serif" font-size="42">' + label + '</text></svg>';
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1:8765');
+  if (await forumFixture(req, res, url)) return;
   if(url.pathname==='/cache-priority-bundle.js'){res.setHeader('Content-Type','text/javascript');res.setHeader('Cache-Control','no-store');const source=await readFile(new URL('../dist/EmporniumCompanion.user.js',import.meta.url),'utf8');res.end(source.replace("GM_registerMenuCommand('Companion settings'","window.installCachePriority(epApp);\nGM_registerMenuCommand('Companion settings'"));return;}
   if(url.pathname==='/qa-cache-control'){const profile=url.searchParams.get('profile'),state=qaProfiles.get(profile)||{};state.offlineImages=url.searchParams.get('offline')==='1';qaProfiles.set(profile,state);res.end('Ready');return;}
   if(url.pathname==='/torrents.php'&&url.searchParams.has('persistent-cache')){const artifact=await readFile(new URL('../dist/EmporniumCompanion.user.js',import.meta.url));res.setHeader('Content-Type','text/html; charset=utf-8');res.setHeader('Cache-Control','no-store');res.end(persistentCacheHTML(url,createHash('sha256').update(artifact).digest('hex')));return;}

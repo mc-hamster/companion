@@ -273,9 +273,26 @@ export const COMPANION_MATCH_PATHS = [...companionPageActions.keys()].flatMap(pa
   if (path === '/user.php') return [path + '?action=notify*', path + '?*&action=notify*'];
   if (path === '/collage') return [path, path + '?*', path + '/*'];
   return [path + '*'];
-});
+}).concat('/forum', '/forum?*', '/forum/*', '/userhistory.php?action=subscriptions*', '/userhistory.php?*&action=subscriptions*');
+
+export function companionForumPage({ pathname, searchParams }) {
+  const actions = searchParams.getAll('action');
+  if (pathname === '/userhistory.php' && actions.length === 1 && actions[0] === 'subscriptions') {
+    return { kind: 'subscriptions' };
+  }
+  if (actions.length) return null;
+  const path = pathname.replace(/\/$/, '');
+  if (path === '/forum') return { kind: 'boards' };
+  if (path === '/forum/search') return { kind: 'search' };
+  if (path === '/forum/unread') return { kind: 'unread' };
+  const board = /^\/forum\/([1-9]\d{0,14})(\/unread)?$/.exec(path);
+  if (board) return { kind: board[2] ? 'unread' : 'board', board: board[1] };
+  const thread = /^\/forum\/thread\/([1-9]\d{0,14})$/.exec(path);
+  return thread ? { kind: 'thread', thread: thread[1] } : null;
+}
 
 export function isCompanionPage({ pathname, searchParams }) {
+  if (companionForumPage({ pathname, searchParams })) return true;
   const actions = searchParams.getAll('action');
   if (actions.length > 1) return false;
   if (pathname === '/top10.php' || pathname === '/bookmarks.php') {
@@ -289,7 +306,7 @@ export function isCompanionPage({ pathname, searchParams }) {
 
 export function isNSEPage(location) {
   const url = new URL(location);
-  return url.pathname !== '/bookmarks.php' && isCompanionPage(url);
+  return url.pathname !== '/bookmarks.php' && !companionForumPage(url) && isCompanionPage(url);
 }
 
 export const SEARCH_NAMES = /^(?:searchtext|title|sizeall|sizerange|filelist|taglist|filter_freeleech|limit_matches|order_by|order_way|sizeunit|sizeselect|sizeunits|sizetype|autocomplete_toggle|searchstr|filter_cat\[\d+\])$/;

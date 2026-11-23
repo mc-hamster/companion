@@ -59,6 +59,12 @@ To curate a collage, open it and click **Pin for quick add** in the Companion to
 
 On a torrent detail page, turn on **Reformat details** in the Companion toolbar for a gallery that starts with the cover. Expand **File list** below Tags to see the files. Hover for a larger preview or click to open the image viewer. Turn off **Reformat details** to return to the original page. Companion remembers the switch for other detail pages.
 
+## Forum
+
+On a forum page, select **Enable Companion Forum** for a responsive reader with **Continue** and **Latest** links, unread markers, collapsible quotes, and quick access to search and subscriptions. Select **Classic view** to switch back. On wide screens, expand the topics panel beside a thread to browse other topics in its board.
+
+Select **Reply** to open the composer. Use **Quote** on a post or select an excerpt and choose **Quote selection**. Drafts save on this browser per site, account, and thread. **Visual** is an alpha editor for common formatting. Use **BBCode** for advanced tags and **Preview** to check Empornium's rendering before posting.
+
 ## Updates and backups
 
 Tampermonkey can keep Companion up to date when its update checks are enabled. To update manually, find your installed script in the Tampermonkey dashboard and click **Check for updates**.

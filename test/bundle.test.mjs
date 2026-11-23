@@ -64,7 +64,9 @@ test('userscript metadata uses one pattern per PHP browse page on each explicit 
       const origin = 'https://' + prefix + domain;
       for (const path of ['/torrents.php', '/torrents.php?id=1', '/torrents.php?action=advanced&page=2',
         '/top10.php?type=torrents', '/bookmarks.php?type=torrents', '/collages.php', '/collage/42?page=2',
-        '/requests.php', '/user.php?action=notify', '/user.php?id=10&action=notify']) {
+        '/requests.php', '/user.php?action=notify', '/user.php?id=10&action=notify',
+        '/forum', '/forum/', '/forum?page=2', '/forum/23/unread', '/forum/thread/42?postid=12',
+        '/userhistory.php?action=subscriptions', '/userhistory.php?page=2&action=subscriptions']) {
         assert.equal(matches.filter(pattern => pattern.test(origin + path)).length, 1, origin + path);
       }
       for (const path of ['/', '/index.php', '/login.php', '/register.php', '/forums.php', '/user.php?id=10']) {
@@ -73,7 +75,7 @@ test('userscript metadata uses one pattern per PHP browse page on each explicit 
     }
     assert.ok(!matches.some(pattern => pattern.test('https://other.' + domain + '/torrents.php')));
   }
-  assert.equal(matches.length, 100);
+  assert.equal(matches.length, 150);
 });
 test('the built script leaves logged-out screens and pages without browsing features untouched', async t => {
   const landing = '<main><h1>Welcome</h1><a href="/">Home</a> <a href="/login.php">Login</a></main>';
@@ -83,6 +85,8 @@ test('the built script leaves logged-out screens and pages without browsing feat
     ['/user.php?action=edit', fixtureHTML()], ['/torrents.php?id=1&action=edit', fixtureHTML()],
     ['/torrents.php.old', fixtureHTML()], ['/bookmarks.php/backup', fixtureHTML()],
     ['/torrents.php?action=download&id=1', fixtureHTML()], ['/torrents.php?action=advanced&action=download', fixtureHTML()],
+    ['/forum/thread/42/reply', fixtureHTML()], ['/forum/post/12/get', fixtureHTML()], ['/forum/catchup/23', fixtureHTML()],
+    ['/forum/23/new', fixtureHTML()], ['/userhistory.php?action=thread_subscribe', fixtureHTML()],
     ['/collage/42/manage', fixtureHTML()], ['/top10.php?type=users', fixtureHTML()], ['/bookmarks.php?type=artist', fixtureHTML()],
     ['/torrents.php', landing, true],
     ['/torrents.php?page=2', '<form id="search_form"></form>' + signIn, true]
