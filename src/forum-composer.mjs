@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { createForumEditor, readForumVisualSource } from './forum-editor.mjs';
-import { formatForumQuote, forumLiteralText, forumQuoteSource } from './forum-bbcode.mjs';
+import { formatForumQuote, forumLiteralText, forumMarkValue, forumQuoteSource, safeForumMediaURL } from './forum-bbcode.mjs';
 
 const forumVisualPreference = 'ep.forum.visual';
 const forumPostID = /^[1-9]\d{0,14}$/;
@@ -10,8 +10,42 @@ const forumPreviewStyle = [
   'a{color:LinkText}img,video{max-width:100%;height:auto}',
   'blockquote{margin:8px 0;padding:8px 12px;border-inline-start:3px solid GrayText;background:color-mix(in srgb,CanvasText 5%,Canvas)}',
   'pre{max-width:100%;overflow:auto}table{max-width:100%;border-collapse:collapse}td,th{padding:4px 8px;border:1px solid GrayText}',
+  'details>summary{font-weight:650;cursor:pointer}details{margin:.4em 0}',
   '.hidden{display:none}'
 ].join('');
+
+function forumPreviewMarkup(doc, page, markup) {
+  const template = doc.createElement('template');
+  template.innerHTML = markup;
+  for (const spoiler of template.content.querySelectorAll('blockquote.spoiler')) {
+    const link = spoiler.previousElementSibling;
+    const label = link?.previousElementSibling;
+    if (!link?.matches('a[onclick*="BBCode.spoiler"]')) continue;
+    const details = doc.createElement('details');
+    const summary = doc.createElement('summary');
+    summary.textContent = label?.matches('strong') ? label.textContent : 'Spoiler';
+    details.append(summary);
+    if (label?.matches('strong')) {
+      label.before(details);
+      label.remove();
+    } else link.before(details);
+    const separator = link.previousSibling;
+    if (separator?.nodeType === 3 && /^\s*:\s*$/.test(separator.textContent)) separator.remove();
+    link.remove();
+    spoiler.classList.remove('hidden');
+    details.append(spoiler);
+  }
+  for (const image of template.content.querySelectorAll('img[data-src]:not([src])')) {
+    const src = image.getAttribute('data-src');
+    if (!src || !URL.canParse(src, page)) continue;
+    const href = safeForumMediaURL(new URL(src, page).href);
+    if (href) {
+      image.loading = 'lazy';
+      image.src = href;
+    }
+  }
+  return template.innerHTML;
+}
 
 export function forumElement(doc, tag, className = '', text = '') {
   const element = doc.createElement(tag);
@@ -177,12 +211,30 @@ export class ForumComposer {
     this.preview.setAttribute('sandbox', '');
     this.sourceArea.after(this.visualArea, this.preview);
 
-    const tools = this.sourceArea.querySelector(':scope > table, :scope > .bbcode_assistant');
+    const tools = this.sourceArea.querySelector(':scope > .bb_holder, :scope > .bbcode_assistant, :scope > table');
     if (tools) {
       this.tools = forumElement(doc, 'details', 'epc-forum-source-tools');
-      this.tools.append(forumElement(doc, 'summary', '', 'BBCode tools'));
+      this.tools.open = true;
+      this.tools.append(forumElement(doc, 'summary', '', 'Native BBCode tools'));
       tools.before(this.tools);
       this.move(tools, this.tools);
+      for (const control of tools.querySelectorAll('a[onclick]:not([href]), img[onclick]')) {
+        const previous = ['role', 'tabindex'].map(name => [name, control.getAttribute(name)]);
+        control.tabIndex = 0;
+        control.setAttribute('role', 'button');
+        this.moves.push(() => {
+          for (const [name, value] of previous) {
+            if (value === null) control.removeAttribute(name);
+            else control.setAttribute(name, value);
+          }
+        });
+      }
+      this.on(this.tools, 'keydown', event => {
+        if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[role="button"][onclick]')) {
+          event.preventDefault();
+          event.target.click();
+        }
+      });
       const refresh = () => this.win.queueMicrotask(() => this.changed());
       this.on(this.tools, 'click', refresh);
       this.on(this.tools, 'change', refresh);
@@ -273,10 +325,12 @@ export class ForumComposer {
       if (parsed) {
         this.editor?.destroy();
         this.visualSource = this.source.value;
+        const fonts = [...this.form.querySelectorAll('select[name="fontfont"] option')]
+          .map(option => option.value).filter(name => name !== '-1' && forumMarkValue('font', name));
         this.editor = createForumEditor(this.visualArea, parsed, source => {
           this.visualSource = this.source.value = source;
           this.changed();
-        });
+        }, { page: this.page, fonts: fonts.length ? fonts : undefined });
       } else {
         unavailable = true;
         mode = 'bbcode';
@@ -315,6 +369,7 @@ export class ForumComposer {
     this.win.clearTimeout(this.timer);
     const body = this.source.value;
     if (body === this.savedBody) return;
+    this.refreshSubmit();
     try {
       this.draft = this.drafts.save(body, this.draft);
       this.savedBody = body;
@@ -353,7 +408,7 @@ export class ForumComposer {
       if (controller.signal.aborted) return;
       this.preview.srcdoc = '<!doctype html><meta charset="utf-8">' +
         '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src https: http: data:; media-src https: http:; base-uri \'none\'; form-action \'none\'">' +
-        '<style>' + forumPreviewStyle + '</style>' + markup;
+        '<style>' + forumPreviewStyle + '</style>' + forumPreviewMarkup(this.doc, this.page, markup);
       this.preview.hidden = false;
       this.setStatus('');
     } catch {
@@ -417,6 +472,7 @@ export class ForumComposer {
     this.sending = true;
     this.refreshSubmit();
     this.source.readOnly = true;
+    if (this.tools) this.tools.inert = true;
     this.editor?.setDisabled(true);
     this.setStatus('Posting reply…');
     try {
@@ -451,6 +507,7 @@ export class ForumComposer {
       this.sending = false;
       this.refreshSubmit();
       this.source.readOnly = this.initialReadonly;
+      if (this.tools) this.tools.inert = false;
       this.editor?.setDisabled(false);
     }
   }

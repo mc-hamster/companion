@@ -49,7 +49,10 @@ function forumThreadHTML(url, posted) {
       '<div class="head">Post reply</div><div class="box pad">' +
       '<form id="quickpostform" action="/forum/thread/' + id + '/reply" method="post">' +
       '<input type="hidden" name="token" value="fixture-token"><div id="quickreplytext">' +
-      '<table><tr><td><button id="fixture-bold" type="button" onclick="this.form.body.value+=\'[b]text[/b]\'">Bold</button></td></tr></table>' +
+      '<table class="bb_holder"><tr><td><div class="bb_buttons_left">' +
+      '<a id="fixture-bold" onclick="this.closest(\'form\').body.value+=\'[b]text[/b]\'">Bold</a>' +
+      '<select name="fontfont" aria-label="Native font"><option value="-1">Font Type</option><option>Georgia</option><option>Verdana</option></select>' +
+      '<a href="/articles/view/bbcode" target="_blank">Help</a></div></td></tr></table>' +
       '<textarea id="quickpost" name="body" rows="8"></textarea></div>' +
       '<div><label><input type="checkbox" id="subscribebox" name="subscribe" value="1"> Subscribe</label> ' +
       '<label><input type="checkbox" name="merge" value="1"> Merge</label> <input type="button" id="post_preview" value="Preview">' +
@@ -110,13 +113,20 @@ function forumFixturePreview(bbcode) {
     if (node.type === 'text') {
       let value = escapeHTML(node.text);
       for (const { type } of node.marks ?? []) {
-        const tag = { strong: 'strong', em: 'em', underline: 'u', strike: 's' }[type];
+        const tag = { strong: 'strong', em: 'em', underline: 'u', strike: 's', sup: 'sup', sub: 'sub' }[type];
         if (tag) value = '<' + tag + '>' + value + '</' + tag + '>';
       }
       return value;
     }
     const children = node.content?.map(format).join('') || '';
-    const tag = { paragraph: 'p', quote: 'blockquote', bullet_list: 'ul', list_item: 'li', code_block: 'pre' }[node.type];
+    if (node.type === 'spoiler') return '<strong>' + escapeHTML(node.attrs.label || 'Spoiler') +
+      '</strong>: <a href="#" onclick="BBCode.spoiler(this);">Show</a><blockquote class="hidden spoiler">' + children + '</blockquote>';
+    if (node.type === 'image') return '<img src="' + escapeHTML(node.attrs.href) + '" alt="Image">';
+    if (node.type === 'video') return '<span>Video link</span>';
+    if (node.type === 'site_label') return '<strong>' + escapeHTML(node.attrs.tag) + '</strong>';
+    if (node.type === 'horizontal_rule') return '<hr>';
+    const tag = { paragraph: 'p', quote: 'blockquote', bullet_list: 'ul', list_item: 'li', code_block: 'pre',
+      table: 'table', table_row: 'tr', table_cell: 'td', table_header: 'th' }[node.type];
     return tag ? '<' + tag + '>' + children + '</' + tag + '>' : children;
   }
   return format(tree);
@@ -135,6 +145,16 @@ export function createForumFixture() {
     if (quote) {
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify(neutralPosts.get(Number(quote[1]))?.body ?? ''));
+      return true;
+    }
+    if (path === '/ajax.php' && url.searchParams.get('action') === 'get_smilies') {
+      const smilies = [':smile:', ':wave:', ':thanks:'];
+      const from = Number(url.searchParams.get('indexfrom')) || 0;
+      const to = Number(url.searchParams.get('indexto')) || smilies.length;
+      res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+      res.end('<smilies>' + smilies.slice(from, to).map(code =>
+        '<smiley><bbcode>' + code + '</bbcode><url>/forum-fixture-avatar.svg</url></smiley>'
+      ).join('') + '<maxsmilies>' + smilies.length + '</maxsmilies></smilies>');
       return true;
     }
     const isPreview = path === '/ajax.php' && url.searchParams.get('action') === 'preview';

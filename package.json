@@ -20,6 +20,7 @@
     "prosemirror-model": "1.25.13",
     "prosemirror-schema-list": "1.6.1",
     "prosemirror-state": "1.4.4",
+    "prosemirror-tables": "1.8.5",
     "prosemirror-view": "1.43.0"
   },
   "description": "A Tampermonkey userscript for Empornium with image recovery, filters, previews, and saved searches.",

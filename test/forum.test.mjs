@@ -86,9 +86,48 @@ test('Visual round-trips nested attribution, lists, code, spoilers, links, and s
   assert.ok(document);
   assert.equal(writeForumBBCode(document.toJSON()), source);
   assert.deepEqual(forumQuoteCredit('Riley,f42,12'), { author: 'Riley', href: '/forum/thread/42?postid=12#post12' });
-  assert.equal(readForumVisualSource('[table][tr][td]Keep as BBCode[/td][/tr][/table]'), null);
+  assert.equal(readForumVisualSource('[mediainfo]Keep as BBCode[/mediainfo]'), null);
   assert.equal(readForumVisualSource('[u]Unclosed'), null);
   assert.equal(readForumVisualSource('[url=javascript:bad]An unsafe link[/url]'), null);
+});
+
+test('native typography, layout, media, named anchors, and table spacing round-trip in Visual mode', () => {
+  for (const source of [
+    '[font=Georgia][size=4][color=#13579b]Type[/color][/size][/font] [sup]2[/sup] [sub]i[/sub]',
+    '[colour=red]Color alias[/colour]\n[center]Centered[/center]\n[align=justify]Paragraph[/align]\n[bg=#dbe8fa,75%,left]Panel[/bg]',
+    '[#=notes]Notes[/#]\n[url=#notes]Jump to notes[/url]\n[url]https://example.test/[/url]',
+    '[img=120,80]https://example.test/image.png[/img]\n[video=https://youtu.be/0123456789a]\n[hr]\n[cast] [details] [info] [plot] [screens]',
+    '[table=#eff,75%]\n[tr][th] Header [/th][td=50%] [b]Cell[/b] [/td][/tr]\n[tr][td] Row 2 [/td][td] [/td][/tr]\n[/table]\n'
+  ]) {
+    const doc = readForumVisualSource(source);
+    assert.ok(doc, source);
+    assert.equal(writeForumBBCode(doc.toJSON()), source);
+  }
+  assert.ok(readForumVisualSource('[color=red][b]Nested in native order[/b][/color]'));
+  assert.equal(readForumVisualSource('[img]javascript:bad[/img]'), null);
+  assert.equal(readForumVisualSource('[table][tr][td]First[/td][/tr][tr][/tr][/table]'), null);
+});
+
+test('the full native toolbar is immediately available in BBCode and the Visual tools use the site fonts', async () => {
+  const f = await start('/forum/thread/42', { storage: memoryStorage({ 'ep.forum.reader': true }) });
+  try {
+    const { doc } = f;
+    const native = doc.querySelector('.epc-forum-source-tools');
+    assert.equal(native.open, true);
+    assert.equal(doc.getElementById('fixture-bold').tabIndex, 0);
+    doc.querySelector('.epc-forum-launch').click();
+    doc.querySelector('.epc-forum-modes button').click();
+    const tools = doc.querySelector('.epc-forum-format');
+    for (const name of ['sup', 'sub', 'color', 'image', 'video', 'table', 'anchor', 'horizontal_rule', 'bg', 'smilies']) {
+      assert.ok(tools.querySelector('[data-format="' + name + '"]'), name);
+    }
+    assert.deepEqual([...tools.querySelector('select[aria-label="Font"]').options].map(option => option.value),
+      ['', 'Georgia', 'Verdana', 'default']);
+    doc.querySelector('.epc-forum-toggle').click();
+    assert.equal(doc.querySelector('.epc-forum-source-tools'), null);
+    assert.equal(doc.getElementById('fixture-bold').hasAttribute('tabindex'), false);
+    assert.deepEqual(f.errors, []);
+  } finally { f.close(); }
 });
 
 test('reader and composer preserve post ids, source, native form fields, and a rejected draft', async () => {
@@ -97,7 +136,9 @@ test('reader and composer preserve post ids, source, native form fields, and a r
     storage: memoryStorage({ 'ep.forum.reader': true }),
     fetch: async (url, options) => {
       calls.push({ url: new URL(url), options });
-      if (url.includes('action=preview')) return { ok: true, text: async () => '<strong>Rendered reply</strong>' };
+      if (url.includes('action=preview')) return { ok: true, text: async () =>
+        '<strong>Rendered reply</strong><br><strong>Clue</strong>: <a onclick="BBCode.spoiler(this);">Show</a>' +
+        '<blockquote class="hidden spoiler">A clue</blockquote>' };
       return { ok: false, url, redirected: false };
     }
   });
@@ -114,7 +155,7 @@ test('reader and composer preserve post ids, source, native form fields, and a r
     mode('Visual').click();
     assert.equal(doc.querySelector('.ProseMirror strong').textContent, 'A formatted reply');
     mode('BBCode').click();
-    const advanced = '[table][tr][td]Legacy layout[/td][/tr][/table]';
+    const advanced = '[mediainfo]Original MediaInfo[/mediainfo]';
     changeBody(f, advanced);
     mode('Visual').click();
     assert.equal(mode('BBCode').getAttribute('aria-pressed'), 'true');
@@ -122,6 +163,7 @@ test('reader and composer preserve post ids, source, native form fields, and a r
     assert.equal(calls.length, 0);
     mode('Preview').click();
     await until(() => doc.querySelector('iframe').srcdoc.includes('Rendered reply'));
+    assert.match(doc.querySelector('iframe').srcdoc, /<details><summary>Clue<\/summary><blockquote class="spoiler">A clue/);
     assert.equal(calls[0].options.body.get('body'), advanced);
     assert.equal(doc.querySelector('iframe').getAttribute('sandbox'), '');
     doc.getElementById('subscribebox').checked = true;
