@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { tagCategoriesWithTags, tagCategorySettings, tagListTokens } from './core.mjs';
 import { gridCardSizeChoices } from './grid-view.mjs';
 import { keyboardShortcutList, applyWorkspaceTheme, companionIcon } from './workspace.mjs';
 // A draft of existing preferences, committed through the normal import transaction.
@@ -90,13 +91,20 @@ export class OnboardingController {
     const syncShortcuts = () => { shortcuts.hidden = !this.shortcuts.checked; };
     this.shortcuts.addEventListener('change', syncShortcuts); syncShortcuts(); form.append(shortcuts);
     const tags = app.node('details'); tags.append(app.node('summary', 'Personalize tags (optional)'), app.node('p', 'Separate tags with spaces. Blocked tags hide matching results. Highlight categories change how tags look.', 'epc-caption'));
-    this.tags = new Map();
-    const groups = app.tags.categories();
-    for (const [key, label, value] of [['blocked', 'Blocked tags', app.storage.get('nseTaglist', '')],
-      ['favoriteTags', groups.find(group => group.id === 'favorite').name + ' tags', app.settings.favoriteTags],
-      ['cautionTags', groups.find(group => group.id === 'caution').name + ' tags', app.settings.cautionTags]]) {
+    const tagList = (id, value) => {
       const input = app.node('textarea'); input.rows = 2; input.maxLength = 50000; input.value = value;
-      field(tags, label, input); this.tags.set(key, input);
+      input.dataset.welcomeTagList = id;
+      return input;
+    };
+    this.blocked = field(tags, 'Blocked tags', tagList('blocked', app.storage.get('nseTaglist', '')));
+    this.tagDrafts = new Map();
+    for (const group of app.tags.categories()) {
+      const category = app.node('details', null, 'epc-welcome-tag-category');
+      const input = tagList(group.id, group.tags);
+      input.setAttribute('aria-label', group.name + ' tags');
+      category.append(app.node('summary', group.name + (group.enabled ? '' : ' (disabled)')), input);
+      tags.append(category);
+      this.tagDrafts.set(group.id, { input, initial: group.tags });
     }
     form.append(tags);
     this.status = app.node('p', '', 'epc-notice'); this.status.setAttribute('role', 'alert'); form.append(this.status);
@@ -106,7 +114,7 @@ export class OnboardingController {
     form.addEventListener('submit', event => { event.preventDefault(); this.finish(); });
     dialog.addEventListener('cancel', event => { event.preventDefault(); this.dismiss(); });
     this.initial = this.choices();
-    this.initialBlocked = this.tags.get('blocked').value;
+    this.initialBlocked = this.blocked.value;
     dialog.append(form); app.doc.body.append(dialog); this.open = true;
     if (dialog.showModal) dialog.showModal(); else { dialog.open = true; dialog.setAttribute('role', 'dialog'); }
     // Native dialogs handle focus containment and return it on close.
@@ -118,9 +126,36 @@ export class OnboardingController {
       backfillPages: Number(this.pages.value), thumbnailSize: Number(this.size.value),
       previews: this.hover.checked, groupVersions: this.group.checked, resultsView: this.view.value,
       gridCardWidth: Number(this.gridSize.value), gridSpacing: this.gridSpacing.value,
-      reformatDetailPages: this.reformatDetails.checked, keyboardShortcuts: this.shortcuts.checked,
-      favoriteTags: this.tags.get('favoriteTags').value, cautionTags: this.tags.get('cautionTags').value
+      reformatDetailPages: this.reformatDetails.checked, keyboardShortcuts: this.shortcuts.checked
     };
+  }
+  addTagSettings(settings) {
+    const edits = [...this.tagDrafts].filter(([, { input, initial }]) => input.value !== initial);
+    if (!edits.length) return true;
+    const groups = tagCategoriesWithTags(this.app.storedSettings());
+    const byId = new Map(groups.map(group => [group.id, group]));
+    for (const [id, { input, initial }] of edits) {
+      const group = byId.get(id);
+      if (!group) {
+        this.status.textContent = 'A tag category you edited was removed. Reopen Getting started to see the current categories.';
+        return false;
+      }
+      const before = new Set(tagListTokens(initial));
+      const saved = new Set(tagListTokens(group.tags));
+      const tags = new Set(tagListTokens(input.value).filter(tag => !before.has(tag) || saved.has(tag)));
+      for (const tag of saved) if (!before.has(tag)) tags.add(tag);
+      group.tags = [...tags].join(' ');
+    }
+    const owners = new Map();
+    for (const group of groups) for (const tag of tagListTokens(group.tags)) {
+      if (owners.has(tag)) {
+        this.status.textContent = '“' + tag + '” is in both ' + owners.get(tag) + ' and ' + group.name + '. Keep it in one category and save again.';
+        return false;
+      }
+      owners.set(tag, group.name);
+    }
+    Object.assign(settings, tagCategorySettings(groups));
+    return true;
   }
   finish() {
     const app = this.app;
@@ -134,7 +169,8 @@ export class OnboardingController {
       }
       if (choices.backfillMode !== 'pages') delete settings.backfillPages;
       if (settings.backfillMode && settings.backfillMode !== 'off') settings.backfillEnabled = true;
-      const blocked = this.tags.get('blocked').value;
+      if (!this.addTagSettings(settings)) return;
+      const blocked = this.blocked.value;
       const nse = blocked === this.initialBlocked ? {} : { nseTaglist: blocked };
       app.importData(JSON.stringify({ format: 'empornium-companion', version: 1, settings, nse }), false,
         { completeOnboarding: true, mergePreferences: true });
@@ -152,7 +188,7 @@ export class OnboardingController {
     if (this.element?.close) this.element.close();
     this.element?.remove(); this.element = null;
     if (this.returnFocus?.isConnected) this.returnFocus.focus({ preventScroll: true });
-    this.form = this.tags = this.pages = this.size = this.hover = this.group = this.status = this.save = this.returnFocus = null;
+    this.form = this.blocked = this.tagDrafts = this.pages = this.size = this.hover = this.group = this.status = this.save = this.returnFocus = null;
     this.view = this.gridSize = this.gridSpacing = this.reformatDetails = this.shortcuts = null;
     this.initial = this.initialBlocked = null;
   }

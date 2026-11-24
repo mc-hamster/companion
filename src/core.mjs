@@ -43,6 +43,24 @@ export function tagHighlightPreferences({ favoriteTags, cautionTags, tagCategori
   return { favoriteTags, cautionTags, tagCategories };
 }
 
+export function tagCategoriesWithTags(settings) {
+  return (settings.tagCategories ?? DEFAULTS.tagCategories).map(group => {
+    const key = LEGACY_TAG_LISTS.get(group.id);
+    return { ...group, tags: (key ? settings[key] : group.tags) ?? '' };
+  });
+}
+
+export function tagCategorySettings(groups) {
+  const settings = { tagCategories: [] };
+  for (const { tags, ...group } of groups) {
+    const key = LEGACY_TAG_LISTS.get(group.id);
+    if (key) settings[key] = tags;
+    else group.tags = tags;
+    settings.tagCategories.push(group);
+  }
+  return settings;
+}
+
 function normalizeTagCategories(input, settings) {
   const presets = new Map(defaultTagCategories.map(group => [group.id, group]));
   const usedIDs = new Set();

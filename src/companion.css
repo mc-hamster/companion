@@ -448,9 +448,11 @@ a.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;poi
 #content .epc-detail-panels :is(#torrent_tags_list>li>a,#collages td>a,#personal_collages td>a):hover{text-decoration:underline}
 
 .epc-luminance-import{margin-top:10px;border-top:1px solid var(--epc-line);padding:5px 0;max-width:680px}
-.epc-luminance-group{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start;padding:4px 0;border-top:1px solid var(--epc-line)}
+.epc-luminance-group{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,min(45%,16rem));gap:8px;align-items:start;padding:4px 0;border-top:1px solid var(--epc-line)}
+.epc-luminance-group select{width:100%;min-width:0}
 .epc-luminance-group summary,.epc-luminance-tags,.epc-luminance-conflicts{overflow-wrap:anywhere}
 .epc-luminance-tags{font:12px/1.5 ui-monospace,monospace;max-height:8em;overflow:auto}
+@media(max-width:520px){.epc-luminance-group{grid-template-columns:minmax(0,1fr)}}
 .epc-seen-dim{opacity:.6}
 .epc-freeleech-view{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--epc-muted)}
 .epc-root .epc-freeleech-view select{min-height:32px;margin:0;color:var(--epc-fg)}
@@ -548,6 +550,7 @@ tr[isnsehidden="1"] .nseToggleIcon:before,.nseToggleIcon.nseIndividuallyBlacklis
 .epc-onboarding textarea{width:100%;font:inherit;color:inherit;background:var(--epc-subtle);border:1px solid var(--epc-line);border-radius:var(--epc-control-radius);padding:7px;resize:vertical}
 .epc-onboarding details{border-top:1px solid var(--epc-line);margin-top:16px;padding-top:4px}
 .epc-onboarding details .epc-welcome-field{display:block}
+.epc-onboarding .epc-welcome-tag-category{margin-top:4px;padding-block:4px}
 .epc-welcome-sample{width:var(--epc-sample-width);max-width:100%;height:64px;border-radius:var(--epc-control-radius);margin:8px 0 12px;display:grid;place-items:center;color:var(--epc-accent);background:var(--epc-soft);font-size:11px}
 .epc-onboarding .epc-actions{justify-content:flex-end;margin-top:16px}
 @media(max-width:420px){.epc-onboarding{padding:16px}.epc-welcome-field{flex-wrap:wrap}.epc-onboarding h2{font-size:19px}}

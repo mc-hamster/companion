@@ -424,6 +424,49 @@ test('Luminance import previews a merge, preserves existing choices and can undo
   } finally { f.close(); }
 });
 
+test('Luminance import uses preset and custom categories and can move previously imported tags', async () => {
+  const custom = { id: 'custom-4820a175-8025-4d5f-a698-f05623dd3d06', name: 'Staff picks', color: '#203050', enabled: false, tags: 'staff.keep' };
+  const sites = { id: 'loved-site', name: 'Top sites', color: '#ae72d2', enabled: true, tags: 'site.keep' };
+  const f = await setup({ 'ep.settings': { favoriteTags: 'move.me keep.liked', tagCategories: [custom, sites] } });
+  try {
+    const form = f.doc.querySelector('.epc-luminance-import');
+    const button = text => [...form.querySelectorAll('button')].find(node => node.textContent === text);
+    form.querySelector('textarea').value = JSON.stringify({ useTag1aTags: true, useTag1bTags: true, useLikesiteTags: true,
+      useTag6bTags: true, useTag4aTags: true, tags: { Tags1a: ['new.liked', 'ambiguous'], Tags1b: ['move.me', 'fresh.love', 'ambiguous'],
+        likesite: ['site.like'], Tags6b: ['site.love'], Tags4a: ['staff.pick'] } });
+    button('Preview import').click();
+    const selects = [...form.querySelectorAll('select')];
+    assert.deepEqual(selects.map(select => select.value), ['favorite', 'loved', 'liked-site', 'loved-site', 'favorite']);
+    assert.equal(selects[3].selectedOptions[0].textContent, 'Top sites');
+    const customOption = [...selects[4].options].find(option => option.value === custom.id);
+    assert.equal(customOption.textContent, 'Staff picks (disabled)');
+    selects[4].value = custom.id;
+    selects[4].dispatchEvent(new f.win.Event('change'));
+    assert.match(form.querySelector('[role=status]').textContent, /2 conflicts skipped/);
+    const move = form.querySelector('input[type=checkbox]');
+    assert.equal(move.checked, false);
+    assert.equal(move.closest('label').hidden, false);
+    move.click();
+    assert.match(form.querySelector('[role=status]').textContent, /1 existing highlight will move · 1 conflict skipped/);
+    assert.equal(f.storage.get('ep.settings').favoriteTags, 'move.me keep.liked');
+    button('Import selected tags').click();
+
+    const saved = f.storage.get('ep.settings');
+    const category = id => saved.tagCategories.find(group => group.id === id);
+    assert.equal(saved.favoriteTags, 'keep.liked new.liked');
+    assert.equal(category('loved').tags, 'move.me fresh.love');
+    assert.equal(category('liked-site').tags, 'site.like');
+    assert.deepEqual({ ...category('loved-site') }, { ...sites, tags: 'site.keep site.love' });
+    assert.deepEqual({ ...category(custom.id) }, { ...custom, tags: 'staff.keep staff.pick' });
+    [...f.doc.querySelectorAll('button')].find(node => node.textContent === 'Undo changes').click();
+    const restored = f.storage.get('ep.settings');
+    assert.equal(restored.favoriteTags, 'move.me keep.liked');
+    assert.equal(restored.tagCategories.find(group => group.id === 'loved').tags, '');
+    assert.deepEqual({ ...restored.tagCategories.find(group => group.id === custom.id) }, custom);
+    assert.equal(f.errors.length, 0, f.errors.join('\n'));
+  } finally { f.close(); }
+});
+
 test('Grid cues reveal matching tags while detail collapse and responsive layout preserve native links', async () => {
   const detail = '<div id="torrent_tags"><ul id="torrent_tags_list"><li><a href="?taglist=fern">fern</a></li>' +
     '<li><a href="?taglist=metadata">metadata</a><button type="button">Vote</button></li></ul></div>';
