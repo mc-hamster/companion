@@ -288,7 +288,7 @@ html.epc-forum-fit, html.epc-forum-fit body, .epc-forum-fit #wrapper { min-width
   color: var(--forum-ink);
   font: var(--forum-post-text-size, 16px)/1.6 system-ui, sans-serif;
 }
-.epc-forum-post-body .post_content { max-width: 72ch; font: inherit; color: inherit; overflow-wrap: anywhere; }
+.epc-forum-post-body .post_content { max-width: 100%; font: inherit; color: inherit; overflow-wrap: anywhere; }
 .epc-forum-post-body :is(img,video,iframe,table) { max-width: 100%; }
 .epc-forum-post-body table.bbcode { display: block; overflow-x: auto; }
 .epc-forum-post-body pre { overflow: auto; white-space: pre; }
