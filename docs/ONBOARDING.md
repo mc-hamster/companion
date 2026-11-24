@@ -4,6 +4,8 @@ Version2.9.0 shows setup once when no successful completion/dismissal has been s
 
 The native dialog introduces thumbnails, hover previews, filters, grouped versions, saved searches and extra result pages. It explicitly explains that these options—and much more—remain in Settings, with Settings → Getting started to reopen it. A visual size sample, hover/group toggles and a folded optional tag section keep routine choices short. Focus stays in the modal, actions remain visible while scrolling, and narrow layouts avoid horizontal overflow.
 
+Under **Personalize tags (optional)**, edit **Blocked tags** or expand any preset or custom highlight category to edit its tag list. To move a tag, remove it from its current category and add it to the destination before saving.
+
 Start browsing/Save changes commit the draft through the existing validated import transaction. Completion (`ep.onboardingDone`) is part of the same rollback snapshot, so failed writes retain the draft and do not enable auto-loading. Not now keeps current preferences and records dismissal; Cancel on replay writes nothing. Completion is local to the installation; backup settings include `backfillMode`, but do not copy the completion flag.
 
 ## Loading modes

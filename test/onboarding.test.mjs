@@ -4,6 +4,7 @@ import {boot,strictStorage,clickText,pane,field,rowHTML,fixtureHTML,settle} from
 import {until} from './helpers.mjs';
 import {validateSettings} from '../src/core.mjs';
 const dialog=f=>f.doc.querySelector('.epc-onboarding');
+const tagList=(f,id)=>dialog(f).querySelector('[data-welcome-tag-list="'+id+'"]');
 const mode=(f,value)=>{const input=dialog(f).querySelector('[name="welcome-backfill"][value="'+value+'"]');input.checked=true;input.dispatchEvent(new f.win.Event('change',{bubbles:true}));};
 const fresh=()=>strictStorage({'ep.onboardingDone':false});
 const resultPage=(url,last=8)=>{
@@ -80,11 +81,52 @@ test('[ONB-02] existing preferences on first upgrade are prefilled instead of re
   const f=await boot({'ep.onboardingDone':false,'ep.settings':{thumbnailSize:140,backfillPages:12,previews:false,groupVersions:false}});
   try{assert.equal(dialog(f).querySelector('select').value,'140');assert.equal(dialog(f).querySelector('input[type=number]').value,'12');assert.equal(dialog(f).querySelector('[name="welcome-backfill"]:checked').value,'off');clickText(dialog(f),'Start browsing');assert.equal(f.store.get('ep.settings').backfillPages,12);}finally{f.close();}
 });
+test('Getting started edits all saved tag categories together and preserves other tab edits', async () => {
+  const custom = { id: 'custom-4820a175-8025-4d5f-a698-f05623dd3d06', name: 'Staff picks', color: '#203050', enabled: false, tags: 'staff.old' };
+  const store = strictStorage({ 'ep.settings': { inlineThumbnails: false, favoriteTags: 'liked.keep move.me',
+    tagCategories: [custom, { id: 'loved', tags: 'loved.keep' }] } });
+  const f = await boot({}, { store });
+  try {
+    pane(f, 'settings'); clickText(f.doc.querySelector('.epc-pane[data-pane=settings]'), 'Getting started');
+    const d = dialog(f);
+    assert.equal(tagList(f, 'loved').value, 'loved.keep');
+    assert.equal(tagList(f, 'liked-site').value, '');
+    assert.equal(tagList(f, 'loved-site').getAttribute('aria-label'), 'Loved site tags');
+    assert.equal(tagList(f, custom.id).closest('details').querySelector('summary').textContent, 'Staff picks (disabled)');
+    assert.equal(tagList(f, custom.id).value, 'staff.old');
+    const before = store.snapshot();
+    tagList(f, 'loved').value = 'loved.keep move.me';
+    clickText(d, 'Save changes');
+    assert.equal(dialog(f), d);
+    assert.match(d.querySelector('[role=alert]').textContent, /move\.me.*both.*(?:Loved and Liked|Liked and Loved)/);
+    assert.deepEqual(store.snapshot(), before);
+
+    tagList(f, 'favorite').value = 'liked.keep';
+    tagList(f, 'loved-site').value = 'new.site';
+    tagList(f, custom.id).value = 'staff.new';
+    const otherTab = validateSettings(store.get('ep.settings'));
+    otherTab.tagCategories.find(group => group.id === 'loved').tags += ' other.tab';
+    otherTab.tagCategories.find(group => group.id === custom.id).name = 'Renamed in other tab';
+    store.set('ep.settings', otherTab);
+    clickText(d, 'Save changes');
+    assert.equal(dialog(f), null);
+    const saved = store.get('ep.settings');
+    const category = id => saved.tagCategories.find(group => group.id === id);
+    assert.equal(saved.favoriteTags, 'liked.keep');
+    assert.equal(category('loved').tags, 'loved.keep move.me other.tab');
+    assert.equal(category('loved-site').tags, 'new.site');
+    assert.deepEqual(category(custom.id), { ...custom, name: 'Renamed in other tab', tags: 'staff.new' });
+    pane(f, 'filters');
+    assert.equal(f.doc.querySelector('[data-tag-list=loved]').value, 'loved.keep move.me other.tab');
+    assert.equal(f.errors.length, 0, f.errors.join('\n'));
+  } finally { f.close(); }
+});
+
 test('[ONB-03] invalid count blocks Finish; hidden count is ignored for manual mode; tags use existing live filters',async()=>{
   const store=fresh(),f=await boot({}, {store,rows:rowHTML(1,{tags:'blocked'})+rowHTML(2)});
   try{
     const d=dialog(f),count=d.querySelector('input[type=number]');count.value='0';clickText(d,'Start browsing');assert.ok(dialog(f));assert.equal(store.get('ep.onboardingDone'),false);
-    mode(f,'off');const tags=d.querySelectorAll('textarea');tags[0].value='blocked';tags[1].value='sample.tag';tags[2].value='warning';
+    mode(f,'off');tagList(f,'blocked').value='blocked';tagList(f,'favorite').value='sample.tag';tagList(f,'caution').value='warning';
     clickText(d,'Start browsing');await settle();assert.equal(dialog(f),null);assert.equal(store.get('ep.settings').backfillMode,'off');assert.equal(store.get('nseTaglist'),'blocked');
     assert.equal(f.doc.querySelector('[data-fixture-id="1"]').classList.contains('hidden'),true);
     assert.equal(store.get('ep.settings').favoriteTags,'sample.tag');assert.equal(store.get('ep.settings').cautionTags,'warning');
@@ -94,10 +136,12 @@ test('[ONB-03] invalid count blocks Finish; hidden count is ignored for manual m
 test('[ONB-03] failed persistence rolls back completion and preferences, retains the draft and allows retry',async()=>{
   const store=fresh(),calls=[],f=await boot({}, {store,fetch:async url=>{calls.push(url);return resultPage(url);}});
   try{
-    const before=store.snapshot();store.failNext('nseTaglist');clickText(dialog(f),'Start browsing');await settle();
+    const before=store.snapshot();tagList(f,'blocked').value='blocked';tagList(f,'loved').value='sample.tag';
+    store.failNext('nseTaglist');clickText(dialog(f),'Start browsing');await settle();
     assert.ok(dialog(f));assert.match(dialog(f).querySelector('[role=alert]').textContent,/Could not save/);
     assert.deepEqual(store.snapshot(),before);assert.equal(calls.length,0);
     mode(f,'off');clickText(dialog(f),'Start browsing');assert.equal(dialog(f),null);assert.equal(store.get('ep.onboardingDone'),true);
+    assert.equal(store.get('ep.settings').tagCategories.find(group=>group.id==='loved').tags,'sample.tag');
   }finally{f.close();}
 });
 test('[ONB-03] Escape dismisses setup safely, and ordinary arrow navigation never runs inside the dialog',async()=>{

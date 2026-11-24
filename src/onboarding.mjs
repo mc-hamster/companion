@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { tagCategoriesWithTags, tagCategorySettings, tagListTokens } from './core.mjs';
 import { gridCardSizeChoices } from './grid-view.mjs';
 import { keyboardShortcutList, applyWorkspaceTheme, companionIcon } from './workspace.mjs';
 // A draft of existing preferences, committed through the normal import transaction.
 export class OnboardingController {
   constructor(app) { this.app = app; this.open = false; }
   maybeOpen() {
+    if (this.app.storage.get('ep.onboardingDone', false) === true) this.app.onboardingComplete = true;
     if (!this.app.onboardingComplete && !this.open && !this.app.doc.hidden && this.app.root?.dataset.epReady === 'true') this.show();
   }
   show() {
     const app = this.app;
     if (this.open || app.disposed || !app.preferences.flush()) return;
+    app.tags.refreshStoredPreferences();
     this.firstUse = !app.onboardingComplete;
     this.returnFocus = app.doc.activeElement;
     app.preview.hide(true);
@@ -23,7 +26,7 @@ export class OnboardingController {
     dialog.append(heading, app.node('p', 'Reliable thumbnails, image grids, larger previews on hover, filters, grouped versions, saved searches, and more results on one page.'));
     dialog.append(app.node('p', 'These options—and much more—are available in Settings anytime. Reopen this setup with Settings → Getting started.', 'epc-caption'));
     const form = app.node('form'); this.form = form;
-    const fresh = this.firstUse && !app.hasExistingPreferences;
+    const fresh = this.fresh = this.firstUse && !app.hasExistingPreferences;
     const mode = fresh ? 'pages' : app.settings.backfillMode;
     const field = (parent, label, control) => {
       const row = app.node('label', null, 'epc-welcome-field'); row.append(app.node('span', label), control); parent.append(row); return control;
@@ -88,13 +91,20 @@ export class OnboardingController {
     const syncShortcuts = () => { shortcuts.hidden = !this.shortcuts.checked; };
     this.shortcuts.addEventListener('change', syncShortcuts); syncShortcuts(); form.append(shortcuts);
     const tags = app.node('details'); tags.append(app.node('summary', 'Personalize tags (optional)'), app.node('p', 'Separate tags with spaces. Blocked tags hide matching results. Highlight categories change how tags look.', 'epc-caption'));
-    this.tags = new Map();
-    const groups = app.tags.categories();
-    for (const [key, label, value] of [['blocked', 'Blocked tags', app.storage.get('nseTaglist', '')],
-      ['favoriteTags', groups.find(group => group.id === 'favorite').name + ' tags', app.settings.favoriteTags],
-      ['cautionTags', groups.find(group => group.id === 'caution').name + ' tags', app.settings.cautionTags]]) {
+    const tagList = (id, value) => {
       const input = app.node('textarea'); input.rows = 2; input.maxLength = 50000; input.value = value;
-      field(tags, label, input); this.tags.set(key, input);
+      input.dataset.welcomeTagList = id;
+      return input;
+    };
+    this.blocked = field(tags, 'Blocked tags', tagList('blocked', app.storage.get('nseTaglist', '')));
+    this.tagDrafts = new Map();
+    for (const group of app.tags.categories()) {
+      const category = app.node('details', null, 'epc-welcome-tag-category');
+      const input = tagList(group.id, group.tags);
+      input.setAttribute('aria-label', group.name + ' tags');
+      category.append(app.node('summary', group.name + (group.enabled ? '' : ' (disabled)')), input);
+      tags.append(category);
+      this.tagDrafts.set(group.id, { input, initial: group.tags });
     }
     form.append(tags);
     this.status = app.node('p', '', 'epc-notice'); this.status.setAttribute('role', 'alert'); form.append(this.status);
@@ -103,27 +113,67 @@ export class OnboardingController {
     actions.append(this.save, app.button(this.firstUse ? 'Not now' : 'Cancel', () => this.dismiss())); form.append(actions);
     form.addEventListener('submit', event => { event.preventDefault(); this.finish(); });
     dialog.addEventListener('cancel', event => { event.preventDefault(); this.dismiss(); });
+    this.initial = this.choices();
+    this.initialBlocked = this.blocked.value;
     dialog.append(form); app.doc.body.append(dialog); this.open = true;
     if (dialog.showModal) dialog.showModal(); else { dialog.open = true; dialog.setAttribute('role', 'dialog'); }
     // Native dialogs handle focus containment and return it on close.
     const focus = form.querySelector('[name="welcome-backfill"]:checked'); focus.focus({ preventScroll: true });
   }
+  choices() {
+    return {
+      backfillMode: this.form.querySelector('[name="welcome-backfill"]:checked').value,
+      backfillPages: Number(this.pages.value), thumbnailSize: Number(this.size.value),
+      previews: this.hover.checked, groupVersions: this.group.checked, resultsView: this.view.value,
+      gridCardWidth: Number(this.gridSize.value), gridSpacing: this.gridSpacing.value,
+      reformatDetailPages: this.reformatDetails.checked, keyboardShortcuts: this.shortcuts.checked
+    };
+  }
+  addTagSettings(settings) {
+    const edits = [...this.tagDrafts].filter(([, { input, initial }]) => input.value !== initial);
+    if (!edits.length) return true;
+    const groups = tagCategoriesWithTags(this.app.storedSettings());
+    const byId = new Map(groups.map(group => [group.id, group]));
+    for (const [id, { input, initial }] of edits) {
+      const group = byId.get(id);
+      if (!group) {
+        this.status.textContent = 'A tag category you edited was removed. Reopen Getting started to see the current categories.';
+        return false;
+      }
+      const before = new Set(tagListTokens(initial));
+      const saved = new Set(tagListTokens(group.tags));
+      const tags = new Set(tagListTokens(input.value).filter(tag => !before.has(tag) || saved.has(tag)));
+      for (const tag of saved) if (!before.has(tag)) tags.add(tag);
+      group.tags = [...tags].join(' ');
+    }
+    const owners = new Map();
+    for (const group of groups) for (const tag of tagListTokens(group.tags)) {
+      if (owners.has(tag)) {
+        this.status.textContent = '“' + tag + '” is in both ' + owners.get(tag) + ' and ' + group.name + '. Keep it in one category and save again.';
+        return false;
+      }
+      owners.set(tag, group.name);
+    }
+    Object.assign(settings, tagCategorySettings(groups));
+    return true;
+  }
   finish() {
     const app = this.app;
     if (!this.open || !this.form.reportValidity()) return;
-    const mode = this.form.querySelector('[name="welcome-backfill"]:checked').value;
     try {
-      const current = app.exportData();
-      const settings = { ...app.settings, backfillMode: mode,
-        backfillEnabled: mode !== 'off' || app.settings.backfillEnabled,
-        backfillPages: mode === 'pages' ? Number(this.pages.value) : app.settings.backfillPages,
-        thumbnailSize: Number(this.size.value), previews: this.hover.checked, groupVersions: this.group.checked,
-        resultsView: this.view.value, gridCardWidth: Number(this.gridSize.value),
-        gridSpacing: this.gridSpacing.value, reformatDetailPages: this.reformatDetails.checked,
-        keyboardShortcuts: this.shortcuts.checked,
-        favoriteTags: this.tags.get('favoriteTags').value, cautionTags: this.tags.get('cautionTags').value };
-      app.importData(JSON.stringify({ ...current, settings,
-        nse: { ...current.nse, nseTaglist: this.tags.get('blocked').value } }), false, { completeOnboarding: true });
+      const choices = this.choices();
+      const settings = Object.fromEntries(Object.entries(choices).filter(([key, value]) => this.initial[key] !== value));
+      if (this.fresh && !app.storage.get('ep.onboardingDone', false)) {
+        settings.backfillMode = choices.backfillMode;
+        settings.backfillPages = choices.backfillPages;
+      }
+      if (choices.backfillMode !== 'pages') delete settings.backfillPages;
+      if (settings.backfillMode && settings.backfillMode !== 'off') settings.backfillEnabled = true;
+      if (!this.addTagSettings(settings)) return;
+      const blocked = this.blocked.value;
+      const nse = blocked === this.initialBlocked ? {} : { nseTaglist: blocked };
+      app.importData(JSON.stringify({ format: 'empornium-companion', version: 1, settings, nse }), false,
+        { completeOnboarding: true, mergePreferences: true });
       app.onboardingComplete = true; this.close(); app.backfill.maybeAutomatic();
     } catch { this.status.textContent = 'Could not save setup. Your choices are still here. Please try again.'; }
   }
@@ -138,8 +188,9 @@ export class OnboardingController {
     if (this.element?.close) this.element.close();
     this.element?.remove(); this.element = null;
     if (this.returnFocus?.isConnected) this.returnFocus.focus({ preventScroll: true });
-    this.form = this.tags = this.pages = this.size = this.hover = this.group = this.status = this.save = this.returnFocus = null;
+    this.form = this.blocked = this.tagDrafts = this.pages = this.size = this.hover = this.group = this.status = this.save = this.returnFocus = null;
     this.view = this.gridSize = this.gridSpacing = this.reformatDetails = this.shortcuts = null;
+    this.initial = this.initialBlocked = null;
   }
   dispose() { this.close(); }
 }

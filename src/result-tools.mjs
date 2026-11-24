@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Independently implemented after reviewing Collapse Duplicates, Coalesce
 // Variations, and the Emp++/Luminance tag highlighters. See THIRD_PARTY.md.
-import { DEFAULTS, LEGACY_TAG_LISTS, tagHighlightPreferences, tagListTokens, validateSettings } from './core.mjs';
+import { tagCategoriesWithTags, tagCategorySettings, tagHighlightPreferences, tagListTokens, validateSettings } from './core.mjs';
 
 const resultTagSelector = 'div.tags > a';
 const detailTagSelector = 'ul#torrent_tags_list > li > a';
@@ -349,9 +349,7 @@ export class TagHighlights {
     const { tagCategories, favoriteTags, cautionTags } = this.app.settings;
     if (this.categorySource !== tagCategories || this.favoriteSource !== favoriteTags || this.cautionSource !== cautionTags || !this.groups) {
       this.categorySource = tagCategories; this.favoriteSource = favoriteTags; this.cautionSource = cautionTags;
-      this.groups = (tagCategories || DEFAULTS.tagCategories).map(group => ({
-        ...group, tags: LEGACY_TAG_LISTS.has(group.id) ? this.app.settings[LEGACY_TAG_LISTS.get(group.id)] : group.tags
-      }));
+      this.groups = tagCategoriesWithTags(this.app.settings);
       this.assignments = new Map();
       this.members = new Map();
       for (const group of this.groups) {
@@ -597,9 +595,7 @@ export class TagHighlights {
     if (this.refreshStoredPreferences(true) || !app.preferences.flush()) return false;
     const groups = this.categories().map(group => ({ ...group }));
     edit(groups);
-    const changes = { tagCategories: groups.map(({ tags, ...group }) => LEGACY_TAG_LISTS.has(group.id) ? group : { ...group, tags }) };
-    for (const [id, key] of LEGACY_TAG_LISTS) changes[key] = groups.find(group => group.id === id).tags;
-    if (app.preferences.flush(undefined, changes)) return true;
+    if (app.preferences.flush(undefined, tagCategorySettings(groups))) return true;
     app.toast('Could not save the highlight changes.');
     return false;
   }

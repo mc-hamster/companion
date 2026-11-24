@@ -988,13 +988,17 @@ export class CompanionApp {
       reader.onerror = () => reject(new Error('The file could not be read.')); reader.readAsText(file);
     });
   }
+  storedSettings() {
+    return validateSettings({ ...this.settings, ...this.storage.get(SETTINGS_KEY, {}) });
+  }
   exportData() {
+    const settings = this.storedSettings();
     const nse = {};
     for (const key of this.storage.list()) if (/^nse/.test(key)) nse[key] = this.storage.get(key);
-    nse.nseBackfillButtonEnabled = this.settings.backfillEnabled;
-    nse.nseBackfillPageLimit = this.settings.backfillPages;
+    nse.nseBackfillButtonEnabled = settings.backfillEnabled;
+    nse.nseBackfillPageLimit = settings.backfillPages;
     return { format: 'empornium-companion', version: 1, createdAt: new Date().toISOString(),
-      settings: this.settings, searches: this.searches, searchDrawerOpen: this.activePane === 'searches', nse };
+      settings, searches: this.searches, searchDrawerOpen: this.activePane === 'searches', nse };
   }
   importData(text, keepUndo = true, { completeOnboarding = false, mergePreferences = false, replaceNSEKeys = null } = {}) {
     let parsed;
@@ -1005,12 +1009,14 @@ export class CompanionApp {
     else if (!parsed || typeof parsed !== 'object') throw new Error('Expected a JSON object or saved-search array.');
     else if (parsed.format === 'empornium-companion') {
       if (parsed.version !== 1) throw new Error('Unsupported backup version.');
-      settings = validateSettings(parsed.settings);
+      settings = validateSettings(mergePreferences ? { ...this.storedSettings(), ...parsed.settings } : parsed.settings);
       if (Object.hasOwn(parsed.settings ?? {}, 'conditionalRules')) compileConditionalRules(settings.conditionalRules);
-      for (const key of ['keyboardShortcuts', 'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView']) {
-        if (!Object.hasOwn(parsed.settings ?? {}, key)) settings[key] = this.settings[key];
+      if (!mergePreferences) {
+        for (const key of ['keyboardShortcuts', 'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView']) {
+          if (!Object.hasOwn(parsed.settings ?? {}, key)) settings[key] = this.settings[key];
+        }
+        searches = validateSearches(parsed.searches);
       }
-      if (!mergePreferences) searches = validateSearches(parsed.searches);
       nse = this.options.validateNSE?.(parsed.nse || {}) || parsed.nse;
       if (!mergePreferences && !replaceNSEKeys) drawer = !!parsed.searchDrawerOpen;
     } else if ('empSavedSearches' in parsed) {
@@ -1025,7 +1031,7 @@ export class CompanionApp {
       if (!this.options.validateNSE) throw new Error('Filter import is unavailable.');
       nse = this.options.validateNSE(parsed);
     }
-    if (settings && !parsed.settings?.navigationScope) {
+    if (settings && !mergePreferences && !parsed.settings?.navigationScope) {
       settings.navigationScope = settings.globalArrowNavigation ? 'site' : nse?.nseArrowNavigationEnabled ? 'results' : 'off';
     } else if (!settings && nse && Object.hasOwn(nse, 'nseArrowNavigationEnabled')) {
       settings = validateSettings({ ...this.settings, navigationScope: nse.nseArrowNavigationEnabled ? 'results' : 'off',
@@ -1055,9 +1061,8 @@ export class CompanionApp {
       previous.settings = validateSettings({ ...previous.settings, ...this.storage.get(SETTINGS_KEY, {}) });
       previous.searches = validateSearches(this.storage.get(SEARCH_KEY, previous.searches));
     }
-    if (mergePreferences) {
-      const stored = this.storage.get(SETTINGS_KEY, {});
-      changes.set('ep.preferenceUndo', { time: Date.now(), settings: { ...previous.settings, ...stored }, nse: previous.nse });
+    if (mergePreferences && !completeOnboarding) {
+      changes.set('ep.preferenceUndo', { time: Date.now(), settings: previous.settings, nse: previous.nse });
     }
     const writes = keepUndo ? new Map([['ep.previousImport', previous], ...changes]) : changes;
     const old = new Map(Array.from(writes.keys(), key => [key, this.storage.get(key, undefined)]));
@@ -1080,7 +1085,7 @@ export class CompanionApp {
     }
     if ((nse || conditionalChanged) && this.mounted) { this.refreshFilters(true); this.applyAppearance(); }
     if (searches) { this.searches = searches; this.renderSavedSearches(); }
-    if (mergePreferences) {
+    if (changes.has('ep.preferenceUndo')) {
       this.preferences.checkpoint = changes.get('ep.preferenceUndo');
       if (this.undoPreferences) this.undoPreferences.hidden = false;
     }
