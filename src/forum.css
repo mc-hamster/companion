@@ -661,6 +661,10 @@ html.epc-forum-composing-full { overflow: hidden; }
 .epc-forum-format { border-block-end: 1px solid var(--epc-line); background: var(--epc-subtle); border-radius: 7px 7px 0 0; }
 .epc-forum-format-row { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 3px; padding: 4px 6px; }
 .epc-forum-format-row + .epc-forum-format-row { border-block-start: 1px solid var(--epc-line); }
+.epc-forum-table-tools { column-gap: 10px; }
+.epc-forum-table-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; }
+.epc-forum-table-actions:first-child button { border-color: var(--epc-line); background: var(--epc-bg); }
+.epc-forum-table-actions:first-child button:hover { background: var(--epc-soft); }
 .epc-forum-format :is(button,select) { min-width: 27px; min-height: 29px; margin: 0; font-size: 12px; }
 .epc-forum-format button { border-color: transparent; padding: 3px 6px; }
 .epc-forum-format-row > select { max-width: min(132px, 40%); padding: 2px 4px; }
@@ -719,12 +723,12 @@ html.epc-forum-composing-full { overflow: hidden; }
 .epc-forum-visual .ProseMirror :is(td,th) {
   position: relative;
   min-width: 40px;
-  padding: 3px 6px;
-  border: 1px solid var(--epc-line);
-  vertical-align: top;
+  padding: var(--epc-forum-cell-padding, 3px 6px);
+  border: 1px solid var(--epc-forum-cell-border, var(--epc-line));
+  vertical-align: var(--epc-forum-cell-align, middle);
   overflow-wrap: anywhere;
 }
-.epc-forum-visual .ProseMirror th { background: var(--epc-soft); font-weight: 700; }
+.epc-forum-visual .ProseMirror th { background: var(--epc-forum-table-color, var(--epc-soft)); font-weight: 700; }
 .epc-forum-visual .ProseMirror .selectedCell::after {
   position: absolute;
   inset: 0;
@@ -734,11 +738,11 @@ html.epc-forum-composing-full { overflow: hidden; }
 }
 .epc-forum-block-label { color: var(--epc-muted); font: 650 12px/1.4 system-ui, sans-serif; margin-block-end: 2px; }
 .epc-forum-tool-panel {
-  padding: 7px;
+  padding: 9px 10px;
   border-block-end: 1px solid var(--epc-line);
   background: var(--epc-bg);
 }
-.epc-forum-tool-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 6px; }
+.epc-forum-tool-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
 .epc-forum-tool-field {
   display: flex;
   flex: 1 1 120px;
@@ -750,7 +754,60 @@ html.epc-forum-composing-full { overflow: hidden; }
 }
 .epc-forum-tool-field > span { flex-basis: 100%; font-size: 12px; font-weight: 630; }
 .epc-forum-tool-field :is(input:not([type="color"]),select) { flex: 1 1 78px; width: 0; min-width: 0; margin: 0; }
-.epc-forum-tool-field input[type="color"] { width: 34px; height: 28px; padding: 2px; }
+.epc-forum-color-field {
+  display: grid;
+  flex-basis: 100%;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.epc-forum-color-field legend {
+  padding: 0;
+  margin-block-end: 7px;
+  color: var(--epc-fg);
+  font-weight: 680;
+}
+.epc-forum-color-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+.epc-root .epc-forum-color-grid button {
+  display: block;
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--epc-line);
+  border-radius: 6px;
+  background: var(--epc-forum-swatch, var(--epc-bg));
+}
+.epc-root .epc-forum-color-grid button:hover { background: var(--epc-forum-swatch, var(--epc-subtle)); filter: brightness(1.08); }
+.epc-root .epc-forum-color-grid button[aria-pressed="true"] { outline: 2px solid var(--epc-accent); outline-offset: 1px; }
+.epc-root .epc-forum-color-grid [data-format="color-default"] { width: auto; padding-inline: 8px; }
+.epc-forum-color-recents, .epc-forum-color-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 9px;
+  color: var(--epc-muted);
+  font-size: 12px;
+}
+.epc-forum-custom-color, .epc-forum-hex-color { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.epc-forum-custom-color { cursor: pointer; }
+.epc-forum-custom-color input { width: 36px; height: 33px; margin: 0; padding: 3px; cursor: pointer; }
+.epc-forum-hex-color input { width: 118px; min-width: 0; margin: 0; }
+.epc-forum-color-sample {
+  display: grid;
+  place-items: center;
+  min-width: 48px;
+  min-height: 33px;
+  padding: 2px 6px;
+  border: 1px solid var(--epc-line);
+  border-radius: var(--epc-control-radius);
+  background: var(--epc-subtle);
+  color: var(--epc-fg);
+  font-size: 16px;
+  font-weight: 680;
+}
 .epc-forum-tool-actions { display: flex; flex-wrap: wrap; gap: 3px; }
 .epc-forum-tool-actions button { min-height: 28px; margin: 0; }
 .epc-forum-tool-status { flex-basis: 100%; color: var(--epc-muted); }
@@ -821,8 +878,24 @@ html.epc-forum-composing-full { overflow: hidden; }
   .epc-forum-compose, .epc-forum-compose[data-size="wide"] { width: 100%; padding-inline: 10px; }
   .epc-forum-modes button { padding-inline: 7px; }
   .epc-forum-format :is(button,select) { min-height: 32px; }
+  .epc-forum-tool-fields :is(input:not([type="color"]),select) { min-height: 34px; font-size: 16px; }
   .epc-forum-dock .epc-forum-source textarea, .epc-forum-visual .ProseMirror { font-size: 16px; }
   .epc-forum-visual .ProseMirror { max-height: 25dvh; }
+}
+
+@media (max-width: 530px) {
+  .epc-forum-compose-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; }
+  .epc-forum-compose-controls { display: contents; }
+  .epc-forum-compose-head .epc-forum-minimize { grid-area: 1 / 2; }
+  .epc-forum-compose-head .epc-forum-cancel { grid-area: 1 / 3; }
+  .epc-forum-compose-sizes { grid-row: 2; grid-column: 1 / -1; justify-self: start; }
+  .epc-forum-visual:has(> .epc-forum-tool-panel:not([hidden])) > .epc-forum-format :is(
+    .epc-forum-format-row:not(:has(button[aria-expanded="true"])),
+    .epc-forum-table-actions:not(:has(button[aria-expanded="true"])),
+    button:not([aria-expanded="true"]),
+    select,
+    a
+  ) { display: none; }
 }
 
 @media (max-width: 390px) {
@@ -837,4 +910,5 @@ html.epc-forum-composing-full { overflow: hidden; }
   .epc-root .epc-forum-topics > summary,
   .epc-root .epc-forum-compose-controls button,
   .epc-root .epc-forum-discard button { min-height: 44px; }
+  .epc-root .epc-forum-color-grid button { width: 40px; min-height: 40px; }
 }

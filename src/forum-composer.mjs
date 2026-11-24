@@ -12,7 +12,8 @@ const forumPreviewStyle = [
   'body{margin:0;padding:14px 16px;background:var(--preview-bg);color:var(--preview-fg);font:15px/1.55 system-ui,sans-serif;overflow-wrap:anywhere}',
   'a{color:var(--preview-accent)}img,video{max-width:100%;height:auto}',
   'blockquote{margin:8px 0;padding:8px 12px;border-inline-start:3px solid GrayText;background:color-mix(in srgb,var(--preview-fg) 5%,var(--preview-bg))}',
-  'pre{max-width:100%;overflow:auto}table{max-width:100%;border-collapse:collapse}td,th{padding:4px 8px;border:1px solid GrayText}',
+  'pre{max-width:100%;overflow:auto}table{max-width:100%;border-collapse:collapse}td,th{padding:var(--preview-cell-padding,4px 8px);border:var(--preview-cell-border,1px solid GrayText);vertical-align:var(--preview-cell-align,middle)}',
+  '.noborder{--preview-cell-border:none}.nopad{--preview-cell-padding:0}.vat{--preview-cell-align:top}.vam{--preview-cell-align:middle}.vab{--preview-cell-align:bottom}',
   'details>summary{font-weight:650;cursor:pointer}details{margin:.4em 0}',
   '.hidden{display:none}'
 ].join('');
@@ -290,7 +291,7 @@ export class ForumComposer {
     this.setSize(this.sizes.has(savedSize) ? savedSize : 'compact');
     const minimize = forumButton(doc, 'Minimize', 'epc-forum-minimize');
     this.on(minimize, 'click', () => this.minimize());
-    this.cancelButton = forumButton(doc, 'Cancel reply');
+    this.cancelButton = forumButton(doc, 'Cancel reply', 'epc-forum-cancel');
     this.on(this.cancelButton, 'click', () => this.cancelReply());
     controls.append(sizes, minimize, this.cancelButton);
     header.append(forumElement(doc, 'h2', '', 'Post reply'), controls);

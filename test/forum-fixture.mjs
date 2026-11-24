@@ -1,6 +1,6 @@
 // Neutral forum markup shaped like the Luminance templates.
 import { escapeHTML } from '../src/core.mjs';
-import { parseForumBBCode } from '../src/forum-bbcode.mjs';
+import { forumTableLayout, forumTableStyle, parseForumBBCode } from '../src/forum-bbcode.mjs';
 
 const articleTitle = 'Photo uploads stall on large files';
 const secondTitle = 'A simpler way to organize bug reports';
@@ -152,6 +152,11 @@ function forumFixturePreview(bbcode) {
     if (node.type === 'horizontal_rule') return '<hr>';
     const tag = { paragraph: 'p', quote: 'blockquote', bullet_list: 'ul', list_item: 'li', code_block: 'pre',
       table: 'table', table_row: 'tr', table_cell: 'td', table_header: 'th' }[node.type];
+    if (['table', 'tr', 'td', 'th'].includes(tag) && node.attrs?.label) {
+      const layout = forumTableLayout(node.attrs.label).values;
+      const classes = ['bbcode', layout.border && 'noborder', layout.padding, layout.vertical].filter(Boolean).join(' ');
+      return '<' + tag + ' class="' + classes + '" style="' + escapeHTML(forumTableStyle(node.attrs.label, tag)) + '">' + children + '</' + tag + '>';
+    }
     return tag ? '<' + tag + '>' + children + '</' + tag + '>' : children;
   }
   return format(tree);

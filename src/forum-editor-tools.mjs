@@ -4,11 +4,21 @@ import { Selection, TextSelection } from 'prosemirror-state';
 import { lift, setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
 import { redo, undo } from 'prosemirror-history';
 import { liftListItem, wrapInList } from 'prosemirror-schema-list';
-import { addColumnAfter, addRowAfter, deleteColumn, deleteRow, deleteTable, isInTable, toggleHeaderRow } from 'prosemirror-tables';
-import { forumMarkValue, forumSiteLabels, forumVideoProvider, safeForumLink, safeForumMediaURL } from './forum-bbcode.mjs';
+import { addColumnAfter, addRowAfter, deleteColumn, deleteRow, deleteTable, isInTable, selectedRect, toggleHeaderRow } from 'prosemirror-tables';
+import { forumMarkValue, forumSiteLabels, forumTableLayout, forumVideoProvider, safeForumLink, safeForumMediaURL } from './forum-bbcode.mjs';
 
 const alignments = [['left', 'Align left'], ['center', 'Center'], ['right', 'Align right'], ['justify', 'Justify']];
 const defaultFonts = ['Arial', 'Courier New', 'Georgia', 'Helvetica', 'Tahoma', 'Times New Roman', 'Verdana'];
+const smiliePageSize = 36;
+const smilieCacheAge = 24 * 60 * 60 * 1000;
+const validSmilie = item => typeof item?.code === 'string' && /^[^\[\]\r\n]{1,64}$/.test(item.code) && safeForumMediaURL(item.href);
+const colorPresets = [
+  ['Black', '#151922'], ['Slate', '#475569'], ['Gray', '#788393'], ['Silver', '#b9c3cf'], ['White', '#ffffff'],
+  ['Navy', '#233f73'], ['Blue', '#2864c9'], ['Sky', '#6bbaf0'], ['Teal', '#13847e'], ['Mint', '#8ed8b7'],
+  ['Forest', '#236445'], ['Green', '#51852b'], ['Amber', '#d29a20'], ['Orange', '#d8662b'], ['Red', '#bb3445'],
+  ['Rose', '#e4839e'], ['Purple', '#7350b4'], ['Lavender', '#beadef']
+];
+const recentColorsKey = 'ep.forum.recentColors';
 
 function forumBlock(state, name) {
   const { $from, to } = state.selection;
@@ -135,8 +145,19 @@ function insertForumBlock(view, node) {
 }
 
 async function loadForumSmilies(page, from, signal, win) {
+  const cacheKey = from % smiliePageSize === 0 && from < smiliePageSize * 24 ? 'ep.forum.smilies.v1.' + from : null;
+  if (cacheKey) {
+    try {
+      const cached = JSON.parse(win.localStorage.getItem(cacheKey));
+      const age = win.Date.now() - cached?.savedAt;
+      if (age >= 0 && age < smilieCacheAge && Number.isInteger(cached.next) &&
+          cached.next > from && cached.next <= from + smiliePageSize && Number.isInteger(cached.max) && cached.max >= 0 &&
+          Array.isArray(cached.items) && cached.items.length && cached.items.length <= cached.next - from &&
+          cached.items.every(validSmilie)) return cached;
+    } catch {}
+  }
   const url = new URL('/ajax.php', page);
-  url.search = new URLSearchParams({ action: 'get_smilies', indexfrom: from, indexto: from + 36 });
+  url.search = new URLSearchParams({ action: 'get_smilies', indexfrom: from, indexto: from + smiliePageSize });
   const response = await win.fetch(url.href, { credentials: 'same-origin', mode: 'same-origin', redirect: 'error', signal });
   if (!response.ok) throw new Error('Smilies are unavailable.');
   const xml = new win.DOMParser().parseFromString(await response.text(), 'application/xml');
@@ -153,11 +174,15 @@ async function loadForumSmilies(page, from, signal, win) {
       const image = template.content.firstElementChild;
       uri = image?.matches('img') ? image.getAttribute('src')?.trim() : undefined;
     }
-    if (!code || !uri || !/^[^\[\]\r\n]{1,64}$/.test(code) || !URL.canParse(uri, page)) continue;
-    const href = safeForumMediaURL(new URL(uri, page).href);
-    if (href) items.push({ code, href });
+    if (!uri || !URL.canParse(uri, page)) continue;
+    const item = { code, href: new URL(uri, page).href };
+    if (validSmilie(item)) items.push(item);
   }
-  return { items, next: from + records.length, max: Number(xml.querySelector('maxsmilies')?.textContent) || 0 };
+  const batch = { items, next: from + records.length, max: Number(xml.querySelector('maxsmilies')?.textContent) || 0 };
+  if (cacheKey && !signal.aborted && items.length && records.length <= smiliePageSize) {
+    try { win.localStorage.setItem(cacheKey, JSON.stringify({ ...batch, savedAt: win.Date.now() })); } catch {}
+  }
+  return batch;
 }
 
 export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, page = root.ownerDocument.baseURI, openImages } = {}) {
@@ -166,6 +191,7 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
   const controller = new win.AbortController();
   const { nodes, marks } = view.state.schema;
   const buttonStates = [];
+  const colorProbe = doc.createElement('span').style;
   let activePanel, panelSubmit;
   let disabled = false;
 
@@ -244,12 +270,97 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
     return true;
   }
 
+  function validColor(value) {
+    if (!forumMarkValue('color', value)) return false;
+    colorProbe.color = '';
+    colorProbe.color = value;
+    return !!colorProbe.color;
+  }
+
+  function recentColors() {
+    try {
+      const values = JSON.parse(win.localStorage.getItem(recentColorsKey));
+      if (Array.isArray(values)) return values.filter(validColor).slice(0, 6);
+    } catch {}
+    return [];
+  }
+
+  function colorField(field, input) {
+    const fieldset = element('fieldset', '', 'epc-forum-color-field');
+    const presetGrid = element('div', '', 'epc-forum-color-grid');
+    presetGrid.setAttribute('role', 'group');
+    presetGrid.setAttribute('aria-label', 'Color presets');
+    const recent = recentColors();
+    const swatches = [];
+    const picker = element('input');
+    picker.type = 'color';
+    picker.setAttribute('aria-label', 'Custom color');
+    const sample = element('span', 'Aa', 'epc-forum-color-sample');
+    sample.setAttribute('aria-hidden', 'true');
+    let mixed = field.placeholder === 'Mixed';
+    const pick = value => {
+      input.value = value;
+      input.dispatchEvent(new win.Event('input', { bubbles: true }));
+    };
+    const addSwatch = (parent, [name, value]) => {
+      const swatch = button(parent, 'color-swatch', '', name, () => pick(value));
+      swatch.style.setProperty('--epc-forum-swatch', value);
+      swatches.push([swatch, value]);
+    };
+    for (const choice of colorPresets) addSwatch(presetGrid, choice);
+    if (!field.required) {
+      const reset = button(presetGrid, 'color-default', 'Default', 'Use default color', () => pick(''));
+      swatches.push([reset, '']);
+    }
+    fieldset.append(element('legend', field.label), presetGrid);
+    if (recent.length) {
+      const row = element('div', '', 'epc-forum-color-recents');
+      const grid = element('div', '', 'epc-forum-color-grid');
+      grid.setAttribute('role', 'group');
+      grid.setAttribute('aria-label', 'Recent colors');
+      for (const value of recent) addSwatch(grid, ['Recent ' + value, value]);
+      row.append(element('span', 'Recent'), grid);
+      fieldset.append(row);
+    }
+    const entry = element('div', '', 'epc-forum-color-entry');
+    const custom = element('label', '', 'epc-forum-custom-color');
+    const hex = element('label', '', 'epc-forum-hex-color');
+    custom.append(picker, element('span', 'Custom'));
+    hex.append(element('span', 'Hex or color name'), input);
+    entry.append(custom, hex, sample);
+    fieldset.append(entry);
+
+    const refresh = () => {
+      const value = input.value.trim();
+      const valid = validColor(value);
+      sample.style[field.swatch === 'background' ? 'backgroundColor' : 'color'] = valid ? value : '';
+      for (const [swatch, preset] of swatches) {
+        swatch.setAttribute('aria-pressed', String(!mixed && preset.toLowerCase() === value.toLowerCase()));
+      }
+      if (/^#[a-f0-9]{6}$/i.test(value)) picker.value = value;
+      else if (/^#[a-f0-9]{3}$/i.test(value)) picker.value = '#' + [...value.slice(1)].map(c => c + c).join('');
+    };
+    picker.value = '#2864c9';
+    picker.addEventListener('input', () => pick(picker.value));
+    picker.addEventListener('change', () => pick(picker.value));
+    input.addEventListener('input', () => {
+      if (mixed) input.placeholder = 'Default';
+      mixed = false;
+      refresh();
+    });
+    refresh();
+    const selected = input.value && swatches.find(([swatch]) => swatch.getAttribute('aria-pressed') === 'true');
+    return { fieldset, focus: selected?.[0] || swatches[0][0] };
+  }
+
   function configure(trigger, fields, action, { label = 'Apply', remove } = {}) {
     const content = element('div', '', 'epc-forum-tool-fields');
     const status = element('span', '', 'epc-forum-tool-status');
     status.setAttribute('role', 'status');
     const inputs = [];
-    for (const field of fields) {
+    const changed = new Set();
+    let firstFocus;
+    for (const [index, field] of fields.entries()) {
       const row = element('label', '', 'epc-forum-tool-field');
       const input = element(field.choices ? 'select' : 'input');
       input.setAttribute('aria-label', field.label);
@@ -261,23 +372,33 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
         input.placeholder = field.placeholder ?? '';
       }
       input.value = field.value ?? '';
-      row.append(element('span', field.label), input);
+      const markChanged = () => { changed.add(index); status.textContent = ''; };
+      input.addEventListener('input', markChanged);
+      input.addEventListener('change', markChanged);
       if (field.swatch) {
-        const picker = element('input');
-        picker.type = 'color';
-        picker.setAttribute('aria-label', 'Color picker');
-        picker.value = /^#[\da-f]{6}$/i.test(input.value) ? input.value : '#274f9d';
-        picker.addEventListener('input', () => { input.value = picker.value; });
-        row.append(picker);
+        const { fieldset, focus } = colorField(field, input);
+        firstFocus ||= focus;
+        content.append(fieldset);
+      } else {
+        row.append(element('span', field.label), input);
+        firstFocus ||= input;
+        content.append(row);
       }
       inputs.push(input);
-      content.append(row);
     }
     const submit = () => {
       if (disabled) return;
-      const error = action(inputs.map(input => input.value.trim()));
+      const values = inputs.map(input => input.value.trim());
+      const error = action(values, changed);
       if (error) status.textContent = error;
-      else closePanel();
+      else {
+        const colors = values.filter((value, index) => changed.has(index) && fields[index].swatch && validColor(value));
+        if (colors.length) {
+          const recent = [...new Set([...colors, ...recentColors()].map(value => value.toLowerCase()))].slice(0, 6);
+          try { win.localStorage.setItem(recentColorsKey, JSON.stringify(recent)); } catch {}
+        }
+        closePanel();
+      }
     };
     const controls = element('div', '', 'epc-forum-tool-actions');
     button(controls, 'apply-tool', label, label, submit);
@@ -286,7 +407,7 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
     content.append(controls, status);
     if (showPanel(trigger, content)) {
       panelSubmit = submit;
-      inputs[0]?.focus();
+      firstFocus?.focus();
     }
   }
 
@@ -328,9 +449,9 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
   });
   const color = panelButton(textTools, 'color', 'Color', 'Text color', trigger => {
     const mark = forumActiveMark(view.state, marks.color);
-    configure(trigger, [{ label: 'Text color', value: mark?.attrs.value || '#274f9d', swatch: true }], ([value]) => {
-      if (!forumMarkValue('color', value)) return 'Enter a color name or a hex color.';
-      changeForumMark(view, 'color', { value }, '', true);
+    configure(trigger, [{ label: 'Text color', value: mark?.attrs.value, swatch: 'text', placeholder: 'Default' }], ([value]) => {
+      if (value && !validColor(value)) return 'Enter a color name or a hex color.';
+      changeForumMark(view, 'color', value ? { value } : null, '', true);
     }, { remove: mark && (() => changeForumMark(view, 'color', null, '', true)) });
   });
   const align = dropdown(textTools, 'Alignment', [...alignments, ['default', 'Default alignment']], value => {
@@ -409,12 +530,12 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
     const oldColor = parts.find(part => forumMarkValue('color', part) && !alignments.some(([value]) => value === part));
     const defaultColor = doc.documentElement.dataset.epForumTheme === 'dark' ? '#253a57' : '#dbe8fa';
     configure(trigger, [
-      { label: 'Background color', value: oldColor || defaultColor, swatch: true },
+      { label: 'Background color', value: oldColor || defaultColor, swatch: 'background', required: true },
       { label: 'Width', value: parts.find(part => /^\d/.test(part)), placeholder: 'Optional, e.g. 75%' },
       { label: 'Background alignment', value: parts.find(part => alignments.some(([value]) => value === part)),
         choices: [['', 'Default'], ...alignments] }
     ], ([value, width, alignment]) => {
-      if (!forumMarkValue('color', value)) return 'Enter a color name or a hex color.';
+      if (!validColor(value)) return 'Enter a color name or a hex color.';
       if (width && !/^\d{1,3}(?:%|px)$/.test(width)) return 'Enter a width such as 75% or 400px.';
       changeForumBlock(view, 'bg', [value, width, alignment].filter(Boolean).join(','));
     }, { remove: current && (() => changeForumBlock(view, 'bg', null)) });
@@ -438,7 +559,10 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
   });
   async function requestSmilies() {
     if (loading) return;
+    const moreFocused = doc.activeElement === more;
+    const firstAdded = smileyGrid.children.length;
     loading = more.disabled = true;
+    smileyPanel.setAttribute('aria-busy', 'true');
     smileyStatus.textContent = 'Loading smilies…';
     try {
       const batch = await loadForumSmilies(page, offset, controller.signal, win);
@@ -465,7 +589,9 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
       more.setAttribute('aria-label', 'Load more smilies');
       more.hidden = offset >= total || !advanced;
       smileyStatus.textContent = smileys.length ? '' : 'No smilies available.';
-      if (activePanel === picker && doc.activeElement === picker) smileyGrid.firstElementChild?.focus();
+      if (activePanel === picker && (moreFocused || doc.activeElement === picker)) {
+        smileyGrid.children[firstAdded]?.focus();
+      }
     } catch {
       if (!controller.signal.aborted) {
         smileyStatus.textContent = 'Smilies could not load.';
@@ -475,6 +601,7 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
       }
     } finally {
       loading = false;
+      smileyPanel.setAttribute('aria-busy', 'false');
       more.disabled = disabled;
     }
   }
@@ -488,10 +615,76 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
   help.rel = 'noopener noreferrer';
   textTools.append(help);
 
+  function openTableOptions(trigger, scope) {
+    const { state } = view;
+    if (!isInTable(state)) return;
+    const rect = selectedRect(state);
+    const targets = [];
+    if (scope === 'table') targets.push([rect.tableStart - 1, rect.table]);
+    else if (scope === 'row') {
+      rect.table.forEach((node, offset, index) => {
+        if (index >= rect.top && index < rect.bottom) targets.push([rect.tableStart + offset, node]);
+      });
+    } else {
+      for (const offset of rect.map.cellsInRect(rect)) targets.push([rect.tableStart + offset, rect.table.nodeAt(offset)]);
+    }
+    if (!targets.length) return;
+    const optionsByTarget = targets.map(([, node]) => forumTableLayout(node.attrs.label));
+    const title = { table: 'Table', row: 'Row', cell: 'Cell' }[scope];
+    const fields = [{ key: 'color', label: title + ' background', swatch: 'background', placeholder: 'Default' }];
+    if (scope !== 'row') {
+      fields.push({ key: 'width', label: 'Width', placeholder: '80% or 420px' });
+      if (scope === 'table') fields.push({ key: 'alignment', label: 'Table alignment', choices: [
+        ['', 'Default'], ['left', 'Left'], ['center', 'Center'], ['right', 'Right']
+      ] });
+      fields.push(
+        { key: 'border', label: 'Borders', choices: [['', 'Default'], [scope === 'table' ? 'nball' : 'nb', 'Hidden']] },
+        { key: 'vertical', label: 'Vertical alignment', choices: [['', 'Default'], ['vat', 'Top'], ['vam', 'Middle'], ['vab', 'Bottom']] }
+      );
+    }
+    fields.push({ key: 'padding', label: 'Padding', choices: [['', 'Default'], ['nopad', 'None']] });
+    for (const field of fields) {
+      const values = new Set(optionsByTarget.map(option => option.values[field.key] || ''));
+      if (values.size === 1) field.value = values.values().next().value;
+      else if (field.choices) {
+        field.choices = [['_mixed', 'Mixed'], ...field.choices];
+        field.value = '_mixed';
+      } else field.placeholder = 'Mixed';
+    }
+    configure(trigger, fields, (values, changed) => {
+      const patch = {};
+      for (const index of changed) {
+        const { key } = fields[index];
+        const value = values[index];
+        if (value === '_mixed') continue;
+        if (key === 'color' && value && !validColor(value)) return 'Enter a color name or a hex color.';
+        if (key === 'width' && value && !/^(?:(?:[1-9]\d?|100)%|[1-9]\d{0,3}px)$/i.test(value)) {
+          return 'Use a width like 80% or 420px.';
+        }
+        patch[key] = value;
+      }
+      if (!Object.keys(patch).length) return;
+      if (view.state.doc !== state.doc) return 'The table changed. Reopen its options and try again.';
+      const transaction = view.state.tr;
+      for (const [index, [pos, node]] of targets.entries()) {
+        const { extra, values: original } = optionsByTarget[index];
+        const label = [...Object.values({ ...original, ...patch }).filter(Boolean), ...extra].join(',');
+        if (label !== node.attrs.label) transaction.setNodeMarkup(pos, undefined, { ...node.attrs, label });
+      }
+      if (transaction.docChanged) view.dispatch(transaction);
+    });
+  }
+
+  const tableOptions = element('div', '', 'epc-forum-table-actions');
+  const tableStructure = element('div', '', 'epc-forum-table-actions');
+  tableTools.append(tableOptions, tableStructure);
+  for (const [scope, caption] of [['table', 'Table options'], ['row', 'Row options'], ['cell', 'Cell options']]) {
+    panelButton(tableOptions, scope + '-options', caption, caption, trigger => openTableOptions(trigger, scope));
+  }
   for (const [label, command] of [
     ['Add row', addRowAfter], ['Add column', addColumnAfter], ['Header row', toggleHeaderRow],
     ['Remove row', deleteRow], ['Remove column', deleteColumn], ['Remove table', deleteTable]
-  ]) button(tableTools, 'table-action', label, label, () => run(command));
+  ]) button(tableStructure, 'table-action', label, label, () => run(command));
 
   function sync(setDisabled = disabled) {
     disabled = setDisabled;

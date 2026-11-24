@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { companionForumPage, isNSEPage } from '../src/core.mjs';
-import { formatForumQuote, forumLiteralText, forumQuoteCredit, writeForumBBCode } from '../src/forum-bbcode.mjs';
+import { formatForumQuote, forumLiteralText, forumQuoteCredit, forumTableLayout, parseForumBBCode, writeForumBBCode } from '../src/forum-bbcode.mjs';
 import { readForumVisualSource } from '../src/forum-editor.mjs';
 import { domFixture, memoryStorage, until } from './helpers.mjs';
 import { forumFixtureHTML } from './forum-fixture.mjs';
@@ -420,6 +420,44 @@ test('the full native toolbar is immediately available in BBCode and the Visual 
   } finally { f.close(); }
 });
 
+test('table and cell options use native BBCode while retaining other table attributes', async () => {
+  const f = await start('/forum/thread/42', { storage: memoryStorage({ 'ep.forum.reader': true }) });
+  try {
+    const { doc, win } = f;
+    doc.querySelector('.epc-forum-launch').click();
+    changeBody(f, '[table=70%,https://example.test/background.png,center,nopad][tr][th]Heading[/th][td=50%,vab]Cell[/td][/tr][/table]');
+    doc.querySelector('.epc-forum-modes button').click();
+    assert.equal(doc.querySelector('.epc-forum-table-tools').hidden, false);
+    const setInput = (selector, value) => {
+      const input = doc.querySelector(selector);
+      input.value = value;
+      input.dispatchEvent(new win.Event('input', { bubbles: true }));
+    };
+    const apply = () => doc.querySelector('[data-format="apply-tool"]').click();
+    doc.querySelector('[data-format="table-options"]').click();
+    doc.querySelector('.epc-forum-color-grid button[aria-label="Mint"]').click();
+    setInput('input[aria-label="Width"]', '85%');
+    setInput('select[aria-label="Borders"]', 'nball');
+    apply();
+    doc.querySelector('[data-format="cell-options"]').click();
+    doc.querySelector('.epc-forum-color-grid button[aria-label="Sky"]').click();
+    apply();
+    const result = parseForumBBCode(doc.getElementById('quickpost').value).content[0];
+    assert.deepEqual(forumTableLayout(result.attrs.label), {
+      values: { width: '85%', alignment: 'center', padding: 'nopad', color: '#8ed8b7', border: 'nball' },
+      extra: ['https://example.test/background.png']
+    });
+    assert.deepEqual(forumTableLayout(result.content[0].content[1].attrs.label).values, {
+      width: '50%', vertical: 'vab', color: '#6bbaf0'
+    });
+    assert.equal(result.content[0].content[0].type, 'table_header');
+    assert.equal(doc.querySelector('.ProseMirror table').style.getPropertyValue('--epc-forum-cell-border').trim(), 'transparent');
+    assert.equal(doc.querySelector('.ProseMirror td').style.backgroundColor, 'rgb(107, 186, 240)');
+    doc.querySelector('[data-format="table-options"]').click();
+    assert.ok(doc.querySelector('[aria-label="Recent colors"] [aria-label="Recent #6bbaf0"]'));
+  } finally { f.close(); }
+});
+
 test('Visual loads native smilie image markup and inserts its BBCode', async () => {
   const pages = [];
   const f = await start('/forum/thread/42', {
@@ -455,6 +493,21 @@ test('Visual loads native smilie image markup and inserts its BBCode', async () 
     first.querySelector('[aria-label=":smile1:"]').click();
     assert.equal(doc.querySelector('.ProseMirror .epc-forum-editor-smiley').src, site + '/static/common/smileys/smile1.gif');
     assert.equal(doc.getElementById('quickpost').value.trim(), ':smile1:');
+    const reopenPicker = async () => {
+      doc.querySelector('.epc-forum-toggle').click();
+      doc.querySelector('.epc-forum-toggle').click();
+      doc.querySelector('.epc-forum-launch').click();
+      doc.querySelector('[data-format="smilies"]').click();
+      await until(() => doc.querySelector('.epc-forum-smiley-grid img'));
+    };
+    await reopenPicker();
+    assert.deepEqual(pages, ['0', '2']);
+    const key = 'ep.forum.smilies.v1.0';
+    const cached = JSON.parse(f.win.localStorage.getItem(key));
+    cached.savedAt -= 25 * 60 * 60 * 1000;
+    f.win.localStorage.setItem(key, JSON.stringify(cached));
+    await reopenPicker();
+    assert.deepEqual(pages, ['0', '2', '0']);
     assert.deepEqual(f.errors, []);
   } finally { f.close(); }
 });

@@ -71,6 +71,43 @@ export function forumLayoutStyle(value) {
   return props.join(';');
 }
 
+const forumTableFlags = {
+  nball: 'border', nb: 'border', vat: 'vertical', vam: 'vertical', vab: 'vertical', nopad: 'padding'
+};
+
+export function forumTableLayout(label) {
+  const values = {}, extra = [];
+  for (const raw of label.split(',')) {
+    const part = raw.trim();
+    if (!part) continue;
+    const token = part.toLowerCase();
+    if (Object.hasOwn(forumTableFlags, token)) values[forumTableFlags[token]] = token;
+    else if (/^\d{1,4}(?:px|%)?$/.test(token)) values.width = token;
+    else if (forumAlignment(token)) values.alignment = token;
+    else if (forumMarkValue('color', part)) values.color = part;
+    else extra.push(part);
+  }
+  return { values, extra };
+}
+
+export function forumTableStyle(label, tag) {
+  const { values } = forumTableLayout(label);
+  const props = [];
+  if (values.color) props.push('background-color:' + values.color, '--epc-forum-table-color:' + values.color);
+  if (tag !== 'tr' && values.width) {
+    const px = values.width.endsWith('px');
+    props.push('width:' + Math.min(parseInt(values.width, 10), px ? 9999 : 100) + (px ? 'px' : '%'));
+  }
+  if (tag === 'table' && values.alignment) {
+    props.push('margin-left:' + (values.alignment === 'left' ? '0' : 'auto'),
+      'margin-right:' + (values.alignment === 'right' ? '0' : 'auto'));
+  }
+  if (values.border) props.push('--epc-forum-cell-border:transparent');
+  if (values.padding === 'nopad') props.push('--epc-forum-cell-padding:0');
+  if (values.vertical) props.push('--epc-forum-cell-align:' + ({ vat: 'top', vam: 'middle', vab: 'bottom' })[values.vertical]);
+  return props.join(';');
+}
+
 export function forumQuoteSource(thread, post) {
   return '/forum/thread/' + thread + '?postid=' + post + '#post' + post;
 }

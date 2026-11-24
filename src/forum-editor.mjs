@@ -8,7 +8,7 @@ import { keymap } from 'prosemirror-keymap';
 import { splitListItem } from 'prosemirror-schema-list';
 import { goToNextCell, tableEditing, tableNodes } from 'prosemirror-tables';
 import {
-  forumAlignment, forumLayoutStyle, forumMarkValue, forumQuoteCredit, forumSiteLabels, forumSizeStyle,
+  forumAlignment, forumLayoutStyle, forumMarkValue, forumQuoteCredit, forumSiteLabels, forumSizeStyle, forumTableStyle,
   forumVideoProvider, parseForumBBCode, safeForumLink, safeForumMediaURL, writeForumBBCode
 } from './forum-bbcode.mjs';
 import { forumFormattingCommands, mountForumToolbar } from './forum-editor-tools.mjs';
@@ -43,7 +43,7 @@ const forumTables = tableNodes({
       setDOMAttr(value, attrs) {
         if (!value) return;
         attrs['data-ep-forum-layout'] = value;
-        attrs.style = forumLayoutStyle(value);
+        attrs.style = forumTableStyle(value, 'td');
       }
     },
     gap: { default: '' }
@@ -60,7 +60,7 @@ for (const [name, tag] of [['table', 'table'], ['table_row', 'tr']]) {
     attrs: { label: { default: '' }, gap: { default: '' }, tail: { default: '' } },
     parseDOM: [{ tag, getAttrs: el => ({ label: safeLayoutLabel(el.getAttribute('data-ep-forum-layout')) }) }],
     toDOM(node) {
-      const attrs = { 'data-ep-forum-layout': node.attrs.label, style: forumLayoutStyle(node.attrs.label) };
+      const attrs = { 'data-ep-forum-layout': node.attrs.label, style: forumTableStyle(node.attrs.label, tag) };
       return tag === 'table' ? [tag, attrs, ['tbody', 0]] : [tag, attrs, 0];
     }
   });
