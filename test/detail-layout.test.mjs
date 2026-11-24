@@ -415,6 +415,68 @@ test('an open image stays navigable when late dimensions identify it as artwork'
   assert.equal(app.preview.metadata.galleryImage.id, 'last-preview');
 });
 
+test('small standalone graphics and thin strips move out of the main gallery while previews stay visible', async t => {
+  const html = detailFixtureHTML().replace(/<a [^>]*id="preview-link"[\s\S]*?(?=<a id="reveal-example")/,
+    '<img id="first-preview" src="/first.jpg"><img id="photo" src="/second.jpg">' +
+    '<img id="tiny-icon" src="/detail-decoration.png"><img id="sheet" src="/sheet.png">' +
+    '<img id="thin-strip" src="/divider.gif"><img id="wide-preview" src="/wide-panorama.png">' +
+    '<a href="/full-scene.jpg"><img id="linked-thumb" src="/tiny.png"></a>' +
+    '<img id="host-thumb" src="https://hamsterimg.net/images/garden.th.png">');
+  const { app, doc, win } = await openDetail(t, { enabled: true, html });
+  for (const [id, naturalWidth, naturalHeight] of [
+    ['thin-strip', 720, 100], ['tiny-icon', 50, 51], ['sheet', 900, 2600],
+    ['wide-preview', 1500, 108], ['linked-thumb', 54, 42], ['host-thumb', 55, 46]
+  ]) {
+    const image = doc.getElementById(id);
+    Object.defineProperties(image, { naturalWidth: { value: naturalWidth }, naturalHeight: { value: naturalHeight } });
+    image.dispatchEvent(new win.Event('load'));
+  }
+  const ids = selector => [...doc.querySelectorAll(selector)].map(image => image.id);
+  assert.deepEqual(ids('.epc-detail-preview > .epc-detail-preview-images img'),
+    ['', 'first-preview', 'photo', 'sheet', 'wide-preview', 'linked-thumb', 'host-thumb']);
+  assert.deepEqual(ids('.epc-detail-other-images img'), ['tiny-icon', 'thin-strip']);
+  assert.equal(doc.querySelector('.epc-detail-other-images').open, false);
+  app.controls.get('reformatDetailPages').click();
+  assert.equal(doc.querySelectorAll('#descbox #tiny-icon,#descbox #thin-strip').length, 2);
+});
+
+test('recognizes thin JPEG separators and compact headings even in the middle of the gallery', async t => {
+  const divider = 'https://fapping.empornium.sx/images/2014/02/06/hr.jpg';
+  const motto = 'https://hamsterimg.net/images/2015/08/31/oldempmotto.png';
+  const header = 'https://fapping.empornium.sx/images/2014/01/16/transinfo.png';
+  const html = detailFixtureHTML().replace(/<a [^>]*id="preview-link"[\s\S]*?(?=<a id="reveal-example")/,
+    `<img id="first" src="/first.jpg"><img id="second" src="/second.jpg">
+    <img id="divider" src="${divider}">
+    <a href="${motto}"><img id="motto" src="${motto}"></a>
+    <img id="header" src="${header}">
+    <a href="/larger.jpg"><img id="linked-thumb" src="/small.png"></a>
+    <img id="wide-jpeg" src="/wide.jpg"><img id="sheet" src="/sheet.png">`);
+  const { doc, win } = await openDetail(t, { enabled: true, html });
+  for (const [id, naturalWidth, naturalHeight] of [
+    ['header', 273, 106], ['divider', 801, 2], ['motto', 425, 85], ['linked-thumb', 273, 106],
+    ['wide-jpeg', 900, 90], ['sheet', 900, 2600]
+  ]) {
+    const image = doc.getElementById(id);
+    Object.defineProperties(image, { naturalWidth: { value: naturalWidth }, naturalHeight: { value: naturalHeight } });
+    image.dispatchEvent(new win.Event('load'));
+  }
+  const ids = selector => [...doc.querySelectorAll(selector)].map(image => image.id);
+  assert.deepEqual(ids('.epc-detail-other-images img'), ['divider', 'motto', 'header']);
+  assert.deepEqual(ids('.epc-detail-preview > .epc-detail-preview-images img'),
+    ['', 'first', 'second', 'linked-thumb', 'wide-jpeg', 'sheet']);
+});
+
+test('moves standalone decoration into Other images when the cover is the only other gallery image', async t => {
+  const html = detailFixtureHTML().replace(/<a [^>]*id="preview-link"[\s\S]*?(?=<a id="reveal-example")/,
+    '<img id="divider" src="/horizontal-line.jpg">');
+  const { doc, win } = await openDetail(t, { enabled: true, html });
+  const divider = doc.getElementById('divider');
+  Object.defineProperties(divider, { naturalWidth: { value: 801 }, naturalHeight: { value: 2 } });
+  divider.dispatchEvent(new win.Event('load'));
+  assert.equal(divider.closest('details')?.classList.contains('epc-detail-other-images'), true);
+  assert.equal(doc.querySelectorAll('.epc-detail-preview > .epc-detail-preview-images img').length, 1);
+});
+
 test('finds consecutive headers after a duplicate cover and keeps real animated previews', async t => {
   const cases = [
     {

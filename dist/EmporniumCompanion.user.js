@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Companion
 // @namespace    empornium-companion.local
-// @version      2.16.3
+// @version      2.16.4
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion
@@ -2662,10 +2662,10 @@ class DetailLayout {
     this.linksPanel.hidden = !links;
     this.linksSummary.textContent = `Links from description (${links})`;
     this.previewSection.hidden = !links && !this.previewImages.childElementCount && !this.previewExtras.childElementCount;
-    // Find the edges after duplicate cover and gallery images have been removed.
+    // Check artwork after duplicate cover and gallery images have been removed.
     const images = [...this.previewImages.querySelectorAll('img')].filter(image => image !== this.coverImage);
-    this.edgeImages = images.length > 1 ? [...new Set([...images.slice(0, 2), ...images.slice(-2)])] : [];
-    for (const image of this.edgeImages) this.separateOtherImage(image);
+    this.galleryImageOrder = new Map(images.map((image, index) => [image, index]));
+    for (const image of images) this.separateOtherImage(image);
     this.sizeSparseGallery();
     this.app.preview.scan(this.previewImages);
     if (this.otherImages) this.app.preview.scan(this.otherImages);
@@ -2673,23 +2673,39 @@ class DetailLayout {
   }
 
   separateOtherImage(image) {
-    const index = this.edgeImages?.indexOf(image) ?? -1;
+    const order = this.galleryImageOrder;
+    const index = order?.get(image);
     const preview = this.app.preview;
-    if (index < 0 || this.app.disposed || preview.open && preview.metadata?.galleryImage === image ||
+    if (index === undefined || this.app.disposed || preview.open && preview.metadata?.galleryImage === image ||
         !this.previewImages.contains(image) ||
         this.previewImages.childElementCount < 2) return;
-    const src = galleryImageKey(image);
-    if (!src) return;
-    const file = new URL(src).pathname.split('/').at(-1);
-    if (!/\.(?:png|gif)$/i.test(file) || /preview|screenshots?|contact[-_. ]?sheet|panorama|sizzle|teaser|\.mp4\./i.test(file)) return;
     const { naturalWidth, naturalHeight } = image;
+    if (!naturalWidth || !naturalHeight || naturalHeight > 200) return;
+    const ratio = naturalWidth / naturalHeight;
+    const tiny = naturalWidth <= 64 && naturalHeight <= 64;
+    const separator = naturalHeight <= 8 && ratio >= 32;
+    const thin = naturalHeight <= 120 && ratio >= (naturalHeight <= 100 ? 5 : 6);
+    const compactHeader = naturalWidth <= 320 && naturalHeight <= 120 && ratio >= 2.5;
+    const edge = order.size > 1 && (index < 2 || index >= order.size - 2);
+    if (!edge && !tiny && !separator && !thin && !compactHeader) return;
+    const source = safeImageURL(detailImageSource(image), image.baseURI);
+    if (!source) return;
+    const original = fullSizeURL(source);
+    const file = new URL(original).pathname.split('/').at(-1);
+    const artworkFormat = /\.(?:png|gif)$/i.test(file);
+    const jpegSeparator = separator && /\.jpe?g$/i.test(file);
+    if ((!artworkFormat && !jpegSeparator) || /preview|screenshots?|contact[-_. ]?sheet|panorama|sizzle|teaser|\.mp4\./i.test(file)) return;
+    // Dimensions are weaker evidence if the small image can open a larger version.
+    const linked = detailImageLink(image);
+    const hasLargerSource = original !== source || linked && canonicalImageURL(fullSizeURL(linked)) !== canonicalImageURL(original);
+    const standaloneGraphic = (tiny || separator || thin || compactHeader) && !hasLargerSource;
     const authoredWidth = Number(image.getAttribute('width'));
     const compact = naturalWidth <= 240 && naturalHeight <= 100 ||
       naturalWidth <= 760 && authoredWidth > 0 && authoredWidth <= 400;
     const namedArtwork = /(?:chatgpt[-_ ]image|generated[-_ ]image|banner|logo)/i.test(file);
     const minimumRatio = compact ? 2.2 : namedArtwork ? 2.6 : 4.2;
-    if (!naturalHeight || naturalHeight > 200 || naturalWidth < (compact ? 200 : 240) ||
-        naturalWidth / naturalHeight < minimumRatio) return;
+    const edgeBanner = artworkFormat && edge && naturalWidth >= (compact ? 200 : 240) && ratio >= minimumRatio;
+    if (!standaloneGraphic && !edgeBanner) return;
     const frame = image.closest('.epc-detail-preview-images > div');
     if (frame?.parentElement !== this.previewImages || frame.querySelectorAll('img').length !== 1) return;
     this.app.batchDOM(() => {
@@ -2700,8 +2716,7 @@ class DetailLayout {
         this.previewImages.after(disclosure);
         applyWorkspaceTheme(this.app, [disclosure]);
       }
-      const next = this.edgeImages.slice(index + 1).map(candidate => candidate.closest('.epc-detail-preview-images > div'))
-        .find(candidate => candidate?.parentElement === this.otherImages);
+      const next = [...this.otherImages.children].find(candidate => order.get(candidate.querySelector('img')) > index);
       this.otherImages.insertBefore(frame, next || null);
     });
     this.sizeSparseGallery();
@@ -2781,7 +2796,7 @@ class DetailLayout {
 
   dispose() {
     if (!this.root) return;
-    this.edgeImages = null;
+    this.galleryImageOrder = null;
     this.app.batchDOM(() => {
       this.restoreNodes();
       for (const section of this.originalSections) section.removeAttribute('data-ep-detail-original-hidden');
