@@ -60,13 +60,15 @@ test('imports validate before changes; toolkit and NSE settings have separate na
   f.close();
 });
 test('restores a pre-rename backup and exports it with the Companion filename', async () => {
-  const f = await setup();
+  const f = await setup('', { previews: false, reformatDetailPages: true });
   try {
     f.app.importData(JSON.stringify({
       format: 'empornium-companion', version: 1, settings: { thumbnailSize: 88 },
       searches: [{ id: 'saved', title: 'Saved search', fields: [] }], nse: { nseTaglist: 'old.tag' }
     }));
     assert.equal(f.storage.get('ep.settings').thumbnailSize, 88);
+    assert.equal(f.app.settings.previews, false);
+    assert.equal(f.app.settings.reformatDetailPages, true);
     assert.equal(f.storage.get('ep.searches')[0].title, 'Saved search');
     assert.equal(f.storage.get('nseTaglist'), 'old.tag');
 
@@ -166,7 +168,8 @@ test('pagination ignores typing, composition and modifiers', async () => {
 });
 test('preferences save automatically without navigation or a second Apply action', async () => {
   const f = await setup(); let reloads = 0, flushes = 0, refreshes = 0;
-  f.app.options.reload = () => reloads++; f.app.options.flushNSE = () => flushes++;
+  f.app.options.reload = () => reloads++;
+  f.app.options.readFilterDraft = () => { flushes++; return { nseTaglist: 'landscape' }; };
   f.app.options.refreshFilters = () => refreshes++;
   f.app.openPane('images');
   const control = f.app.controls.get('thumbnailSize');
@@ -174,7 +177,7 @@ test('preferences save automatically without navigation or a second Apply action
   assert.equal(f.app.applyButton, undefined);
   await settle(600);
   assert.equal(f.storage.get('ep.settings').thumbnailSize, 80); assert.equal(reloads, 0);
-  const rule = f.doc.createElement('textarea'); rule.dataset.epFilterControl = '';
+  const rule = f.doc.createElement('textarea'); rule.id = 'nseBlacklistTaglistArea'; rule.dataset.epFilterControl = '';
   f.app.panes.filters.append(rule);
   rule.dispatchEvent(new f.win.Event('input', { bubbles: true }));
   rule.dispatchEvent(new f.win.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }));

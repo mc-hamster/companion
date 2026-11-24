@@ -8,7 +8,7 @@ import {domFixture,memoryStorage,fakeClock} from './helpers.mjs';
 test('[PREF-03] a late autosave failure rolls back filter writes and keeps the draft retryable',async()=>{
   const f=await boot({nseTaglist:'original.tag'});
   try{
-    pane(f,'filters');f.store.failNext('ep.settings');
+    pane(f,'filters');f.store.failNext('ep.preferenceUndo');
     await field(f,'#nseBlacklistTaglistArea','changed.tag');
     assert.equal(f.store.get('nseTaglist'),'original.tag','failed autosave must not partially replace filters');
     assert.equal(f.doc.getElementById('nseBlacklistTaglistArea').value,'changed.tag');
@@ -102,6 +102,75 @@ test('[BOOT-02] [PREF-01] [TAG-04] rules, highlight lists and customized setting
     assert.equal(f.doc.querySelector('.tags a').dataset.epTagTone,'favorite');
     assert.equal(f.errors.length,0,f.errors.join('\n'));
   }finally{f.close();}
+});
+
+test('saving from an older tab preserves hover and filter changes made in another tab', async () => {
+  const store = strictStorage({ 'ep.settings': { inlineThumbnails: false, previews: false } });
+  const first = await boot({}, { store }), second = await boot({}, { store });
+  try {
+    pane(first, 'settings'); pane(second, 'settings');
+    await field(first, '[data-setting=previews]', true);
+    await field(first, '#nseCheckHideReported', true);
+    await field(second, '[data-setting=thumbnailSize]', '120');
+    pane(second, 'filters');
+    await field(second, '#nseBlacklistTaglistArea', 'landscape');
+    assert.equal(store.get('ep.settings').previews, true);
+    assert.equal(store.get('ep.settings').thumbnailSize, 120);
+    assert.equal(store.get('nseHideReportedEnabled'), true);
+    assert.equal(store.get('nseTaglist'), 'landscape');
+    first.win.dispatchEvent(new first.win.Event('focus'));
+    assert.equal(first.doc.querySelector('[data-setting=thumbnailSize]').value, '120');
+  } finally { first.close(); second.close(); }
+});
+
+test('preference Undo leaves unrelated changes from another tab in place', async () => {
+  const store = strictStorage({ 'ep.settings': { inlineThumbnails: false } });
+  const first = await boot({}, { store }), second = await boot({}, { store });
+  try {
+    pane(first, 'settings'); pane(second, 'settings');
+    await field(first, '[data-setting=previews]', false);
+    await field(second, '[data-setting=thumbnailSize]', '120');
+    clickText(first.doc.querySelector('.epc-workspace'), 'Undo changes');
+    assert.equal(store.get('ep.settings').previews, true);
+    assert.equal(store.get('ep.settings').thumbnailSize, 120);
+  } finally { first.close(); second.close(); }
+});
+
+test('simultaneous saves from independent manager snapshots retain both preferences on reload', async () => {
+  const initial = { 'ep.settings': { inlineThumbnails: false, previews: false }, 'ep.mediaRevision': 2 };
+  const store = strictStorage(initial), cached = strictStorage(initial);
+  const secondStore = { ...cached, set(key, value) { cached.set(key, value); store.set(key, value); } };
+  const first = await boot({}, { store }), second = await boot({}, { store: secondStore });
+  try {
+    pane(first, 'settings'); pane(second, 'settings');
+    await field(first, '[data-setting=previews]', true);
+    await field(second, '[data-setting=thumbnailSize]', '120');
+    const reloaded = await boot({}, { store });
+    try {
+      assert.equal(reloaded.doc.querySelector('[data-setting=previews]').checked, true);
+      assert.equal(reloaded.doc.querySelector('[data-setting=thumbnailSize]').value, '120');
+    } finally { reloaded.close(); }
+  } finally { first.close(); second.close(); }
+});
+
+test('a rule draft cannot overwrite newer rules saved in another tab', async () => {
+  const store = strictStorage({ 'ep.settings': { inlineThumbnails: false } });
+  const first = await boot({}, { store }), second = await boot({}, { store });
+  try {
+    pane(first, 'filters'); pane(second, 'filters');
+    const draft = first.doc.querySelector('.epc-conditional-advanced textarea');
+    draft.value = 'HIDE: $TA{first}';
+    draft.dispatchEvent(new first.win.Event('input', { bubbles: true }));
+    const other = second.doc.querySelector('.epc-conditional-advanced textarea');
+    other.value = 'HIDE: $TA{second}';
+    other.dispatchEvent(new second.win.Event('input', { bubbles: true }));
+    clickText(other.closest('details'), 'Apply rule text');
+    first.win.dispatchEvent(new first.win.Event('focus'));
+    const apply = clickText(draft.closest('details'), 'Apply rule text');
+    assert.equal(apply.disabled, true);
+    assert.equal(draft.value, 'HIDE: $TA{first}');
+    assert.equal(store.get('ep.settings').conditionalRules, 'HIDE: $TA{second}');
+  } finally { first.close(); second.close(); }
 });
 
 test('[SEA-01] saved complete criteria survive a reload with JSON-cloned manager storage',async()=>{

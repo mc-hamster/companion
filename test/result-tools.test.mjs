@@ -156,7 +156,7 @@ test('favorites, cautions and search matches coexist without changing filter vis
 test('highlight preferences survive unrelated settings changes, export/restore and preference Undo', async () => {
   const f = await setup(undefined, { 'ep.settings': { favoriteTags: 'sample.tag', cautionTags: 'other', inlineThumbnails: false } });
   try {
-    const width = f.app.controls.get('thumbnailSize'); width.value = '80'; f.app.dirty = true; f.app.preferences.flush();
+    f.app.setResultPreference('thumbnailSize', 80);
     assert.equal(f.app.settings.favoriteTags, 'sample.tag');
     const backup = f.app.exportData(); f.app.tags.choose('sample.tag', 'caution');
     assert.equal(f.app.settings.favoriteTags, ''); assert.match(f.app.settings.cautionTags, /sample.tag/);

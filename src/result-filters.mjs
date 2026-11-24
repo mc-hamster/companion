@@ -244,8 +244,7 @@ export class ResultFilters {
     const app = this.app;
     try {
       if (ignored) {
-        app.preferences.beforeChange();
-        app.storage.set(IGNORED_KEY, this.ignoredIDs().filter(value => value !== id));
+        app.preferences.saveFilters({ [IGNORED_KEY]: this.ignoredIDs().filter(value => value !== id) });
         app.refreshFilters(true);
       } else {
         app.storage.delete(SEEN_PREFIX + id);

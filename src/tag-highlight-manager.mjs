@@ -140,7 +140,7 @@ export class TagHighlightManager {
       view.status.textContent = 'Tag highlight list exceeds 50,000 characters.';
       return;
     }
-    if (this.highlights.refreshStoredPreferences(true) || !this.app.preferences.flush()) return;
+    if (!this.app.preferences.flush() || this.highlights.refreshStoredPreferences(true)) return;
     this.highlights.categories();
     const draft = new Set(tagListTokens(view.tags.value));
     const removed = new Set(tagListTokens(view.baseTags).filter(tag => !draft.has(tag)));

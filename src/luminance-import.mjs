@@ -101,10 +101,7 @@ export function mountLuminanceImport(app, parent) {
   const preview = app.node('section', null, 'epc-luminance-preview');
   const status = app.node('p', '', 'epc-caption'); status.setAttribute('role', 'status');
   let groups = [], choices = [], plan, apply;
-  const current = () => ({
-    settings: { ...app.settings, ...app.storage.get('ep.settings', {}) },
-    nse: app.exportData().nse
-  });
+  const current = () => app.exportData();
   const render = () => {
     const { settings, nse } = current();
     plan = planLuminanceImport(groups, choices, settings, nse);
@@ -158,7 +155,7 @@ export function mountLuminanceImport(app, parent) {
         const merge = (old, tags) => [String(old || '').trim(), ...tags].filter(Boolean).join(' ');
         const snapshot = {
           format: 'empornium-companion', version: 1,
-          settings: { ...settings, favoriteTags: merge(settings.favoriteTags, added.favorite),
+          settings: { favoriteTags: merge(settings.favoriteTags, added.favorite),
             cautionTags: merge(settings.cautionTags, added.caution),
             collapsedDetailTags: merge(settings.collapsedDetailTags, added.collapse) },
           nse: added.block.length ? { nseTaglist: merge(nse.nseTaglist, added.block) } : {}

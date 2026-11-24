@@ -127,7 +127,8 @@ test('full NSE engine mounts, defaults to empty lists, and keeps companion data 
   const f = await setup({ 'ep.searches': [] });
   assert.ok(f.doc.getElementById('nseOuter'));
   assert.equal(f.doc.querySelectorAll('.nseToggleIcon').length, 2);
-  assert.equal(f.storage.get('nseTaglist'), '');
+  assert.equal(f.doc.getElementById('nseBlacklistTaglistArea').value, '');
+  assert.equal(f.storage.get('nseTaglist'), undefined);
   assert.equal(f.errors.length, 0, f.errors.join('\n'));
   assert.doesNotMatch(f.doc.querySelector('.epc-notice').textContent, /failed/i);
   f.doc.querySelector('.fixture-title').focus(); await settle(10);
@@ -135,6 +136,7 @@ test('full NSE engine mounts, defaults to empty lists, and keeps companion data 
   f.doc.querySelector('.fixture-title').dispatchEvent(new f.win.MouseEvent('pointerenter'));
   await until(() => !f.doc.querySelector('.epc-preview').hidden, 'Title tooltip readiness');
   assert.equal(f.win.getComputedStyle(f.doc.querySelector('.epc-preview')).display, 'block');
+  f.storage.set('nseTaglist', 'sample.tag');
   f.doc.getElementById('nseEraseDataButton').click();
   assert.ok(f.storage.get('ep.settings')); assert.deepEqual(f.storage.get('ep.searches'), []);
   assert.equal(f.storage.get('nseTaglist', null), null); f.close();
@@ -224,8 +226,10 @@ test('one workspace owns filters, searches, images, and settings without legacy 
   assert.ok(f.doc.querySelector('.epc-pane[data-pane="filters"] #nseBlacklistTaglistArea'));
   assert.equal(f.doc.getElementById('nseBlacklistTaglistArea').closest('.epc-engine'), null);
   assert.ok(f.doc.querySelectorAll('[data-ep-filter-control]').length > 40);
-  f.doc.getElementById('nseBlacklistTaglistArea').value = 'new.tag';
-  f.doc.getElementById('nseSaveButton').click();
+  const blockedTags = f.doc.getElementById('nseBlacklistTaglistArea');
+  blockedTags.value = 'new.tag';
+  blockedTags.dispatchEvent(new f.win.Event('change', { bubbles: true }));
+  await until(() => f.storage.get('nseTaglist') === 'new.tag');
   assert.equal(f.storage.get('nseTaglist'), 'new.tag');
   f.doc.querySelector('.epc-navigation button[data-pane="searches"]').click();
   assert.equal(f.doc.querySelector('.epc-pane[data-pane="searches"]').hidden, false);
@@ -663,7 +667,7 @@ test('typing filter rules autosaves and updates existing results without navigat
   assert.equal(f.doc.querySelector('.epc-savebar [role="status"]').textContent, 'Saved automatically');
   f.doc.querySelector('.epc-savebar button').click();
   assert.equal(f.doc.querySelectorAll('tr.torrent.hidden').length, 0);
-  assert.equal(f.storage.get('nseTaglist'), '');
+  assert.equal(f.storage.get('nseTaglist'), undefined);
   assert.equal(f.errors.length, 0, f.errors.join('\n')); f.close();
 });
 test('visibility checkboxes update live and do not accumulate row controls', async () => {
@@ -994,7 +998,7 @@ test('one contextual tag menu offers exclusive highlights without altering visib
     assert.equal(f.doc.querySelector('[data-highlight=clear]').hidden, true);
     f.doc.querySelector('[data-highlight=favorite]').click(); await settle();
     assert.equal(tag.dataset.epTagTone, 'favorite'); assert.equal(f.storage.get('nseTaglist'), 'blocked');
-    assert.equal(f.storage.get('nseWhitelist'), ''); assert.equal(f.doc.querySelector('.torrent_table tr').classList.contains('hidden'), false);
+    assert.equal(f.storage.get('nseWhitelist'), undefined); assert.equal(f.doc.querySelector('.torrent_table tr').classList.contains('hidden'), false);
     open(); assert.equal(f.doc.querySelector('[data-highlight=favorite]').getAttribute('aria-pressed'), 'true');
     f.doc.querySelector('[data-highlight=caution]').click(); await settle();
     assert.equal(tag.dataset.epTagTone, 'caution'); assert.equal(f.storage.get('ep.settings').favoriteTags, '');
@@ -1223,7 +1227,7 @@ test('oversized highlight drafts are rejected and retain the draft', async () =>
     const favorite = f.doc.querySelector('[data-tag-list=favorite]'); favorite.value = 'x'.repeat(50001);
     const category = favorite.closest('details');
     [...category.querySelectorAll('button')].find(button => button.textContent === 'Save tags').click();
-    assert.equal(f.storage.get('nseTaglist'), ''); assert.equal(f.storage.get('ep.settings').favoriteTags || '', '');
+    assert.equal(f.storage.get('nseTaglist'), undefined); assert.equal(f.storage.get('ep.settings').favoriteTags || '', '');
     assert.match(category.querySelector('[role=status]').textContent, /exceeds 50,000/);
     assert.equal(favorite.value.length, 50001);
   } finally { f.close(); }

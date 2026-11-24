@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Companion
 // @namespace    empornium-companion.local
-// @version      2.16.0
+// @version      2.16.1
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion
@@ -1396,43 +1396,111 @@ class PersistentImageCache {
 
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+const undoKey = 'ep.preferenceUndo';
+const SETTINGS_KEY = 'ep.settings';
+const preferencePrefix = 'ep.preference.';
+const samePreference = (first, second) => first === second || JSON.stringify(first) === JSON.stringify(second);
+
+function readPreferenceValues(storage) {
+  const stored = storage.get(SETTINGS_KEY);
+  const values = stored && typeof stored === 'object' ? { ...stored } : {};
+  for (const key of storage.list()) if (key.startsWith(preferencePrefix)) {
+    const name = key.slice(preferencePrefix.length);
+    if (Object.hasOwn(DEFAULTS, name)) values[name] = storage.get(key, values[name]);
+  }
+  return values;
+}
+
+function addSettingsWrites(writes, before, after) {
+  if (samePreference(before, after)) return;
+  // Each edited preference has its own key so overlapping tab saves can retain both values.
+  for (const [key, value] of Object.entries(after)) {
+    if (!samePreference(before[key], value)) writes.set(preferencePrefix + key, value);
+  }
+  writes.set(SETTINGS_KEY, after);
+}
+
+function writePreferences(storage, changes) {
+  const attempted = [];
+  const write = (key, value) => value === undefined ? storage.delete(key) : storage.set(key, value);
+  try {
+    for (const [key, value] of changes) {
+      const before = storage.get(key);
+      if (samePreference(before, value)) continue;
+      attempted.push({ key, before, value });
+      write(key, value);
+    }
+  } catch (error) {
+    let restored = true;
+    for (const { key, before, value } of attempted.reverse()) {
+      try {
+        if (samePreference(storage.get(key), value)) write(key, before);
+      } catch { restored = false; }
+    }
+    if (!restored) throw new Error('Storage failed and some preferences could not be restored.', { cause: error });
+    throw error;
+  }
+}
+
 class PreferencesController {
-  constructor(app) { this.app = app; this.timer = null; this.checkpoint = app.storage.get('ep.preferenceUndo', null); }
+  constructor(app) {
+    this.app = app; this.timer = null;
+    this.settingsEdits = new Set(); this.filterEdits = new Set();
+    this.checkpoint = app.storage.get(undoKey, null);
+  }
+  get dirty() { return !!(this.settingsEdits.size || this.filterEdits.size); }
   status(text) { if (this.app.saveStatus) this.app.saveStatus.textContent = text; }
   changed(target, event = {}) {
-    if (!target.matches?.('[data-setting],[data-ep-filter-control]')) return;
     const app = this.app;
-    app.dirty = true;
-    if (target.hasAttribute('data-ep-filter-control')) app.filterDirty = true;
+    const key = target.dataset?.setting;
+    if (key && app.controls.get(key) === target) this.settingsEdits.add(key);
+    else if (target.id && (target.hasAttribute('data-ep-filter-control') || target.closest('#nseOuter'))) this.filterEdits.add(target.id);
+    else return;
     app.win.clearTimeout(this.timer);
     this.status('Saving…');
     if (event.isComposing || app.composing) return;
     this.timer = app.win.setTimeout(() => this.flush(), event.type === 'change' ? 0 : 550);
   }
-  beforeChange() {
-    const app = this.app;
-    if (!this.checkpoint || Date.now() - this.checkpoint.time > 30000) {
-      const current = app.exportData();
-      const next = { time: Date.now(), settings: { ...current.settings, ...app.tags.storedPreferences() }, nse: current.nse };
-      app.storage.set('ep.preferenceUndo', next); this.checkpoint = next;
-    }
-    if (app.undoPreferences) app.undoPreferences.hidden = false;
+  refresh() {
+    const { app } = this;
+    if (!app.mounted || app.disposed || app.composing || this.dirty) return false;
+    return app.applySavedSettings(app.storedSettings());
   }
-  flush(conditionalRules = this.app.settings.conditionalRules, highlightChanges) {
+  makeCheckpoint(before, after, filters, coalesce = true) {
+    const now = Date.now(), current = this.checkpoint;
+    const previous = coalesce && current?.applied && this.ownCheckpoint && now - current.time <= 30000 ? current : null;
+    const settings = { ...previous?.settings }, nse = { ...previous?.nse };
+    const applied = { settings: { ...previous?.applied.settings }, nse: { ...previous?.applied.nse } };
+    const remember = (original, saved, key, oldValue, newValue) => {
+      if (samePreference(oldValue, newValue)) return;
+      if (!samePreference(saved[key], oldValue)) original[key] = oldValue;
+      saved[key] = newValue;
+      if (samePreference(original[key], newValue)) { delete original[key]; delete saved[key]; }
+    };
+    for (const [key, value] of Object.entries(after)) remember(settings, applied.settings, key, before[key], value);
+    for (const [key, value] of filters) remember(nse, applied.nse, key, this.app.storage.get(key) ?? null, value ?? null);
+    if (!Object.keys(settings).length && !Object.keys(nse).length) return null;
+    return { time: previous?.time ?? now, settings, nse, applied };
+  }
+  setCheckpoint(checkpoint) {
+    this.checkpoint = checkpoint;
+    this.ownCheckpoint = !!checkpoint;
+    if (this.app.undoPreferences) this.app.undoPreferences.hidden = !checkpoint;
+  }
+  flush(changes = {}) {
     const app = this.app;
     app.win.clearTimeout(this.timer); this.timer = null;
-    const wasDirty = app.dirty;
-    const updatingRules = conditionalRules !== app.settings.conditionalRules;
-    if (app.composing || app.disposed) return !updatingRules && !highlightChanges;
-    if (!wasDirty && !updatingRules && !highlightChanges) return true;
+    const explicit = Object.keys(changes).length > 0;
+    if (app.composing || app.disposed) return !explicit && !this.dirty;
+    if (!this.dirty && !explicit) return true;
     const focused = app.doc.activeElement;
-    const restore = focused?.matches?.('textarea[data-ep-filter-control],input[type=text][data-ep-filter-control]') ?
-      { node: focused, value: focused.value, start: focused.selectionStart, end: focused.selectionEnd, scroll: focused.scrollTop } : null;
-    let snapshot, checkpointBefore = this.checkpoint, filterChanged, conditionalChanged;
-    const previousSettings = app.settings;
+    const restore = this.filterEdits.has(focused?.id) && focused.matches('textarea,input[type=text]') ?
+      { start: focused.selectionStart, end: focused.selectionEnd, scroll: focused.scrollTop } : null;
     try {
-      const next = { ...app.settings, ...app.tags.storedPreferences(), conditionalRules };
-      for (const [key, control] of app.controls) {
+      const before = app.storedSettings();
+      const next = { ...before };
+      for (const key of this.settingsEdits) {
+        const control = app.controls.get(key);
         const numeric = control.type === 'number' || control.hasAttribute('data-numeric');
         if (numeric && !control.checkValidity()) {
           control.setAttribute('aria-invalid', 'true'); this.status('Check the highlighted value.'); return false;
@@ -1440,80 +1508,80 @@ class PreferencesController {
         if (numeric) control.removeAttribute('aria-invalid');
         next[key] = control.type === 'checkbox' ? control.checked : numeric ? Number(control.value) : control.value;
       }
-      filterChanged = app.filterDirty;
-      next.globalArrowNavigation = next.navigationScope === 'site';
-      Object.assign(next, highlightChanges);
+      Object.assign(next, changes);
+      if (next.navigationScope !== before.navigationScope) next.globalArrowNavigation = next.navigationScope === 'site';
       const checked = validateSettings(next);
-      conditionalChanged = checked.conditionalRules !== previousSettings.conditionalRules;
-      if (conditionalChanged) compileConditionalRules(checked.conditionalRules);
-      if (filterChanged) app.options.validateDraftFilters?.();
-      const keys = new Set(['ep.settings', 'ep.preferenceUndo', 'nseArrowNavigationEnabled',
-        ...(filterChanged ? app.storage.list().filter(key => key.startsWith('nse')) : [])]);
-      snapshot = new Map([...keys].map(key => {
-        const value = app.storage.get(key, undefined);
-        return [key, value === undefined ? undefined : JSON.parse(JSON.stringify(value))];
-      }));
-      this.beforeChange(); app.savingPreferences = true;
-      const arrow = app.doc.getElementById('nseCheckArrowNavigation');
-      if (arrow) arrow.checked = next.navigationScope === 'results';
-      if (filterChanged) app.options.flushNSE?.();
-      const previous = app.settings;
-      app.storage.set('ep.settings', checked);
-      app.storage.set('nseArrowNavigationEnabled', checked.navigationScope === 'results');
-      app.settings = checked;
-      for (const key of ['favoriteTags', 'cautionTags']) if (app.controls.has(key) && app.doc.activeElement !== app.controls.get(key)) {
-        app.controls.get(key).value = checked[key];
-      }
-      app.dirty = app.filterDirty = false;
-      if (filterChanged || conditionalChanged) app.refreshFilters();
-      if (conditionalChanged) app.resultFilters.refreshRulesEditor();
-      app.updateMediaPreferences(previous);
-      app.applyAppearance();
-      this.status(conditionalChanged ? 'Rules saved' : 'Saved automatically');
+      if (checked.conditionalRules !== before.conditionalRules) compileConditionalRules(checked.conditionalRules);
+      const filters = new Map(Object.entries(this.filterEdits.size ? app.options.readFilterDraft?.(this.filterEdits) || {} : {}));
+      if (checked.navigationScope !== before.navigationScope) filters.set('nseArrowNavigationEnabled', checked.navigationScope === 'results');
+      this.save(before, checked, filters);
+      const syncedFilters = this.filterEdits.size > 0;
+      this.cancel();
+      app.applySavedSettings(checked, syncedFilters);
+      this.status(Object.hasOwn(changes, 'conditionalRules') ? 'Rules saved' : 'Saved automatically');
       return true;
     } catch (error) {
-      let restored = true;
-      if (snapshot) {
-        const keys = new Set([...snapshot.keys(), ...(filterChanged ? app.storage.list().filter(key => key.startsWith('nse')) : [])]);
-        for (const key of keys) {
-          try {
-            const value = snapshot.get(key), current = app.storage.get(key, undefined);
-            if (JSON.stringify(value) === JSON.stringify(current)) continue;
-            if (value === undefined) app.storage.delete(key); else app.storage.set(key, value);
-          } catch { restored = false; }
-        }
-        app.settings = previousSettings; this.checkpoint = checkpointBefore;
-        if (app.undoPreferences) app.undoPreferences.hidden = !checkpointBefore;
-        if ((filterChanged || conditionalChanged) && restored) app.refreshFilters();
-      }
-      app.dirty = wasDirty;
-      if (filterChanged) app.filterDirty = true;
       this.status('Could not save. Your edits are still here.');
-      app.toast(restored ? error.message || 'Preferences could not be saved.' : 'Storage failed and some preferences could not be restored. Your draft is still here.');
+      app.toast(error.message || 'Preferences could not be saved.');
       return false;
     } finally {
-      app.savingPreferences = false;
-      if (restore && restore.node.isConnected && app.doc.activeElement === restore.node) {
-        restore.node.value = restore.value;
-        try { restore.node.setSelectionRange(restore.start, restore.end); } catch {}
-        restore.node.scrollTop = restore.scroll;
+      if (restore && focused === app.doc.activeElement) {
+        focused.setSelectionRange(restore.start, restore.end);
+        focused.scrollTop = restore.scroll;
       }
     }
   }
+  save(before, after, filters) {
+    const writes = new Map(filters);
+    addSettingsWrites(writes, before, after);
+    if (![...writes].some(([key, value]) => !samePreference(this.app.storage.get(key), value))) return;
+    const checkpoint = this.makeCheckpoint(before, after, filters);
+    writes.set(undoKey, checkpoint ?? undefined);
+    writePreferences(this.app.storage, writes);
+    this.setCheckpoint(checkpoint);
+  }
+  saveVisibilityOverrides(blacklist, whitelist) {
+    const { app } = this;
+    try {
+      this.saveFilters({ nseIndividualUploadHidingBlacklist: blacklist, nseIndividualUploadHidingWhitelist: whitelist });
+    } catch (error) { app.toast(error.message); }
+    app.scheduleFilterRefresh();
+  }
+  saveFilters(filters) {
+    const { app } = this;
+    const checked = app.options.validateNSE?.(filters) || filters;
+    this.save(app.settings, app.settings, new Map(Object.entries(checked)));
+  }
   cancel() {
     this.app.win.clearTimeout(this.timer); this.timer = null;
-    this.app.dirty = this.app.filterDirty = false;
+    this.settingsEdits.clear(); this.filterEdits.clear();
   }
   undo() {
     const app = this.app;
     if (!this.checkpoint) return;
     this.cancel();
     try {
-      const current = app.exportData();
-      const previous = this.checkpoint;
-      app.importData(JSON.stringify({ ...current, settings: previous.settings, nse: previous.nse }), false);
-      app.storage.delete('ep.preferenceUndo'); this.checkpoint = null;
-      if (app.undoPreferences) app.undoPreferences.hidden = true;
+      const { settings, nse, applied } = this.checkpoint;
+      const current = app.storedSettings();
+      if (applied) {
+        const patch = { ...current };
+        for (const [key, value] of Object.entries(settings)) if (samePreference(current[key], applied.settings[key])) patch[key] = value;
+        const writes = new Map();
+        for (const [key, value] of Object.entries(nse)) {
+          if (samePreference(app.storage.get(key) ?? null, applied.nse[key])) writes.set(key, value ?? undefined);
+        }
+        const filtersChanged = writes.size > 0;
+        const next = validateSettings(patch);
+        addSettingsWrites(writes, current, next);
+        if (samePreference(app.storage.get(undoKey), this.checkpoint)) writes.set(undoKey, undefined);
+        writePreferences(app.storage, writes);
+        app.applySavedSettings(next, filtersChanged, true);
+      } else {
+        const backup = app.exportData();
+        app.importData(JSON.stringify({ ...backup, settings, nse }), false);
+        if (samePreference(app.storage.get(undoKey), this.checkpoint)) app.storage.delete(undoKey);
+      }
+      this.setCheckpoint(null);
       this.status('Changes restored'); app.toast('Recent preference changes undone.');
     } catch (error) { app.toast('Could not undo changes: ' + error.message); }
   }
@@ -2642,11 +2710,13 @@ class DetailLayout {
 class OnboardingController {
   constructor(app) { this.app = app; this.open = false; }
   maybeOpen() {
+    if (this.app.storage.get('ep.onboardingDone', false) === true) this.app.onboardingComplete = true;
     if (!this.app.onboardingComplete && !this.open && !this.app.doc.hidden && this.app.root?.dataset.epReady === 'true') this.show();
   }
   show() {
     const app = this.app;
     if (this.open || app.disposed || !app.preferences.flush()) return;
+    app.preferences.refresh();
     this.firstUse = !app.onboardingComplete;
     this.returnFocus = app.doc.activeElement;
     app.preview.hide(true);
@@ -2660,7 +2730,7 @@ class OnboardingController {
     dialog.append(heading, app.node('p', 'Reliable thumbnails, image grids, larger previews on hover, filters, grouped versions, saved searches, and more results on one page.'));
     dialog.append(app.node('p', 'These options—and much more—are available in Settings anytime. Reopen this setup with Settings → Getting started.', 'epc-caption'));
     const form = app.node('form'); this.form = form;
-    const fresh = this.firstUse && !app.hasExistingPreferences;
+    const fresh = this.fresh = this.firstUse && !app.hasExistingPreferences;
     const mode = fresh ? 'pages' : app.settings.backfillMode;
     const field = (parent, label, control) => {
       const row = app.node('label', null, 'epc-welcome-field'); row.append(app.node('span', label), control); parent.append(row); return control;
@@ -2740,27 +2810,39 @@ class OnboardingController {
     actions.append(this.save, app.button(this.firstUse ? 'Not now' : 'Cancel', () => this.dismiss())); form.append(actions);
     form.addEventListener('submit', event => { event.preventDefault(); this.finish(); });
     dialog.addEventListener('cancel', event => { event.preventDefault(); this.dismiss(); });
+    this.initial = this.choices();
+    this.initialBlocked = this.tags.get('blocked').value;
     dialog.append(form); app.doc.body.append(dialog); this.open = true;
     if (dialog.showModal) dialog.showModal(); else { dialog.open = true; dialog.setAttribute('role', 'dialog'); }
     // Native dialogs handle focus containment and return it on close.
     const focus = form.querySelector('[name="welcome-backfill"]:checked'); focus.focus({ preventScroll: true });
   }
+  choices() {
+    return {
+      backfillMode: this.form.querySelector('[name="welcome-backfill"]:checked').value,
+      backfillPages: Number(this.pages.value), thumbnailSize: Number(this.size.value),
+      previews: this.hover.checked, groupVersions: this.group.checked, resultsView: this.view.value,
+      gridCardWidth: Number(this.gridSize.value), gridSpacing: this.gridSpacing.value,
+      reformatDetailPages: this.reformatDetails.checked, keyboardShortcuts: this.shortcuts.checked,
+      favoriteTags: this.tags.get('favoriteTags').value, cautionTags: this.tags.get('cautionTags').value
+    };
+  }
   finish() {
     const app = this.app;
     if (!this.open || !this.form.reportValidity()) return;
-    const mode = this.form.querySelector('[name="welcome-backfill"]:checked').value;
     try {
-      const current = app.exportData();
-      const settings = { ...app.settings, backfillMode: mode,
-        backfillEnabled: mode !== 'off' || app.settings.backfillEnabled,
-        backfillPages: mode === 'pages' ? Number(this.pages.value) : app.settings.backfillPages,
-        thumbnailSize: Number(this.size.value), previews: this.hover.checked, groupVersions: this.group.checked,
-        resultsView: this.view.value, gridCardWidth: Number(this.gridSize.value),
-        gridSpacing: this.gridSpacing.value, reformatDetailPages: this.reformatDetails.checked,
-        keyboardShortcuts: this.shortcuts.checked,
-        favoriteTags: this.tags.get('favoriteTags').value, cautionTags: this.tags.get('cautionTags').value };
-      app.importData(JSON.stringify({ ...current, settings,
-        nse: { ...current.nse, nseTaglist: this.tags.get('blocked').value } }), false, { completeOnboarding: true });
+      const choices = this.choices();
+      const settings = Object.fromEntries(Object.entries(choices).filter(([key, value]) => this.initial[key] !== value));
+      if (this.fresh && !app.storage.get('ep.onboardingDone', false)) {
+        settings.backfillMode = choices.backfillMode;
+        settings.backfillPages = choices.backfillPages;
+      }
+      if (choices.backfillMode !== 'pages') delete settings.backfillPages;
+      if (settings.backfillMode && settings.backfillMode !== 'off') settings.backfillEnabled = true;
+      const blocked = this.tags.get('blocked').value;
+      const nse = blocked === this.initialBlocked ? {} : { nseTaglist: blocked };
+      app.importData(JSON.stringify({ format: 'empornium-companion', version: 1, settings, nse }), false,
+        { completeOnboarding: true, mergePreferences: true });
       app.onboardingComplete = true; this.close(); app.backfill.maybeAutomatic();
     } catch { this.status.textContent = 'Could not save setup. Your choices are still here. Please try again.'; }
   }
@@ -2777,6 +2859,7 @@ class OnboardingController {
     if (this.returnFocus?.isConnected) this.returnFocus.focus({ preventScroll: true });
     this.form = this.tags = this.pages = this.size = this.hover = this.group = this.status = this.save = this.returnFocus = null;
     this.view = this.gridSize = this.gridSpacing = this.reformatDetails = this.shortcuts = null;
+    this.initial = this.initialBlocked = null;
   }
   dispose() { this.close(); }
 }
@@ -3243,19 +3326,13 @@ class TagHighlights {
     this.touchPointer = app.win.matchMedia?.('(any-pointer: coarse)');
     this.touchPickers = new WeakMap();
   }
-  storedPreferences() {
-    const { app } = this;
-    try { return tagHighlightPreferences(validateSettings(tagHighlightPreferences(app.storage.get('ep.settings', {})))); }
-    catch { return tagHighlightPreferences(app.settings); }
-  }
   refreshStoredPreferences(report = false) {
-    const { app } = this, stored = this.storedPreferences();
-    const before = app.settings;
-    if (JSON.stringify(stored) === JSON.stringify(tagHighlightPreferences(before))) return false;
-    app.settings = { ...before, ...stored };
-    if (app.mounted) app.updateMediaPreferences(before);
-    if (report) app.toast('Tag highlights changed in another tab. Review them and try again.');
-    return true;
+    const { app } = this;
+    const before = tagHighlightPreferences(app.settings);
+    app.preferences.refresh();
+    const changed = !samePreference(before, tagHighlightPreferences(app.settings));
+    if (changed && report) app.toast('Tag highlights changed in another tab. Review them and try again.');
+    return changed;
   }
   categories() {
     const { tagCategories, favoriteTags, cautionTags } = this.app.settings;
@@ -3506,12 +3583,12 @@ class TagHighlights {
   }
   commit(edit) {
     const app = this.app;
-    if (this.refreshStoredPreferences(true) || !app.preferences.flush()) return false;
+    if (!app.preferences.flush() || this.refreshStoredPreferences(true)) return false;
     const groups = this.categories().map(group => ({ ...group }));
     edit(groups);
     const changes = { tagCategories: groups.map(({ tags, ...group }) => LEGACY_TAG_LISTS.has(group.id) ? group : { ...group, tags }) };
     for (const [id, key] of LEGACY_TAG_LISTS) changes[key] = groups.find(group => group.id === id).tags;
-    if (app.preferences.flush(undefined, changes)) return true;
+    if (app.preferences.flush(changes)) return true;
     app.toast('Could not save the highlight changes.');
     return false;
   }
@@ -3614,7 +3691,7 @@ class ResultGrid {
     this.layoutButtons = new Map();
     for (const [value, label, help] of [['list', 'List', 'Show results in a list'], ['grid', 'Grid', 'Show results as image cards']]) {
       const button = app.button(label, () => {
-        if (app.settings.resultsView !== value) app.setResultPreference('resultsView', value);
+        app.setResultPreference('resultsView', value);
       });
       button.prepend(companionIcon(app, value));
       button.dataset.epLayout = value;
@@ -3748,7 +3825,7 @@ class ResultGrid {
       const input = app.node('input'); input.type = 'checkbox'; input.checked = !hidden.has(key);
       input.dataset.columnChoice = key;
       input.addEventListener('change', () => {
-        const next = new Set(app.settings.listHiddenColumns.split(' ').filter(Boolean));
+        const next = new Set(app.storedSettings().listHiddenColumns.split(' ').filter(Boolean));
         if (input.checked) next.delete(key); else next.add(key);
         if (!app.setResultPreference('listHiddenColumns', [...next].join(' '))) input.checked = !input.checked;
       });
@@ -4621,7 +4698,7 @@ class TagHighlightManager {
       view.status.textContent = 'Tag highlight list exceeds 50,000 characters.';
       return;
     }
-    if (this.highlights.refreshStoredPreferences(true) || !this.app.preferences.flush()) return;
+    if (!this.app.preferences.flush() || this.highlights.refreshStoredPreferences(true)) return;
     this.highlights.categories();
     const draft = new Set(tagListTokens(view.tags.value));
     const removed = new Set(tagListTokens(view.baseTags).filter(tag => !draft.has(tag)));
@@ -4868,7 +4945,7 @@ class ConditionalRuleEditor {
     label.append(setSettingHelp(app.node('span', 'Rule text'),
       'Enter one rule per line. Use $TA for a tag, $TI for a title phrase, or $UP for an uploader, and apply the text to save it.', this.raw), this.raw);
     this.applyText = app.button('Apply rule text', () => this.saveText(this.raw.value));
-    this.discardText = app.button('Discard draft', () => { this.raw.value = this.source; this.validateText(); });
+    this.discardText = app.button('Discard draft', () => { this.raw.value = this.rawBase = this.source; this.validateText(); });
     const rawControls = app.node('div', null, 'epc-actions');
     rawControls.append(this.applyText, this.discardText);
     raw.append(setSettingHelp(app.node('summary', 'Advanced rule text'), 'Edit multiple rules together or use parentheses to group conditions.'),
@@ -4882,8 +4959,10 @@ class ConditionalRuleEditor {
   refresh() {
     const source = this.app.settings.conditionalRules;
     if (source === this.source) return;
+    if (this.rawBase === undefined || this.raw.value === this.rawBase || this.raw.value === source) {
+      this.raw.value = this.rawBase = source;
+    }
     this.source = source;
-    this.raw.value = source;
     this.list.replaceChildren();
     try { this.rules = compileConditionalRules(source); }
     catch { this.rules = []; this.rawSection.open = true; }
@@ -4910,8 +4989,9 @@ class ConditionalRuleEditor {
     try {
       compileConditionalRules(this.raw.value);
       this.raw.removeAttribute('aria-invalid');
-      this.rawStatus.textContent = changed ? 'Ready to apply.' : '';
-      this.applyText.disabled = !changed;
+      const stale = changed && this.rawBase !== this.source;
+      this.rawStatus.textContent = stale ? 'Rules changed in another tab. Copy or discard this draft to review the saved rules.' : changed ? 'Ready to apply.' : '';
+      this.applyText.disabled = !changed || stale;
     } catch (error) {
       this.raw.setAttribute('aria-invalid', 'true');
       this.rawStatus.textContent = error.message;
@@ -5002,7 +5082,12 @@ class ConditionalRuleEditor {
   saveText(text, status = this.rawStatus) {
     try { compileConditionalRules(text); }
     catch (error) { status.textContent = error.message; return false; }
-    if (this.app.preferences.flush(text)) return true;
+    if (this.app.storedSettings().conditionalRules !== this.source) {
+      this.app.preferences.refresh();
+      status.textContent = 'Rules changed in another tab. Review the saved rules before applying changes.';
+      return false;
+    }
+    if (this.app.preferences.flush({ conditionalRules: text })) return true;
     status.textContent = 'Could not apply the rules. Your draft is still here.';
     return false;
   }
@@ -5258,8 +5343,7 @@ class ResultFilters {
     const app = this.app;
     try {
       if (ignored) {
-        app.preferences.beforeChange();
-        app.storage.set(IGNORED_KEY, this.ignoredIDs().filter(value => value !== id));
+        app.preferences.saveFilters({ [IGNORED_KEY]: this.ignoredIDs().filter(value => value !== id) });
         app.refreshFilters(true);
       } else {
         app.storage.delete(SEEN_PREFIX + id);
@@ -5373,10 +5457,7 @@ function mountLuminanceImport(app, parent) {
   const preview = app.node('section', null, 'epc-luminance-preview');
   const status = app.node('p', '', 'epc-caption'); status.setAttribute('role', 'status');
   let groups = [], choices = [], plan, apply;
-  const current = () => ({
-    settings: { ...app.settings, ...app.storage.get('ep.settings', {}) },
-    nse: app.exportData().nse
-  });
+  const current = () => app.exportData();
   const render = () => {
     const { settings, nse } = current();
     plan = planLuminanceImport(groups, choices, settings, nse);
@@ -5430,7 +5511,7 @@ function mountLuminanceImport(app, parent) {
         const merge = (old, tags) => [String(old || '').trim(), ...tags].filter(Boolean).join(' ');
         const snapshot = {
           format: 'empornium-companion', version: 1,
-          settings: { ...settings, favoriteTags: merge(settings.favoriteTags, added.favorite),
+          settings: { favoriteTags: merge(settings.favoriteTags, added.favorite),
             cautionTags: merge(settings.cautionTags, added.caution),
             collapsedDetailTags: merge(settings.collapsedDetailTags, added.collapse) },
           nse: added.block.length ? { nseTaglist: merge(nse.nseTaglist, added.block) } : {}
@@ -5586,8 +5667,14 @@ function portableTemplateData(app, nseKeys, data) {
     throw new Error('The Companion template contains invalid settings.');
   }
   const settings = validateSettings(data.settings);
-  for (const key of templateLocalSettings) delete settings[key];
-  compileConditionalRules(settings.conditionalRules);
+  for (const key of Object.keys(settings)) {
+    if (!Object.hasOwn(data.settings, key) || templateLocalSettings.includes(key)) delete settings[key];
+  }
+  if (!Object.hasOwn(settings, 'animatedCovers') &&
+      (Object.hasOwn(data.settings, 'gridAutoplayGifs') || Object.hasOwn(data.settings, 'listAutoplayGifs'))) {
+    settings.animatedCovers = data.settings.gridAutoplayGifs === true || data.settings.listAutoplayGifs === true;
+  }
+  if (Object.hasOwn(settings, 'conditionalRules')) compileConditionalRules(settings.conditionalRules);
   const nse = {};
   for (const key of nseKeys) if (Object.hasOwn(data.nse, key)) nse[key] = data.nse[key];
   return { settings, nse: app.options.validateNSE(nse), searches: validateSearches(data.searches) };
@@ -5777,7 +5864,7 @@ function mountTemplateSync(app) {
       'Could not save the passphrase on this device. Reload Companion and try again.';
   }
 
-  const currentSettings = () => ({ ...app.settings, ...storage.get('ep.settings', {}) });
+  const currentSettings = () => app.storedSettings();
   const currentSnapshot = () => {
     const nse = {};
     for (const key of nseKeys) {
@@ -5792,8 +5879,9 @@ function mountTemplateSync(app) {
 
   function showPreview(incoming, localChanged = false) {
     const current = currentSnapshot();
+    const target = { ...incoming, settings: { ...current.settings, ...incoming.settings } };
     preview.replaceChildren();
-    if (signature(current) === signature(incoming)) {
+    if (signature(current) === signature(target)) {
       status.textContent = 'Your settings already match the Companion template.';
       return;
     }
@@ -5801,8 +5889,8 @@ function mountTemplateSync(app) {
       'Preview only. Choose Restore from Emp below to apply the changes on this device.';
     const changes = app.node('ul', null, 'epc-caption');
     for (const [key, label] of [['settings', 'Companion preferences'], ['nse', 'Filter and theme preferences']]) {
-      const keys = new Set([...Object.keys(current[key]), ...Object.keys(incoming[key])]);
-      const count = [...keys].filter(name => signature(current[key][name]) !== signature(incoming[key][name])).length;
+      const keys = new Set([...Object.keys(current[key]), ...Object.keys(target[key])]);
+      const count = [...keys].filter(name => signature(current[key][name]) !== signature(target[key][name])).length;
       if (count) changes.append(app.node('li', `${label} · ${count} to update`));
     }
     const searchesChanged = signature(current.searches) !== signature(incoming.searches);
@@ -5824,8 +5912,7 @@ function mountTemplateSync(app) {
           showPreview(incoming, true);
           return;
         }
-        const settings = { ...currentSettings(), ...incoming.settings };
-        app.importData(JSON.stringify({ format: 'empornium-companion', version: 1, ...incoming, settings }),
+        app.importData(JSON.stringify({ format: 'empornium-companion', version: 1, ...incoming }),
           true, { replaceNSEKeys: nseKeys });
         const searchResult = searchesChanged
           ? searchCount ? ` Restored ${searchCount} ${searchLabel} to Searches.` : ' Cleared saved searches.'
@@ -5883,7 +5970,6 @@ function mountTemplateSync(app) {
 
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-const SETTINGS_KEY = 'ep.settings';
 const SEARCH_KEY = 'ep.searches';
 const CACHE_STATS_PIN_KEY = 'ep.cacheStatsPinned';
 const DIAGNOSTIC_LIMIT = 3000;
@@ -5963,8 +6049,7 @@ class CompanionApp {
 
   constructor(win, storage, options = {}) {
     this.win = win; this.doc = win.document; this.storage = storage; this.options = options;
-    const storedSettings = storage.get(SETTINGS_KEY, {});
-    const savedSettings = storedSettings && typeof storedSettings === 'object' ? { ...storedSettings } : {};
+    const savedSettings = readPreferenceValues(storage);
     this.hasExistingPreferences = Object.keys(savedSettings).length > 0 || storage.list().some(key => key.startsWith('nse'));
     this.onboardingComplete = storage.get('ep.onboardingDone', false) === true;
     if (!this.hasExistingPreferences && !this.onboardingComplete) savedSettings.keyboardShortcuts = false;
@@ -5975,8 +6060,8 @@ class CompanionApp {
     if (storage.get('ep.mediaRevision', 0) < 2) {
       // Upgrade the old two-slot default, retaining other explicit tuning.
       if (savedSettings.concurrency === 2) savedSettings.concurrency = 6;
-      storage.set('ep.mediaRevision', 2);
       storage.set(SETTINGS_KEY, savedSettings);
+      storage.set('ep.mediaRevision', 2);
     }
     this.settings = validateSettings(savedSettings);
     this.log = []; this.assetIds = new Map(); this.nextAssetId = 0; this.cleanups = [];
@@ -6072,9 +6157,6 @@ class CompanionApp {
       // when this document is leaving, while retaining BFCache documents.
       if (!event.persisted) this.media.pool.dispose();
     });
-    this.on(this.doc, 'click', event => {
-      if (event.target.closest?.('.nseToggleHideButton')) this.preferences.beforeChange();
-    }, true);
     this.on(this.doc, 'pointerdown', event => {
       const menu = this.doc.getElementById('nseRCMBox');
       if (menu && !menu.contains(event.target)) menu.classList.add('hidden');
@@ -6083,10 +6165,10 @@ class CompanionApp {
     });
     this.on(this.doc, 'visibilitychange', () => { this.media.pool.pump(); this.onboarding.maybeOpen(); this.backfill.maybeAutomatic(); });
     this.on(this.win, 'online', () => this.media.resumeAutomaticRecovery(true));
-    this.on(this.win, 'focus', () => { this.refreshSavedSearches(); this.resultFilters.refreshSeen(); });
+    this.on(this.win, 'focus', () => { this.preferences.refresh(); this.refreshSavedSearches(); this.resultFilters.refreshSeen(); });
     this.on(this.doc, 'visibilitychange', () => {
       if(this.doc.hidden)this.cancelCacheUsage();
-      else{this.refreshSavedSearches();this.resultFilters.refreshSeen();this.tags.refreshStoredPreferences();void this.refreshCacheUsage();}
+      else{this.preferences.refresh();this.refreshSavedSearches();this.resultFilters.refreshSeen();void this.refreshCacheUsage();}
     });
     this.observer = new this.win.MutationObserver(mutations => {
       if (this.media.coverGatePending) this.media.syncCoverGate();
@@ -6506,10 +6588,16 @@ class CompanionApp {
     this.root.append(this.toolbar, this.notice, this.cachePinned, this.panel); this.doc.body.append(this.root);
     this.root.addEventListener('input', event => this.markDirty(event.target, event));
     this.root.addEventListener('change', event => {
-      if(event.target.dataset.setting==='backfillMode')this.controls.get('backfillEnabled').checked=true;
+      if (event.target === this.controls.get('backfillMode')) {
+        const enabled = this.controls.get('backfillEnabled');
+        enabled.checked = true;
+        this.preferences.changed(enabled, event);
+      }
       this.syncSettingsUI();this.markDirty(event.target,event);
       if (event.target.matches('.epc-toolbar-switch input') && !this.preferences.flush()) {
-        event.target.checked = this.settings[event.target.dataset.setting];
+        const key = event.target.dataset.setting;
+        event.target.checked = this.settings[key];
+        this.preferences.settingsEdits.delete(key);
       }
     });
     this.root.addEventListener('focusout', event => {
@@ -6539,11 +6627,14 @@ class CompanionApp {
   }
   openPane(key) {
     if (key === 'images') key = 'settings';
-    this.preferences.flush();
+    if (this.preferences.flush()) this.preferences.refresh();
     if (!this.panes?.[key]) return;
     this.hideSettingHelp?.();
     this.grid.closeViewOptions();
-    if (key === 'filters' || key === 'settings') mountFilterControls(this);
+    if (key === 'filters' || key === 'settings') {
+      mountFilterControls(this);
+      if (!this.preferences.dirty) { this.options.syncFilterInputs?.(); this.refreshOptionSummaries?.(); }
+    }
     if (key === 'searches') this.ensureSavedSearchUI();
     if (key === 'searches' && !this.savedDrawer) {
       this.panes.searches.replaceChildren(this.node('p', 'Saved searches are available on torrent search pages.', 'epc-caption'));
@@ -6675,18 +6766,11 @@ class CompanionApp {
     this.media.demandListener?.();
   }
   markDirty(target, event) { this.preferences.changed(target, event); this.refreshOptionSummaries?.(); }
-  applyChanges() { return this.preferences.flush(); }
   setResultPreference(key, value) {
     if (!this.preferences.flush()) return false;
     const control = this.controls.get(key);
-    const field = control.type === 'checkbox' ? 'checked' : 'value';
-    const previous = control[field];
-    control[field] = value;
-    this.dirty = true;
-    if (this.preferences.flush()) return true;
-    control[field] = previous;
-    this.dirty = false;
-    return false;
+    const numeric = control.type === 'number' || control.hasAttribute('data-numeric');
+    return this.preferences.flush({ [key]: numeric ? Number(value) : value });
   }
   captureFilterBaseline(rows) { this.versions?.captureOrder(rows); captureFilterBaseline(this, rows); }
   restoreFilterBaseline() { restoreFilterBaseline(this); }
@@ -6702,9 +6786,7 @@ class CompanionApp {
     row.classList.remove('epc-revealed'); row.classList.add('hidden');
     row.remove(); this.preview?.forget(row); this.media?.noteRemoved(row); this.tags?.forget(row);
   }
-  beforeFilterWrite() { if (!this.savingPreferences) this.preferences.beforeChange(); }
-  afterFilterWrite() {
-    if (this.savingPreferences) return;
+  scheduleFilterRefresh() {
     this.win.clearTimeout(this.filterRefreshTimer);
     this.filterRefreshTimer = this.win.setTimeout(() => {
       this.refreshFilters(); this.applyAppearance(); this.saveStatus.textContent = 'Saved automatically';
@@ -6742,6 +6824,28 @@ class CompanionApp {
       ['nseHardPassColor','--epc-hard-pass','#a00'],['nseWhitelistColor','--epc-allowed','#0f0']]) {
       content?.style.setProperty(name, this.storage.get(key, fallback));
     }
+  }
+  storedSettings() {
+    return validateSettings({ ...this.settings, ...readPreferenceValues(this.storage) });
+  }
+  applySavedSettings(settings, filtersChanged = false, resetControls = false) {
+    const previous = this.settings;
+    const changed = !samePreference(previous, settings);
+    const rulesChanged = previous.conditionalRules !== settings.conditionalRules;
+    if (changed) this.settings = settings;
+    if (changed || resetControls) {
+      for (const [key, control] of this.controls || []) {
+        if (control.type === 'checkbox') control.checked = settings[key]; else control.value = settings[key];
+      }
+    }
+    if (this.mounted) {
+      if (changed) this.updateMediaPreferences(previous);
+      else if (resetControls) this.syncSettingsUI();
+      if (rulesChanged) this.resultFilters.refreshRulesEditor();
+      if (filtersChanged || rulesChanged) this.refreshFilters(filtersChanged);
+      if (changed || filtersChanged) this.applyAppearance();
+    }
+    return changed;
   }
   updateMediaPreferences(previous) {
     this.syncSettingsUI();
@@ -6852,30 +6956,30 @@ class CompanionApp {
     });
   }
   exportData() {
+    const settings = this.storedSettings();
     const nse = {};
     for (const key of this.storage.list()) if (/^nse/.test(key)) nse[key] = this.storage.get(key);
-    nse.nseBackfillButtonEnabled = this.settings.backfillEnabled;
-    nse.nseBackfillPageLimit = this.settings.backfillPages;
+    nse.nseBackfillButtonEnabled = settings.backfillEnabled;
+    nse.nseBackfillPageLimit = settings.backfillPages;
     return { format: 'empornium-companion', version: 1, createdAt: new Date().toISOString(),
-      settings: this.settings, searches: this.searches, searchDrawerOpen: this.activePane === 'searches', nse };
+      settings, searches: validateSearches(this.storage.get(SEARCH_KEY, this.searches)), searchDrawerOpen: this.activePane === 'searches', nse };
   }
   importData(text, keepUndo = true, { completeOnboarding = false, mergePreferences = false, replaceNSEKeys = null } = {}) {
     let parsed;
     try { parsed = JSON.parse(text); }
     catch { throw new SyntaxError('The backup file is not valid JSON.'); }
-    let searches, settings, nse, drawer;
+    let searches, incomingSettings = {}, nse, drawer;
     if (Array.isArray(parsed)) searches = validateSearches(parsed);
     else if (!parsed || typeof parsed !== 'object') throw new Error('Expected a JSON object or saved-search array.');
     else if (parsed.format === 'empornium-companion') {
       if (parsed.version !== 1) throw new Error('Unsupported backup version.');
-      settings = validateSettings(parsed.settings);
-      if (Object.hasOwn(parsed.settings ?? {}, 'conditionalRules')) compileConditionalRules(settings.conditionalRules);
-      for (const key of ['keyboardShortcuts', 'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView']) {
-        if (!Object.hasOwn(parsed.settings ?? {}, key)) settings[key] = this.settings[key];
+      if (Object.hasOwn(parsed, 'settings')) {
+        if (!parsed.settings || typeof parsed.settings !== 'object' || Array.isArray(parsed.settings)) throw new Error('Invalid Companion settings.');
+        incomingSettings = { ...parsed.settings };
       }
-      if (!mergePreferences) searches = validateSearches(parsed.searches);
-      nse = this.options.validateNSE?.(parsed.nse || {}) || parsed.nse;
-      if (!mergePreferences && !replaceNSEKeys) drawer = !!parsed.searchDrawerOpen;
+      if (!mergePreferences && Object.hasOwn(parsed, 'searches')) searches = validateSearches(parsed.searches);
+      if (Object.hasOwn(parsed, 'nse')) nse = this.options.validateNSE?.(parsed.nse) || parsed.nse;
+      if (!mergePreferences && !replaceNSEKeys && Object.hasOwn(parsed, 'searchDrawerOpen')) drawer = !!parsed.searchDrawerOpen;
     } else if ('empSavedSearches' in parsed) {
       let legacy = parsed.empSavedSearches;
       if (typeof legacy === 'string') {
@@ -6888,65 +6992,45 @@ class CompanionApp {
       if (!this.options.validateNSE) throw new Error('Filter import is unavailable.');
       nse = this.options.validateNSE(parsed);
     }
-    if (settings && !parsed.settings?.navigationScope) {
-      settings.navigationScope = settings.globalArrowNavigation ? 'site' : nse?.nseArrowNavigationEnabled ? 'results' : 'off';
-    } else if (!settings && nse && Object.hasOwn(nse, 'nseArrowNavigationEnabled')) {
-      settings = validateSettings({ ...this.settings, navigationScope: nse.nseArrowNavigationEnabled ? 'results' : 'off',
-        globalArrowNavigation: false });
+    if (!Object.hasOwn(incomingSettings, 'navigationScope') &&
+        (Object.hasOwn(incomingSettings, 'globalArrowNavigation') || Object.hasOwn(nse ?? {}, 'nseArrowNavigationEnabled'))) {
+      incomingSettings.navigationScope = incomingSettings.globalArrowNavigation ? 'site' : nse?.nseArrowNavigationEnabled ? 'results' : 'off';
+    }
+    if (!Object.hasOwn(incomingSettings, 'animatedCovers') &&
+        (Object.hasOwn(incomingSettings, 'gridAutoplayGifs') || Object.hasOwn(incomingSettings, 'listAutoplayGifs'))) {
+      incomingSettings.animatedCovers = incomingSettings.gridAutoplayGifs === true || incomingSettings.listAutoplayGifs === true;
     }
     if (nse) {
-      const compatible = {};
-      if (Object.hasOwn(nse, 'nseBackfillButtonEnabled') && !Object.hasOwn(parsed.settings || {}, 'backfillEnabled')) compatible.backfillEnabled = nse.nseBackfillButtonEnabled;
-      if (Object.hasOwn(nse, 'nseBackfillPageLimit') && !Object.hasOwn(parsed.settings || {}, 'backfillPages')) compatible.backfillPages = nse.nseBackfillPageLimit;
-      if (Object.keys(compatible).length) settings = validateSettings({ ...this.settings, ...settings, ...compatible });
+      if (Object.hasOwn(nse, 'nseBackfillButtonEnabled') && !Object.hasOwn(incomingSettings, 'backfillEnabled')) incomingSettings.backfillEnabled = nse.nseBackfillButtonEnabled;
+      if (Object.hasOwn(nse, 'nseBackfillPageLimit') && !Object.hasOwn(incomingSettings, 'backfillPages')) incomingSettings.backfillPages = nse.nseBackfillPageLimit;
+    }
+    const before = this.storedSettings();
+    const settings = validateSettings({ ...before, ...incomingSettings });
+    if (Object.hasOwn(incomingSettings, 'conditionalRules')) compileConditionalRules(settings.conditionalRules);
+    const filters = new Map();
+    if (nse && !mergePreferences) {
+      for (const key of replaceNSEKeys ?? this.storage.list().filter(key => /^nse/.test(key))) filters.set(key, undefined);
+    }
+    if (nse) for (const [key, value] of Object.entries(nse)) filters.set(key, value);
+    if (Object.hasOwn(incomingSettings, 'navigationScope')) {
+      settings.globalArrowNavigation = settings.navigationScope === 'site';
+      filters.set('nseArrowNavigationEnabled', settings.navigationScope === 'results');
     }
     const changes = new Map();
     if (completeOnboarding) changes.set('ep.onboardingDone', true);
-    if (settings) changes.set(SETTINGS_KEY, settings);
+    addSettingsWrites(changes, before, settings);
     if (searches) changes.set(SEARCH_KEY, searches);
     if (drawer !== undefined) changes.set('ep.searchDrawerOpen', drawer);
-    if (nse) {
-      if (!mergePreferences) {
-        for (const key of replaceNSEKeys ?? this.storage.list().filter(key => /^nse/.test(key))) changes.set(key, undefined);
-      }
-      for (const [key, value] of Object.entries(nse)) changes.set(key, value);
-    }
-    if (!changes.size) throw new Error('No compatible settings were found.');
+    for (const [key, value] of filters) changes.set(key, value);
+    if (!changes.size && !Object.keys(incomingSettings).length && !nse) throw new Error('No compatible settings were found.');
+    const checkpoint = mergePreferences && !completeOnboarding ? this.preferences.makeCheckpoint(before, settings, filters, false) : null;
+    if (checkpoint) changes.set('ep.preferenceUndo', checkpoint);
+    const writes = keepUndo ? new Map([['ep.previousImport', this.exportData()], ...changes]) : changes;
+    writePreferences(this.storage, writes);
     this.preferences.cancel();
-    const previous = this.exportData();
-    if (keepUndo && replaceNSEKeys) {
-      previous.settings = validateSettings({ ...previous.settings, ...this.storage.get(SETTINGS_KEY, {}) });
-      previous.searches = validateSearches(this.storage.get(SEARCH_KEY, previous.searches));
-    }
-    if (mergePreferences) {
-      const stored = this.storage.get(SETTINGS_KEY, {});
-      changes.set('ep.preferenceUndo', { time: Date.now(), settings: { ...previous.settings, ...stored }, nse: previous.nse });
-    }
-    const writes = keepUndo ? new Map([['ep.previousImport', previous], ...changes]) : changes;
-    const old = new Map(Array.from(writes.keys(), key => [key, this.storage.get(key, undefined)]));
-    try {
-      for (const [key, value] of writes) value === undefined ? this.storage.delete(key) : this.storage.set(key, value);
-    } catch (error) {
-      for (const [key, value] of old) {
-        try { value === undefined ? this.storage.delete(key) : this.storage.set(key, value); } catch {}
-      }
-      throw error;
-    }
-    const conditionalChanged = settings && settings.conditionalRules !== this.settings.conditionalRules;
-    if (settings) {
-      const before = this.settings; this.settings = settings;
-      for (const [key, control] of this.controls || []) {
-        if (control.type === 'checkbox') control.checked = settings[key]; else control.value = settings[key];
-      }
-      if (this.mounted) this.updateMediaPreferences(before);
-      this.resultFilters.refreshRulesEditor();
-    }
-    if ((nse || conditionalChanged) && this.mounted) { this.refreshFilters(true); this.applyAppearance(); }
+    this.applySavedSettings(settings, filters.size > 0, true);
     if (searches) { this.searches = searches; this.renderSavedSearches(); }
-    if (mergePreferences) {
-      this.preferences.checkpoint = changes.get('ep.preferenceUndo');
-      if (this.undoPreferences) this.undoPreferences.hidden = false;
-    }
+    if (checkpoint) this.preferences.setCheckpoint(checkpoint);
     // Legacy drawer state only restores management. Saved shortcuts are always visible.
     // Old drawer flags do not reopen management or hide the primary shortcuts.
     if (this.saveStatus) this.saveStatus.textContent = 'Backup restored';
@@ -7196,7 +7280,7 @@ class CompanionApp {
     if (!this.settings.keyboardShortcuts || this.onboarding?.open || event.isComposing || event.defaultPrevented) return;
     if (isSaveShortcut(event) &&
         event.target.closest?.('.epc-workspace') && this.activePane !== 'searches') {
-      event.preventDefault(); if (this.dirty) this.applyChanges(); return;
+      event.preventDefault(); if (this.preferences.dirty) this.preferences.flush(); return;
     }
     if (event.key === 'Escape') {
       if (this.preview.open) { event.preventDefault(); this.preview.hide(true); }
@@ -9281,9 +9365,9 @@ function epStart() {
     } : null,
     localImageCache: !!epFixture,
     newRows: (root, rows) => epBridge.newRows?.(root, rows),
-    flushNSE: () => epBridge.flush?.(),
+    readFilterDraft: fields => epBridge.readFilterDraft?.(fields),
     refreshFilters: syncInputs => epBridge.refresh?.(syncInputs),
-    validateDraftFilters: () => epBridge.validateDraft?.(),
+    syncFilterInputs: () => epBridge.syncInputs?.(),
     openVisible: () => epBridge.openVisible?.(),
     hideVisible: () => epBridge.hideVisible?.(),
     resultActionsAvailable: () => epBridge.resultActions,
@@ -9341,56 +9425,48 @@ let nseBlacklistTags = nseBlacklistTaglist.split(" ");
 nseBlacklistTags.sort();
 nseBlacklistTaglist = nseBlacklistTags.join(" ");
 if(nseBlacklistTags.length === 1 && nseBlacklistTags[0] === "") { nseBlacklistTags = new Array(0); }
-GM_setValue("nseTaglist", nseBlacklistTaglist);
 
 let nseHardPassTaglist = GM_getValue("nseHardPassTaglist", "enter.hard.pass.tags.here big.poopies gushing.blood").trim();
 let nseHardPassTags = nseHardPassTaglist.split(" ");
 nseHardPassTags.sort();
 nseHardPassTaglist = nseHardPassTags.join(" ");
 if(nseHardPassTags.length === 1 && nseHardPassTags[0] === "") { nseHardPassTags = new Array(0); }
-GM_setValue("nseHardPassTaglist", nseHardPassTaglist);
 
 let nseWhitelistTaglist = GM_getValue("nseWhitelist", "whitelist.tags go.here").trim();
 let nseWhitelistTags = nseWhitelistTaglist.split(" ");
 nseWhitelistTags.sort();
 nseWhitelistTaglist = nseWhitelistTags.join(" ");
 if(nseWhitelistTags.length === 1 && nseWhitelistTags[0] === "") { nseWhitelistTags = new Array(0); }
-GM_setValue("nseWhitelist", nseWhitelistTaglist);
 
 let nseBlacklistTitleList = GM_getValue("nseBlacklistTitles", "this is a title phrase;this is another title phrase").trim();
 let nseBlacklistTitlePhrases = nseBlacklistTitleList.split(";");
 nseBlacklistTitlePhrases.sort();
 nseBlacklistTitleList = nseBlacklistTitlePhrases.join(";");
 if(nseBlacklistTitlePhrases.length === 1 && nseBlacklistTitlePhrases[0] === "") { nseBlacklistTitlePhrases = new Array(0); }
-GM_setValue("nseBlacklistTitles", nseBlacklistTitleList);
 
 let nseHardPassTitleList = GM_getValue("nseHardPassTitles", "this is a title phrase;this is another title phrase").trim();
 let nseHardPassTitlePhrases = nseHardPassTitleList.split(";");
 nseHardPassTitlePhrases.sort();
 nseHardPassTitleList = nseHardPassTitlePhrases.join(";");
 if(nseHardPassTitlePhrases.length === 1 && nseHardPassTitlePhrases[0] === "") { nseHardPassTitlePhrases = new Array(0); }
-GM_setValue("nseHardPassTitles", nseHardPassTitleList);
 
 let nseWhitelistTitleList = GM_getValue("nseWhitelistTitles", "this is a title phrase;this is another title phrase").trim();
 let nseWhitelistTitlePhrases = nseWhitelistTitleList.split(";");
 nseWhitelistTitlePhrases.sort();
 nseWhitelistTitleList = nseWhitelistTitlePhrases.join(";");
 if(nseWhitelistTitlePhrases.length === 1 && nseWhitelistTitlePhrases[0] === "") { nseWhitelistTitlePhrases = new Array(0); }
-GM_setValue("nseWhitelistTitles", nseWhitelistTitleList);
 
 let nseBlacklistUploadersList = GM_getValue("nseUploaders", "PutUserNamesHere SeparatedBySpaces NoNewlines").trim();
 let nseBlacklistUploaders = nseBlacklistUploadersList.split(" ");
 nseBlacklistUploaders.sort();
 nseBlacklistUploadersList = nseBlacklistUploaders.join(" ");
 if(nseBlacklistUploaders.length === 1 && nseBlacklistUploaders[0] === "") { nseBlacklistUploaders = new Array(0); }
-GM_setValue("nseUploaders", nseBlacklistUploadersList);
 
 let nseWhitelistUploadersList = GM_getValue("nseWhitelistUploaders", "PutUserNamesHere SeparatedBySpaces NoNewlines").trim();
 let nseWhitelistUploaders = nseWhitelistUploadersList.split(" ");
 nseWhitelistUploaders.sort();
 nseWhitelistUploadersList = nseWhitelistUploaders.join(" ");
 if(nseWhitelistUploaders.length === 1 && nseWhitelistUploaders[0] === "") { nseWhitelistUploaders = new Array(0); }
-GM_setValue("nseWhitelistUploaders", nseWhitelistUploadersList);
 
 // Delete obsolete options
 GM_deleteValue("nseEnableGCDCompatibilityMode");
@@ -9673,6 +9749,7 @@ if(nseUpdateToastsEnabled) {
 
         document.getElementById("nseNeverShowUpdateToastButton").onclick = function() {
             document.getElementById("nseCheckUpdateToasts").checked = false;
+            app.preferences.changed(document.getElementById("nseCheckUpdateToasts"));
             saveData();
             this.parentNode.parentNode.remove();
         };
@@ -10567,10 +10644,7 @@ if(torrents) {
                             }
             
                             //Save lists immediately after manipulating them
-                            app.beforeFilterWrite();
-                            GM_setValue("nseIndividualUploadHidingBlacklist", nseIndividualUploadHidingBlacklist);
-                            GM_setValue("nseIndividualUploadHidingWhitelist", nseIndividualUploadHidingWhitelist);
-                            app.afterFilterWrite();
+                            app.preferences.saveVisibilityOverrides(nseIndividualUploadHidingBlacklist, nseIndividualUploadHidingWhitelist);
 
                             if(nseRenumberTorrentsEnabled && currentPage == "Top 10") {
                                 renumberTorrents();
@@ -10649,10 +10723,7 @@ if(torrents) {
                                 }
 
                                 // Save lists immediately after manipulating them
-                                app.beforeFilterWrite();
-                                GM_setValue("nseIndividualUploadHidingBlacklist", nseIndividualUploadHidingBlacklist);
-                                GM_setValue("nseIndividualUploadHidingWhitelist", nseIndividualUploadHidingWhitelist);
-                                app.afterFilterWrite();
+                                app.preferences.saveVisibilityOverrides(nseIndividualUploadHidingBlacklist, nseIndividualUploadHidingWhitelist);
                             }
 
                             if(nseRenumberTorrentsEnabled && currentPage == "Top 10") {
@@ -11123,10 +11194,7 @@ if(torrents) {
                     }
     
                     //Save lists immediately after manipulating them
-                    app.beforeFilterWrite();
-                    GM_setValue("nseIndividualUploadHidingBlacklist", nseIndividualUploadHidingBlacklist);
-                    GM_setValue("nseIndividualUploadHidingWhitelist", nseIndividualUploadHidingWhitelist);
-                    app.afterFilterWrite();
+                    app.preferences.saveVisibilityOverrides(nseIndividualUploadHidingBlacklist, nseIndividualUploadHidingWhitelist);
                 };
 
                 // Clear list status on right-click
@@ -11153,10 +11221,7 @@ if(torrents) {
                     this.classList.add("nseIndividuallyUntouched");
 
                     //Save lists immediately after manipulating them
-                    app.beforeFilterWrite();
-                    GM_setValue("nseIndividualUploadHidingBlacklist", nseIndividualUploadHidingBlacklist);
-                    GM_setValue("nseIndividualUploadHidingWhitelist", nseIndividualUploadHidingWhitelist);
-                    app.afterFilterWrite();
+                    app.preferences.saveVisibilityOverrides(nseIndividualUploadHidingBlacklist, nseIndividualUploadHidingWhitelist);
                 }, false);
 
                 torrentIconContainer.appendChild(nseToggleHideElement);
@@ -11882,6 +11947,7 @@ function removeItemFromList(tagListAreaName, tagName) {
     }
 
     document.getElementById(tagListAreaName).value = currList.join(" ");
+    app.preferences.changed(document.getElementById(tagListAreaName));
     
     // Show the refresh button because we've done changes
     document.getElementById("nseDynamicRefreshNode").classList.remove("hidden");
@@ -11913,6 +11979,7 @@ function addItemToList(tagListAreaName, oppositeTagListAreaName, filterValue) {
     }
     
     document.getElementById(tagListAreaName).value = currList.join(splitChar).replace(/;/,';');
+    app.preferences.changed(document.getElementById(tagListAreaName));
 
     // Show the refresh button because we did changes
     document.getElementById("nseDynamicRefreshNode").classList.remove("hidden");
@@ -11968,217 +12035,7 @@ function resetSettings() {
     }
 }
 
-function saveData() {
-    app.beforeFilterWrite();
-    let listsToSave = {
-        nseTaglist: "nseBlacklistTaglistArea",
-        nseHardPassTaglist: "nseHardPassTaglistArea",
-        nseWhitelist: "nseWhitelistTaglistArea",
-        nseBlacklistTitles: "nseBlacklistTitleListArea",
-        nseHardPassTitles: "nseHardPassTitleListArea",
-        nseWhitelistTitles: "nseWhitelistTitleListArea",
-        nseUploaders: "nseBlacklistUploadersArea",
-        nseWhitelistUploaders: "nseWhitelistUploadersArea"
-    };
-
-    // Convert to lower case, trim whitespace, remove duplicates and save filter lists
-    for(const setting in listsToSave) {
-        let strList = document.getElementById(listsToSave[setting]).value.trim().toLowerCase();
-        let delimiter = " ";
-        
-        if(listsToSave[setting].includes("TitleList")) { 
-            delimiter = ";";
-        }
-        
-        // Empty diff lists
-        let removedList = new Array(0);
-        let addedList = new Array(0);
-
-        // List from text boxes
-        let freshList = strList.split(delimiter);
-
-        // Stored list (might have changed since we made our cache at the start of the script)
-        let storedList = GM_getValue(setting).split(delimiter);
-
-        // Cached copy of stored list
-        let cachedList;
-        switch(setting) {
-            case "nseTaglist":
-                cachedList = nseBlacklistTags;
-                break;
-            case "nseHardPassTaglist":
-                cachedList = nseHardPassTags;
-                break;
-            case "nseWhitelist":
-                cachedList = nseWhitelistTags;
-                break;
-            case "nseBlacklistTitles":
-                cachedList = nseBlacklistTitlePhrases;
-                break;
-            case "nseHardPassTitles":
-                cachedList = nseHardPassTitlePhrases;
-                break;
-            case "nseWhitelistTitles":
-                cachedList = nseWhitelistTitlePhrases;
-                break;
-            case "nseUploaders":
-                cachedList = nseBlacklistUploaders;
-                break;
-            case "nseWhitelistUploaders":
-                cachedList = nseWhitelistUploaders;
-                break;
-        }
-
-        // Compute additions and removals from OG array
-        freshList.forEach(function(item){
-            if(cachedList.indexOf(item) == -1) {
-                addedList.push(item);
-            }
-        });
-
-        cachedList.forEach(function(item) {
-            if(freshList.indexOf(item) == -1) {
-                removedList.push(item);
-            }
-        });
-
-        // Remove removals and add additions to the stored list
-        removedList.forEach(function(item) {
-            let foundIndex = storedList.indexOf(item);
-            if(foundIndex > -1) {
-                storedList.splice(foundIndex, 1);
-            }
-        });
-        
-        addedList.forEach(function(item) {
-            let foundIndex = storedList.indexOf(item);
-            if(foundIndex == -1) {
-                if(item !== "" && item !== null) {
-                    storedList.push(item);
-                }
-            }
-        });
-
-        // Turning it into a set and back into an array will automagically kill dupes
-        storedList = [...new Set(storedList.filter(item => item.trim()))];
-        storedList.sort();
-
-        strList = storedList.join(delimiter);
-        GM_setValue(setting, strList);
-
-        // Reflect updated list in textarea
-        document.getElementById(listsToSave[setting]).value = strList;
-
-        // Update cached copy of list
-        switch(setting) {
-            case "nseTaglist":
-                nseBlacklistTaglist = strList;
-                nseBlacklistTags = storedList;
-                break;
-            case "nseHardPassTaglist":
-                nseHardPassTaglist = strList;
-                nseHardPassTags = storedList;
-                break;
-            case "nseWhitelist":
-                nseWhitelistTaglist = strList;
-                nseWhitelistTags = storedList;
-                break;
-            case "nseBlacklistTitles":
-                nseBlacklistTitleList = strList;
-                nseBlacklistTitlePhrases = storedList;
-                break;
-            case "nseHardPassTitles":
-                nseHardPassTitleList = strList;
-                nseHardPassTitlePhrases = storedList;
-                break;
-            case "nseWhitelistTitles":
-                nseWhitelistTitleList = strList;
-                nseWhitelistTitlePhrases = storedList;
-                break;
-            case "nseUploaders":
-                nseBlacklistUploadersList = strList;
-                nseBlacklistUploaders = storedList;
-                break;
-            case "nseWhitelistUploaders":
-                nseWhitelistUploadersList = strList;
-                nseWhitelistUploaders = storedList;
-                break;
-        }
-    }
-
-    let checkboxes = {
-        nseObliviousModeEnabled: "nseCheckObliviousMode",
-        nseRussianRouletteEnabled: "nseCheckRussianRouletteMode",
-        nseHideAnonUploadsEnabled: "nseCheckHideAnonUploads",
-        nseHideWarnedEnabled: "nseCheckHideWarned",
-        nseHideReportedEnabled: "nseCheckHideReported",
-        nseHideSnatchedEnabled: "nseCheckHideSnatched",
-        nseHideSeedingEnabled: "nseCheckHideSeeding",
-        nseHideLeechingEnabled: "nseCheckHideLeeching",
-        nseHideGrabbedEnabled: "nseCheckHideGrabbed",
-        nseHideBookmarkedEnabled: "nseCheckHideBookmarked",
-        nseBypassWhitelistsEnabled: "nseCheckBypassWhitelists",
-        nseIndividualUploadHidingEnabled: "nseCheckIndividualHide",
-        nseFilterAllButtonEnabled: "nseCheckFilterAllButtonEnabled",
-        nseRightClickManagementEnabled: "nseCheckRightClickManagementEnabled",
-        nseRCMTagsEnabled: "nseCheckRCMTagsEnabled",
-        nseRCMTitlesEnabled: "nseCheckRCMTitlesEnabled",
-        nseRCMUploadersEnabled: "nseCheckRCMUploadersEnabled",
-        nseEmojiEnabled: "nseCheckEmojiEnabled",
-        nseScrollToNSEEnabled: "nseCheckScrollToNSEEnabled",
-        nseHardPassEnabled: "nseCheckHardPassEnabled",
-        nseRemoveHardPassResults: "nseCheckRemoveHardPassResults",
-        nseHideUnseededEnabled: "nseCheckHideUnseeded",
-        nseRenumberTorrentsEnabled: "nseCheckRenumberTorrents",
-        nseHideCategoryIconsEnabled: "nseCheckHideCategoryIcons",
-        nseArrowNavigationEnabled: "nseCheckArrowNavigation",
-        nseUpdateToastsEnabled: "nseCheckUpdateToasts",
-        nseFloatingToggleButtonEnabled: "nseCheckFloatingToggleButton",
-        nseOpenAllButtonEnabled: "nseCheckOpenAllButton",
-        nseOpenAllGoNextEnabled: "nseCheckOpenAllGoNext",
-        nseCustomCSSEnabled: "nseCheckCustomCSS"
-    };
-
-    for(const setting in checkboxes) {
-        GM_setValue(setting, document.getElementById(checkboxes[setting]).checked);
-    }
-
-    if(nseEnableApril1stOption) {
-        GM_setValue("nseEveryDayIsApril1st", document.getElementById("nseCheckApril1stAllYear").checked);
-    }
-
-    let nseThemeDropdown = document.getElementById("nseThemeDropdown");
-    GM_setValue("nseSelectedTheme", nseThemeDropdown.options[nseThemeDropdown.selectedIndex].value);
-
-    nseCustomTheme = {
-        backgroundColor: document.getElementById("nseCustomThemeBgCol").value,
-        backgroundHighlightColor: document.getElementById("nseCustomThemeBgHighCol").value,
-        foregroundColor: document.getElementById("nseCustomThemeForeCol").value,
-        accentColor: document.getElementById("nseCustomThemeAccentCol").value,
-        highlightColor: document.getElementById("nseCustomThemeHighCol").value,
-        hiddenBackgroundColor: document.getElementById("nseCustomThemeHiddenBgCol").value
-    };
-    GM_setValue("nseCustomTheme", nseCustomTheme);
-
-    GM_setValue("nseUIFont", document.getElementById("nseUIFont").value);
-    GM_setValue("nseTextAreaFont", document.getElementById("nseTextAreaFont").value);
-
-    GM_setValue("nseBlacklistColor", document.getElementById("nseBlacklistColor").value);    
-    GM_setValue("nseHardPassColor", document.getElementById("nseHardPassColor").value);    
-    GM_setValue("nseWhitelistColor", document.getElementById("nseWhitelistColor").value);
-
-    GM_setValue("nseTimeout", Number(document.getElementById("nseTimeout").value));
-
-    // We need to escape backslashes in the custom CSS as it will be included in a back-ticked CSS block
-    let css = document.getElementById("nseCustomCSSArea").value;
-    css = css.replace(/\\/gi, "\\\\");
-    GM_setValue("nseCustomCSS", css);
-
-    let time = new Date().toLocaleTimeString();
-    document.getElementById("nseSaveDiv").innerHTML = "Saved at " + time + "!";
-    document.getElementById("nseSaveDiv").classList.remove("hidden");
-    app.afterFilterWrite();
-}
+function saveData() { app.preferences.flush(); }
 
 function nseGoBack(event = null) {
     let prevLink = document.getElementsByClassName("pager_prev")[0];
@@ -12535,10 +12392,20 @@ bridge.newRows = function(root, rows) {
     adjustHiddenHeaderCount(count);
     if(nseRenumberTorrentsEnabled && currentPage === "Top 10") renumberTorrents();
 };
-bridge.flush = saveData;
 
 // Refresh the existing engine; no navigation, replacement form, or extra handlers.
 bridge.resultActions = !nseUnfilteredPages.includes(currentPage);
+const epFilterFields = {"nseTaglist":"nseBlacklistTaglistArea","nseHardPassTaglist":"nseHardPassTaglistArea","nseWhitelist":"nseWhitelistTaglistArea","nseBlacklistTitles":"nseBlacklistTitleListArea","nseHardPassTitles":"nseHardPassTitleListArea","nseWhitelistTitles":"nseWhitelistTitleListArea","nseUploaders":"nseBlacklistUploadersArea","nseWhitelistUploaders":"nseWhitelistUploadersArea","nseObliviousModeEnabled":"nseCheckObliviousMode","nseRussianRouletteEnabled":"nseCheckRussianRouletteMode","nseHideAnonUploadsEnabled":"nseCheckHideAnonUploads","nseHideWarnedEnabled":"nseCheckHideWarned","nseHideReportedEnabled":"nseCheckHideReported","nseHideSnatchedEnabled":"nseCheckHideSnatched","nseHideSeedingEnabled":"nseCheckHideSeeding","nseHideLeechingEnabled":"nseCheckHideLeeching","nseHideGrabbedEnabled":"nseCheckHideGrabbed","nseHideBookmarkedEnabled":"nseCheckHideBookmarked","nseBypassWhitelistsEnabled":"nseCheckBypassWhitelists","nseIndividualUploadHidingEnabled":"nseCheckIndividualHide","nseFilterAllButtonEnabled":"nseCheckFilterAllButtonEnabled","nseRightClickManagementEnabled":"nseCheckRightClickManagementEnabled","nseRCMTagsEnabled":"nseCheckRCMTagsEnabled","nseRCMTitlesEnabled":"nseCheckRCMTitlesEnabled","nseRCMUploadersEnabled":"nseCheckRCMUploadersEnabled","nseEmojiEnabled":"nseCheckEmojiEnabled","nseScrollToNSEEnabled":"nseCheckScrollToNSEEnabled","nseHardPassEnabled":"nseCheckHardPassEnabled","nseRemoveHardPassResults":"nseCheckRemoveHardPassResults","nseHideUnseededEnabled":"nseCheckHideUnseeded","nseRenumberTorrentsEnabled":"nseCheckRenumberTorrents","nseHideCategoryIconsEnabled":"nseCheckHideCategoryIcons","nseArrowNavigationEnabled":"nseCheckArrowNavigation","nseUpdateToastsEnabled":"nseCheckUpdateToasts","nseFloatingToggleButtonEnabled":"nseCheckFloatingToggleButton","nseOpenAllButtonEnabled":"nseCheckOpenAllButton","nseOpenAllGoNextEnabled":"nseCheckOpenAllGoNext","nseCustomCSSEnabled":"nseCheckCustomCSS","nseSelectedTheme":"nseThemeDropdown","nseUIFont":"nseUIFont","nseTextAreaFont":"nseTextAreaFont","nseBlacklistColor":"nseBlacklistColor","nseHardPassColor":"nseHardPassColor","nseWhitelistColor":"nseWhitelistColor","nseTimeout":"nseTimeout","nseCustomCSS":"nseCustomCSSArea","nseEveryDayIsApril1st":"nseCheckApril1stAllYear"};
+const epThemeFields = {
+    backgroundColor:"nseCustomThemeBgCol", backgroundHighlightColor:"nseCustomThemeBgHighCol",
+    foregroundColor:"nseCustomThemeForeCol", accentColor:"nseCustomThemeAccentCol",
+    highlightColor:"nseCustomThemeHighCol", hiddenBackgroundColor:"nseCustomThemeHiddenBgCol"
+};
+const epFilterListBases = new Map(NSE_EMPTY_LISTS.map(key => [key, document.getElementById(epFilterFields[key]).value]));
+function epListValues(key, value) {
+    const separator = key.endsWith("Titles") ? ";" : /\s+/;
+    return [...new Set(value.toLowerCase().split(separator).map(part => part.trim()).filter(Boolean))].sort();
+}
 function epReloadFilterPreferences(syncInputs) {
     nseSavedVersion = GM_getValue("nseSavedVersion", nseVersionNum);
     nseBlacklistTaglist = GM_getValue("nseTaglist", "enter.tags.here separated.by.spaces no.newlines");
@@ -12610,39 +12477,43 @@ function epReloadFilterPreferences(syncInputs) {
     themes.nseThemeCustom = {...nseCustomTheme};
     if(syncInputs) {
         const values = {"nseSavedVersion":nseSavedVersion,"nseTaglist":nseBlacklistTaglist,"nseHardPassTaglist":nseHardPassTaglist,"nseWhitelist":nseWhitelistTaglist,"nseBlacklistTitles":nseBlacklistTitleList,"nseHardPassTitles":nseHardPassTitleList,"nseWhitelistTitles":nseWhitelistTitleList,"nseUploaders":nseBlacklistUploadersList,"nseWhitelistUploaders":nseWhitelistUploadersList,"nseIndividualUploadHidingEnabled":nseIndividualUploadHidingEnabled,"nseIndividualUploadHidingBlacklist":nseIndividualUploadHidingBlacklist,"nseIndividualUploadHidingWhitelist":nseIndividualUploadHidingWhitelist,"nseFilterAllButtonEnabled":nseFilterAllButtonEnabled,"nseRightClickManagementEnabled":nseRightClickManagementEnabled,"nseRCMTagsEnabled":nseRCMTagsEnabled,"nseRCMTitlesEnabled":nseRCMTitlesEnabled,"nseRCMUploadersEnabled":nseRCMUploadersEnabled,"nseHideAnonUploadsEnabled":nseHideAnonUploadsEnabled,"nseHideReportedEnabled":nseHideReportedEnabled,"nseHideWarnedEnabled":nseHideWarnedEnabled,"nseHideUnseededEnabled":nseHideUnseededEnabled,"nseHideGrabbedEnabled":nseHideGrabbedEnabled,"nseHideLeechingEnabled":nseHideLeechingEnabled,"nseHideSeedingEnabled":nseHideSeedingEnabled,"nseHideSnatchedEnabled":nseHideSnatchedEnabled,"nseHideBookmarkedEnabled":nseHideBookmarkedEnabled,"nseBypassWhitelistsEnabled":nseBypassWhitelistsEnabled,"nseHardPassEnabled":nseHardPassEnabled,"nseRemoveHardPassResults":nseRemoveHardPassResults,"nseObliviousModeEnabled":nseObliviousModeEnabled,"nseCustomCSSEnabled":nseCustomCSSEnabled,"nseCustomCSS":nseCustomCSS,"nseScrollToNSEEnabled":nseScrollToNSEEnabled,"nseEmojiEnabled":nseEmojiEnabled,"nseUpdateToastsEnabled":nseUpdateToastsEnabled,"nseFloatingToggleButtonEnabled":nseFloatingToggleButtonEnabled,"nseOpenAllButtonEnabled":nseOpenAllButtonEnabled,"nseOpenAllGoNextEnabled":nseOpenAllGoNextEnabled,"nseUIFont":nseUIFont,"nseTextAreaFont":nseTextAreaFont,"nseBlacklistColor":nseBlacklistColor,"nseHardPassColor":nseHardPassColor,"nseWhitelistColor":nseWhitelistColor,"nseTimeout":nseTimeout,"nseSelectedTheme":nseSelectedTheme,"nseCustomTheme":nseCustomTheme,"nseRenumberTorrentsEnabled":nseRenumberTorrentsEnabled,"nseHideCategoryIconsEnabled":nseHideCategoryIconsEnabled,"nseArrowNavigationEnabled":nseArrowNavigationEnabled,"nseRussianRouletteEnabled":nseRussianRouletteEnabled,"nseEveryDayIsApril1st":nseEveryDayIsApril1st};
-        const fields = {"nseTaglist":"nseBlacklistTaglistArea","nseHardPassTaglist":"nseHardPassTaglistArea","nseWhitelist":"nseWhitelistTaglistArea","nseBlacklistTitles":"nseBlacklistTitleListArea","nseHardPassTitles":"nseHardPassTitleListArea","nseWhitelistTitles":"nseWhitelistTitleListArea","nseUploaders":"nseBlacklistUploadersArea","nseWhitelistUploaders":"nseWhitelistUploadersArea","nseObliviousModeEnabled":"nseCheckObliviousMode","nseRussianRouletteEnabled":"nseCheckRussianRouletteMode","nseHideAnonUploadsEnabled":"nseCheckHideAnonUploads","nseHideWarnedEnabled":"nseCheckHideWarned","nseHideReportedEnabled":"nseCheckHideReported","nseHideSnatchedEnabled":"nseCheckHideSnatched","nseHideSeedingEnabled":"nseCheckHideSeeding","nseHideLeechingEnabled":"nseCheckHideLeeching","nseHideGrabbedEnabled":"nseCheckHideGrabbed","nseHideBookmarkedEnabled":"nseCheckHideBookmarked","nseBypassWhitelistsEnabled":"nseCheckBypassWhitelists","nseIndividualUploadHidingEnabled":"nseCheckIndividualHide","nseFilterAllButtonEnabled":"nseCheckFilterAllButtonEnabled","nseRightClickManagementEnabled":"nseCheckRightClickManagementEnabled","nseRCMTagsEnabled":"nseCheckRCMTagsEnabled","nseRCMTitlesEnabled":"nseCheckRCMTitlesEnabled","nseRCMUploadersEnabled":"nseCheckRCMUploadersEnabled","nseEmojiEnabled":"nseCheckEmojiEnabled","nseScrollToNSEEnabled":"nseCheckScrollToNSEEnabled","nseHardPassEnabled":"nseCheckHardPassEnabled","nseRemoveHardPassResults":"nseCheckRemoveHardPassResults","nseHideUnseededEnabled":"nseCheckHideUnseeded","nseRenumberTorrentsEnabled":"nseCheckRenumberTorrents","nseHideCategoryIconsEnabled":"nseCheckHideCategoryIcons","nseArrowNavigationEnabled":"nseCheckArrowNavigation","nseUpdateToastsEnabled":"nseCheckUpdateToasts","nseFloatingToggleButtonEnabled":"nseCheckFloatingToggleButton","nseOpenAllButtonEnabled":"nseCheckOpenAllButton","nseOpenAllGoNextEnabled":"nseCheckOpenAllGoNext","nseCustomCSSEnabled":"nseCheckCustomCSS","nseSelectedTheme":"nseThemeDropdown","nseUIFont":"nseUIFont","nseTextAreaFont":"nseTextAreaFont","nseBlacklistColor":"nseBlacklistColor","nseHardPassColor":"nseHardPassColor","nseWhitelistColor":"nseWhitelistColor","nseTimeout":"nseTimeout","nseCustomCSS":"nseCustomCSSArea","nseEveryDayIsApril1st":"nseCheckApril1stAllYear"};
-        for(const [key, id] of Object.entries(fields)) {
+        for(const [key, id] of Object.entries(epFilterFields)) {
             const input = document.getElementById(id); if(!input) continue;
             const value = values[key];
             if(value === undefined) continue;
+            if(epFilterListBases.has(key)) {
+                epFilterListBases.set(key, value);
+                // Keep a trailing separator or in-progress typing if the saved terms match the draft.
+                if(input === document.activeElement && samePreference(epListValues(key, input.value), epListValues(key, value))) continue;
+            }
             if(input.type === "checkbox") input.checked = value;
             else input.value = value;
         }
-        const colors = {
-            backgroundColor:"nseCustomThemeBgCol", backgroundHighlightColor:"nseCustomThemeBgHighCol",
-            foregroundColor:"nseCustomThemeForeCol", accentColor:"nseCustomThemeAccentCol",
-            highlightColor:"nseCustomThemeHighCol", hiddenBackgroundColor:"nseCustomThemeHiddenBgCol"
-        };
-        for(const [key,id] of Object.entries(colors)) document.getElementById(id).value = nseCustomTheme[key];
+        for(const [key,id] of Object.entries(epThemeFields)) document.getElementById(id).value = nseCustomTheme[key];
         document.getElementById("nseCustomCSSArea").value = nseCustomCSS.replace(/\\\\/g, "\\");
     }
 }
-bridge.validateDraft = function() {
-    const fields = {"nseTaglist":"nseBlacklistTaglistArea","nseHardPassTaglist":"nseHardPassTaglistArea","nseWhitelist":"nseWhitelistTaglistArea","nseBlacklistTitles":"nseBlacklistTitleListArea","nseHardPassTitles":"nseHardPassTitleListArea","nseWhitelistTitles":"nseWhitelistTitleListArea","nseUploaders":"nseBlacklistUploadersArea","nseWhitelistUploaders":"nseWhitelistUploadersArea","nseObliviousModeEnabled":"nseCheckObliviousMode","nseRussianRouletteEnabled":"nseCheckRussianRouletteMode","nseHideAnonUploadsEnabled":"nseCheckHideAnonUploads","nseHideWarnedEnabled":"nseCheckHideWarned","nseHideReportedEnabled":"nseCheckHideReported","nseHideSnatchedEnabled":"nseCheckHideSnatched","nseHideSeedingEnabled":"nseCheckHideSeeding","nseHideLeechingEnabled":"nseCheckHideLeeching","nseHideGrabbedEnabled":"nseCheckHideGrabbed","nseHideBookmarkedEnabled":"nseCheckHideBookmarked","nseBypassWhitelistsEnabled":"nseCheckBypassWhitelists","nseIndividualUploadHidingEnabled":"nseCheckIndividualHide","nseFilterAllButtonEnabled":"nseCheckFilterAllButtonEnabled","nseRightClickManagementEnabled":"nseCheckRightClickManagementEnabled","nseRCMTagsEnabled":"nseCheckRCMTagsEnabled","nseRCMTitlesEnabled":"nseCheckRCMTitlesEnabled","nseRCMUploadersEnabled":"nseCheckRCMUploadersEnabled","nseEmojiEnabled":"nseCheckEmojiEnabled","nseScrollToNSEEnabled":"nseCheckScrollToNSEEnabled","nseHardPassEnabled":"nseCheckHardPassEnabled","nseRemoveHardPassResults":"nseCheckRemoveHardPassResults","nseHideUnseededEnabled":"nseCheckHideUnseeded","nseRenumberTorrentsEnabled":"nseCheckRenumberTorrents","nseHideCategoryIconsEnabled":"nseCheckHideCategoryIcons","nseArrowNavigationEnabled":"nseCheckArrowNavigation","nseUpdateToastsEnabled":"nseCheckUpdateToasts","nseFloatingToggleButtonEnabled":"nseCheckFloatingToggleButton","nseOpenAllButtonEnabled":"nseCheckOpenAllButton","nseOpenAllGoNextEnabled":"nseCheckOpenAllGoNext","nseCustomCSSEnabled":"nseCheckCustomCSS","nseSelectedTheme":"nseThemeDropdown","nseUIFont":"nseUIFont","nseTextAreaFont":"nseTextAreaFont","nseBlacklistColor":"nseBlacklistColor","nseHardPassColor":"nseHardPassColor","nseWhitelistColor":"nseWhitelistColor","nseTimeout":"nseTimeout","nseCustomCSS":"nseCustomCSSArea","nseEveryDayIsApril1st":"nseCheckApril1stAllYear"};
+bridge.syncInputs = () => epReloadFilterPreferences(true);
+bridge.readFilterDraft = function(edited) {
     const data = {};
-    for(const [key,id] of Object.entries(fields)) {
-        const input = document.getElementById(id); if(!input) continue;
-        data[key] = input.type === "checkbox" ? input.checked : key === "nseTimeout" ? Number(input.value) : input.value;
+    for(const [key,id] of Object.entries(epFilterFields)) {
+        if(!edited.has(id)) continue;
+        const input = document.getElementById(id);
+        if(epFilterListBases.has(key)) {
+            const base = new Set(epListValues(key, epFilterListBases.get(key)));
+            const draft = new Set(epListValues(key, input.value));
+            const stored = new Set(epListValues(key, GM_getValue(key)));
+            for(const value of base) if(!draft.has(value)) stored.delete(value);
+            for(const value of draft) if(!base.has(value)) stored.add(value);
+            data[key] = [...stored].sort().join(key.endsWith("Titles") ? ";" : " ");
+        } else if(key === "nseCustomCSS") data[key] = input.value.replace(/\\/g, "\\\\");
+        else data[key] = input.type === "checkbox" ? input.checked : key === "nseTimeout" ? Number(input.value) : input.value;
     }
-    data.nseCustomTheme = {
-        backgroundColor:document.getElementById("nseCustomThemeBgCol").value,
-        backgroundHighlightColor:document.getElementById("nseCustomThemeBgHighCol").value,
-        foregroundColor:document.getElementById("nseCustomThemeForeCol").value,
-        accentColor:document.getElementById("nseCustomThemeAccentCol").value,
-        highlightColor:document.getElementById("nseCustomThemeHighCol").value,
-        hiddenBackgroundColor:document.getElementById("nseCustomThemeHiddenBgCol").value
-    };
-    validateNSE(data, epSchema);
+    for(const [key,id] of Object.entries(epThemeFields)) if(edited.has(id)) {
+        data.nseCustomTheme ??= {...GM_getValue("nseCustomTheme", nseCustomTheme)};
+        data.nseCustomTheme[key] = document.getElementById(id).value;
+    }
+    return validateNSE(data, epSchema);
 };
 bridge.refresh = function(syncInputs = false) {
     epReloadFilterPreferences(syncInputs);

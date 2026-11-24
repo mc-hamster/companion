@@ -1,5 +1,16 @@
 // Refresh the existing engine; no navigation, replacement form, or extra handlers.
 bridge.resultActions = !nseUnfilteredPages.includes(currentPage);
+const epFilterFields = /*FILTER_CONTROLS*/;
+const epThemeFields = {
+    backgroundColor:"nseCustomThemeBgCol", backgroundHighlightColor:"nseCustomThemeBgHighCol",
+    foregroundColor:"nseCustomThemeForeCol", accentColor:"nseCustomThemeAccentCol",
+    highlightColor:"nseCustomThemeHighCol", hiddenBackgroundColor:"nseCustomThemeHiddenBgCol"
+};
+const epFilterListBases = new Map(NSE_EMPTY_LISTS.map(key => [key, document.getElementById(epFilterFields[key]).value]));
+function epListValues(key, value) {
+    const separator = key.endsWith("Titles") ? ";" : /\s+/;
+    return [...new Set(value.toLowerCase().split(separator).map(part => part.trim()).filter(Boolean))].sort();
+}
 function epReloadFilterPreferences(syncInputs) {
     /*FILTER_READERS*/
     nseBlacklistTags = nseBlacklistTaglist.trim().split(/\s+/).filter(Boolean);
@@ -14,39 +25,43 @@ function epReloadFilterPreferences(syncInputs) {
     themes.nseThemeCustom = {...nseCustomTheme};
     if(syncInputs) {
         const values = /*FILTER_VALUES*/;
-        const fields = /*FILTER_CONTROLS*/;
-        for(const [key, id] of Object.entries(fields)) {
+        for(const [key, id] of Object.entries(epFilterFields)) {
             const input = document.getElementById(id); if(!input) continue;
             const value = values[key];
             if(value === undefined) continue;
+            if(epFilterListBases.has(key)) {
+                epFilterListBases.set(key, value);
+                // Keep a trailing separator or in-progress typing if the saved terms match the draft.
+                if(input === document.activeElement && samePreference(epListValues(key, input.value), epListValues(key, value))) continue;
+            }
             if(input.type === "checkbox") input.checked = value;
             else input.value = value;
         }
-        const colors = {
-            backgroundColor:"nseCustomThemeBgCol", backgroundHighlightColor:"nseCustomThemeBgHighCol",
-            foregroundColor:"nseCustomThemeForeCol", accentColor:"nseCustomThemeAccentCol",
-            highlightColor:"nseCustomThemeHighCol", hiddenBackgroundColor:"nseCustomThemeHiddenBgCol"
-        };
-        for(const [key,id] of Object.entries(colors)) document.getElementById(id).value = nseCustomTheme[key];
+        for(const [key,id] of Object.entries(epThemeFields)) document.getElementById(id).value = nseCustomTheme[key];
         document.getElementById("nseCustomCSSArea").value = nseCustomCSS.replace(/\\\\/g, "\\");
     }
 }
-bridge.validateDraft = function() {
-    const fields = /*FILTER_CONTROLS*/;
+bridge.syncInputs = () => epReloadFilterPreferences(true);
+bridge.readFilterDraft = function(edited) {
     const data = {};
-    for(const [key,id] of Object.entries(fields)) {
-        const input = document.getElementById(id); if(!input) continue;
-        data[key] = input.type === "checkbox" ? input.checked : key === "nseTimeout" ? Number(input.value) : input.value;
+    for(const [key,id] of Object.entries(epFilterFields)) {
+        if(!edited.has(id)) continue;
+        const input = document.getElementById(id);
+        if(epFilterListBases.has(key)) {
+            const base = new Set(epListValues(key, epFilterListBases.get(key)));
+            const draft = new Set(epListValues(key, input.value));
+            const stored = new Set(epListValues(key, GM_getValue(key)));
+            for(const value of base) if(!draft.has(value)) stored.delete(value);
+            for(const value of draft) if(!base.has(value)) stored.add(value);
+            data[key] = [...stored].sort().join(key.endsWith("Titles") ? ";" : " ");
+        } else if(key === "nseCustomCSS") data[key] = input.value.replace(/\\/g, "\\\\");
+        else data[key] = input.type === "checkbox" ? input.checked : key === "nseTimeout" ? Number(input.value) : input.value;
     }
-    data.nseCustomTheme = {
-        backgroundColor:document.getElementById("nseCustomThemeBgCol").value,
-        backgroundHighlightColor:document.getElementById("nseCustomThemeBgHighCol").value,
-        foregroundColor:document.getElementById("nseCustomThemeForeCol").value,
-        accentColor:document.getElementById("nseCustomThemeAccentCol").value,
-        highlightColor:document.getElementById("nseCustomThemeHighCol").value,
-        hiddenBackgroundColor:document.getElementById("nseCustomThemeHiddenBgCol").value
-    };
-    validateNSE(data, epSchema);
+    for(const [key,id] of Object.entries(epThemeFields)) if(edited.has(id)) {
+        data.nseCustomTheme ??= {...GM_getValue("nseCustomTheme", nseCustomTheme)};
+        data.nseCustomTheme[key] = document.getElementById(id).value;
+    }
+    return validateNSE(data, epSchema);
 };
 bridge.refresh = function(syncInputs = false) {
     epReloadFilterPreferences(syncInputs);

@@ -150,7 +150,7 @@ test('experimental settings round-trip between devices and preserve private loca
   assert.equal(undo.settings.favoriteTags, 'local.favorite');
   assert.equal(undo.searches[0].title, 'changed.search');
 
-  b.storage.set('ep.settings', { ...b.app.settings, favoriteTags: 'demo.updated' });
+  assert.equal(b.app.preferences.flush({ favoriteTags: 'demo.updated' }), true);
   b.click('Write to Companion Template');
   await until(() => b.status().includes('Saved and verified'), b.status(), 5000);
   assert.equal(emp.templates.size, 1);

@@ -91,9 +91,7 @@ test('saving highlight-only preferences leaves media and version membership inta
   const f = await setup();
   try {
     const media = countMethod(f.app.media, 'updateSettings'), groups = countMethod(f.app.versions, 'refresh');
-    const field = f.doc.createElement('textarea'); field.value = 'sample.tag';
-    f.app.controls.set('favoriteTags', field); f.app.dirty = true;
-    assert.equal(f.app.preferences.flush(), true); await settle(85);
+    assert.equal(f.app.preferences.flush({ favoriteTags: 'sample.tag' }), true); await settle(85);
     assert.equal(media.calls, 0); assert.equal(groups.calls, 0);
     assert.equal(f.doc.querySelector('.tags a').dataset.epTagTone, 'favorite');
   } finally { f.close(); }
