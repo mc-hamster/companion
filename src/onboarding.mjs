@@ -5,11 +5,13 @@ import { keyboardShortcutList, applyWorkspaceTheme, companionIcon } from './work
 export class OnboardingController {
   constructor(app) { this.app = app; this.open = false; }
   maybeOpen() {
+    if (this.app.storage.get('ep.onboardingDone', false) === true) this.app.onboardingComplete = true;
     if (!this.app.onboardingComplete && !this.open && !this.app.doc.hidden && this.app.root?.dataset.epReady === 'true') this.show();
   }
   show() {
     const app = this.app;
     if (this.open || app.disposed || !app.preferences.flush()) return;
+    app.preferences.refresh();
     this.firstUse = !app.onboardingComplete;
     this.returnFocus = app.doc.activeElement;
     app.preview.hide(true);
@@ -23,7 +25,7 @@ export class OnboardingController {
     dialog.append(heading, app.node('p', 'Reliable thumbnails, image grids, larger previews on hover, filters, grouped versions, saved searches, and more results on one page.'));
     dialog.append(app.node('p', 'These options—and much more—are available in Settings anytime. Reopen this setup with Settings → Getting started.', 'epc-caption'));
     const form = app.node('form'); this.form = form;
-    const fresh = this.firstUse && !app.hasExistingPreferences;
+    const fresh = this.fresh = this.firstUse && !app.hasExistingPreferences;
     const mode = fresh ? 'pages' : app.settings.backfillMode;
     const field = (parent, label, control) => {
       const row = app.node('label', null, 'epc-welcome-field'); row.append(app.node('span', label), control); parent.append(row); return control;
@@ -103,27 +105,39 @@ export class OnboardingController {
     actions.append(this.save, app.button(this.firstUse ? 'Not now' : 'Cancel', () => this.dismiss())); form.append(actions);
     form.addEventListener('submit', event => { event.preventDefault(); this.finish(); });
     dialog.addEventListener('cancel', event => { event.preventDefault(); this.dismiss(); });
+    this.initial = this.choices();
+    this.initialBlocked = this.tags.get('blocked').value;
     dialog.append(form); app.doc.body.append(dialog); this.open = true;
     if (dialog.showModal) dialog.showModal(); else { dialog.open = true; dialog.setAttribute('role', 'dialog'); }
     // Native dialogs handle focus containment and return it on close.
     const focus = form.querySelector('[name="welcome-backfill"]:checked'); focus.focus({ preventScroll: true });
   }
+  choices() {
+    return {
+      backfillMode: this.form.querySelector('[name="welcome-backfill"]:checked').value,
+      backfillPages: Number(this.pages.value), thumbnailSize: Number(this.size.value),
+      previews: this.hover.checked, groupVersions: this.group.checked, resultsView: this.view.value,
+      gridCardWidth: Number(this.gridSize.value), gridSpacing: this.gridSpacing.value,
+      reformatDetailPages: this.reformatDetails.checked, keyboardShortcuts: this.shortcuts.checked,
+      favoriteTags: this.tags.get('favoriteTags').value, cautionTags: this.tags.get('cautionTags').value
+    };
+  }
   finish() {
     const app = this.app;
     if (!this.open || !this.form.reportValidity()) return;
-    const mode = this.form.querySelector('[name="welcome-backfill"]:checked').value;
     try {
-      const current = app.exportData();
-      const settings = { ...app.settings, backfillMode: mode,
-        backfillEnabled: mode !== 'off' || app.settings.backfillEnabled,
-        backfillPages: mode === 'pages' ? Number(this.pages.value) : app.settings.backfillPages,
-        thumbnailSize: Number(this.size.value), previews: this.hover.checked, groupVersions: this.group.checked,
-        resultsView: this.view.value, gridCardWidth: Number(this.gridSize.value),
-        gridSpacing: this.gridSpacing.value, reformatDetailPages: this.reformatDetails.checked,
-        keyboardShortcuts: this.shortcuts.checked,
-        favoriteTags: this.tags.get('favoriteTags').value, cautionTags: this.tags.get('cautionTags').value };
-      app.importData(JSON.stringify({ ...current, settings,
-        nse: { ...current.nse, nseTaglist: this.tags.get('blocked').value } }), false, { completeOnboarding: true });
+      const choices = this.choices();
+      const settings = Object.fromEntries(Object.entries(choices).filter(([key, value]) => this.initial[key] !== value));
+      if (this.fresh && !app.storage.get('ep.onboardingDone', false)) {
+        settings.backfillMode = choices.backfillMode;
+        settings.backfillPages = choices.backfillPages;
+      }
+      if (choices.backfillMode !== 'pages') delete settings.backfillPages;
+      if (settings.backfillMode && settings.backfillMode !== 'off') settings.backfillEnabled = true;
+      const blocked = this.tags.get('blocked').value;
+      const nse = blocked === this.initialBlocked ? {} : { nseTaglist: blocked };
+      app.importData(JSON.stringify({ format: 'empornium-companion', version: 1, settings, nse }), false,
+        { completeOnboarding: true, mergePreferences: true });
       app.onboardingComplete = true; this.close(); app.backfill.maybeAutomatic();
     } catch { this.status.textContent = 'Could not save setup. Your choices are still here. Please try again.'; }
   }
@@ -140,6 +154,7 @@ export class OnboardingController {
     if (this.returnFocus?.isConnected) this.returnFocus.focus({ preventScroll: true });
     this.form = this.tags = this.pages = this.size = this.hover = this.group = this.status = this.save = this.returnFocus = null;
     this.view = this.gridSize = this.gridSpacing = this.reformatDetails = this.shortcuts = null;
+    this.initial = this.initialBlocked = null;
   }
   dispose() { this.close(); }
 }

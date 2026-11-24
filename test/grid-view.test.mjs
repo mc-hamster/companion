@@ -439,7 +439,7 @@ test('grid images load with list thumbnails disabled and changing card width pre
   try {
     await completedSmall(f);
     const record = [...f.app.media.thumbnails.values()][0], image = record.image;
-    f.app.controls.get('gridCardWidth').value = 420; f.app.dirty = true; f.app.preferences.flush();
+    f.app.setResultPreference('gridCardWidth', 420);
     assert.equal(record.image, image); assert.equal(f.doc.querySelector('table.torrent_table').style.getPropertyValue('--epc-grid-width'), '420px');
     f.app.grid.layoutButtons.get('list').click(); assert.equal(f.app.media.thumbnails.size, 0);
   } finally { f.close(); }

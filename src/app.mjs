@@ -2,8 +2,11 @@
 import { DEFAULTS, validateSettings, escapeHTML, safeImageURL, canonicalImageURL, clamp,
   legacyOriginal, fullSizeURL, thumbnailCandidates, parseOverlayDefinitions,
   imageState, editableTarget, isSaveShortcut, SEARCH_NAMES, validateSearches, MediaPool } from './core.mjs';
-import { mountFilterControls, adoptRuleMenu, positionTagMenu, styleRowControls, applyWorkspaceTheme, adoptNotificationControls, optionGroup, setupSettingsSearch, keyboardShortcutList, companionIcon, toolbarPageName, createWorkspaceChrome, createWorkspacePane, styleWorkspaceSwitch, updateWorkspacePane } from './workspace.mjs';
-import { PreferencesController, captureFilterBaseline, restoreFilterBaseline } from './preferences.mjs';
+import { mountFilterControls, adoptRuleMenu, positionTagMenu, styleRowControls, applyWorkspaceTheme,
+  adoptNotificationControls, optionGroup, setupSettingsSearch, keyboardShortcutList, companionIcon, toolbarPageName,
+  createWorkspaceChrome, createWorkspacePane, styleWorkspaceSwitch, updateWorkspacePane } from './workspace.mjs';
+import { PreferencesController, SETTINGS_KEY, addSettingsWrites, captureFilterBaseline, readPreferenceValues,
+  restoreFilterBaseline, samePreference, writePreferences } from './preferences.mjs';
 import { BackfillController, backfillURL, torrentID } from './backfill.mjs';
 import { CollageQuickAdd } from './collage-quick-add.mjs';
 import { OnboardingController } from './onboarding.mjs';
@@ -20,7 +23,6 @@ import { mountTemplateSync } from './template-sync.mjs';
 import { mountSettingTooltips, setSettingHelp, settingHelp } from './setting-help.mjs';
 import { coalesceScanRoots, presentationMutation, mutationChangesResults } from './scheduling.mjs';
 
-const SETTINGS_KEY = 'ep.settings';
 const SEARCH_KEY = 'ep.searches';
 const CACHE_STATS_PIN_KEY = 'ep.cacheStatsPinned';
 const DIAGNOSTIC_LIMIT = 3000;
@@ -100,8 +102,7 @@ export class CompanionApp {
 
   constructor(win, storage, options = {}) {
     this.win = win; this.doc = win.document; this.storage = storage; this.options = options;
-    const storedSettings = storage.get(SETTINGS_KEY, {});
-    const savedSettings = storedSettings && typeof storedSettings === 'object' ? { ...storedSettings } : {};
+    const savedSettings = readPreferenceValues(storage);
     this.hasExistingPreferences = Object.keys(savedSettings).length > 0 || storage.list().some(key => key.startsWith('nse'));
     this.onboardingComplete = storage.get('ep.onboardingDone', false) === true;
     if (!this.hasExistingPreferences && !this.onboardingComplete) savedSettings.keyboardShortcuts = false;
@@ -112,8 +113,8 @@ export class CompanionApp {
     if (storage.get('ep.mediaRevision', 0) < 2) {
       // Upgrade the old two-slot default, retaining other explicit tuning.
       if (savedSettings.concurrency === 2) savedSettings.concurrency = 6;
-      storage.set('ep.mediaRevision', 2);
       storage.set(SETTINGS_KEY, savedSettings);
+      storage.set('ep.mediaRevision', 2);
     }
     this.settings = validateSettings(savedSettings);
     this.log = []; this.assetIds = new Map(); this.nextAssetId = 0; this.cleanups = [];
@@ -209,9 +210,6 @@ export class CompanionApp {
       // when this document is leaving, while retaining BFCache documents.
       if (!event.persisted) this.media.pool.dispose();
     });
-    this.on(this.doc, 'click', event => {
-      if (event.target.closest?.('.nseToggleHideButton')) this.preferences.beforeChange();
-    }, true);
     this.on(this.doc, 'pointerdown', event => {
       const menu = this.doc.getElementById('nseRCMBox');
       if (menu && !menu.contains(event.target)) menu.classList.add('hidden');
@@ -220,10 +218,10 @@ export class CompanionApp {
     });
     this.on(this.doc, 'visibilitychange', () => { this.media.pool.pump(); this.onboarding.maybeOpen(); this.backfill.maybeAutomatic(); });
     this.on(this.win, 'online', () => this.media.resumeAutomaticRecovery(true));
-    this.on(this.win, 'focus', () => { this.refreshSavedSearches(); this.resultFilters.refreshSeen(); });
+    this.on(this.win, 'focus', () => { this.preferences.refresh(); this.refreshSavedSearches(); this.resultFilters.refreshSeen(); });
     this.on(this.doc, 'visibilitychange', () => {
       if(this.doc.hidden)this.cancelCacheUsage();
-      else{this.refreshSavedSearches();this.resultFilters.refreshSeen();this.tags.refreshStoredPreferences();void this.refreshCacheUsage();}
+      else{this.preferences.refresh();this.refreshSavedSearches();this.resultFilters.refreshSeen();void this.refreshCacheUsage();}
     });
     this.observer = new this.win.MutationObserver(mutations => {
       if (this.media.coverGatePending) this.media.syncCoverGate();
@@ -628,10 +626,16 @@ export class CompanionApp {
     this.root.append(this.toolbar, this.notice, this.cachePinned, this.panel); this.doc.body.append(this.root);
     this.root.addEventListener('input', event => this.markDirty(event.target, event));
     this.root.addEventListener('change', event => {
-      if(event.target.dataset.setting==='backfillMode')this.controls.get('backfillEnabled').checked=true;
+      if (event.target === this.controls.get('backfillMode')) {
+        const enabled = this.controls.get('backfillEnabled');
+        enabled.checked = true;
+        this.preferences.changed(enabled, event);
+      }
       this.syncSettingsUI();this.markDirty(event.target,event);
       if (event.target.matches('.epc-toolbar-switch input') && !this.preferences.flush()) {
-        event.target.checked = this.settings[event.target.dataset.setting];
+        const key = event.target.dataset.setting;
+        event.target.checked = this.settings[key];
+        this.preferences.settingsEdits.delete(key);
       }
     });
     this.root.addEventListener('focusout', event => {
@@ -661,11 +665,14 @@ export class CompanionApp {
   }
   openPane(key) {
     if (key === 'images') key = 'settings';
-    this.preferences.flush();
+    if (this.preferences.flush()) this.preferences.refresh();
     if (!this.panes?.[key]) return;
     this.hideSettingHelp?.();
     this.grid.closeViewOptions();
-    if (key === 'filters' || key === 'settings') mountFilterControls(this);
+    if (key === 'filters' || key === 'settings') {
+      mountFilterControls(this);
+      if (!this.preferences.dirty) { this.options.syncFilterInputs?.(); this.refreshOptionSummaries?.(); }
+    }
     if (key === 'searches') this.ensureSavedSearchUI();
     if (key === 'searches' && !this.savedDrawer) {
       this.panes.searches.replaceChildren(this.node('p', 'Saved searches are available on torrent search pages.', 'epc-caption'));
@@ -794,18 +801,11 @@ export class CompanionApp {
     this.media.demandListener?.();
   }
   markDirty(target, event) { this.preferences.changed(target, event); this.refreshOptionSummaries?.(); }
-  applyChanges() { return this.preferences.flush(); }
   setResultPreference(key, value) {
     if (!this.preferences.flush()) return false;
     const control = this.controls.get(key);
-    const field = control.type === 'checkbox' ? 'checked' : 'value';
-    const previous = control[field];
-    control[field] = value;
-    this.dirty = true;
-    if (this.preferences.flush()) return true;
-    control[field] = previous;
-    this.dirty = false;
-    return false;
+    const numeric = control.type === 'number' || control.hasAttribute('data-numeric');
+    return this.preferences.flush({ [key]: numeric ? Number(value) : value });
   }
   captureFilterBaseline(rows) { this.versions?.captureOrder(rows); captureFilterBaseline(this, rows); }
   restoreFilterBaseline() { restoreFilterBaseline(this); }
@@ -821,9 +821,7 @@ export class CompanionApp {
     row.classList.remove('epc-revealed'); row.classList.add('hidden');
     row.remove(); this.preview?.forget(row); this.media?.noteRemoved(row); this.tags?.forget(row);
   }
-  beforeFilterWrite() { if (!this.savingPreferences) this.preferences.beforeChange(); }
-  afterFilterWrite() {
-    if (this.savingPreferences) return;
+  scheduleFilterRefresh() {
     this.win.clearTimeout(this.filterRefreshTimer);
     this.filterRefreshTimer = this.win.setTimeout(() => {
       this.refreshFilters(); this.applyAppearance(); this.saveStatus.textContent = 'Saved automatically';
@@ -861,6 +859,28 @@ export class CompanionApp {
       ['nseHardPassColor','--epc-hard-pass','#a00'],['nseWhitelistColor','--epc-allowed','#0f0']]) {
       content?.style.setProperty(name, this.storage.get(key, fallback));
     }
+  }
+  storedSettings() {
+    return validateSettings({ ...this.settings, ...readPreferenceValues(this.storage) });
+  }
+  applySavedSettings(settings, filtersChanged = false, resetControls = false) {
+    const previous = this.settings;
+    const changed = !samePreference(previous, settings);
+    const rulesChanged = previous.conditionalRules !== settings.conditionalRules;
+    if (changed) this.settings = settings;
+    if (changed || resetControls) {
+      for (const [key, control] of this.controls || []) {
+        if (control.type === 'checkbox') control.checked = settings[key]; else control.value = settings[key];
+      }
+    }
+    if (this.mounted) {
+      if (changed) this.updateMediaPreferences(previous);
+      else if (resetControls) this.syncSettingsUI();
+      if (rulesChanged) this.resultFilters.refreshRulesEditor();
+      if (filtersChanged || rulesChanged) this.refreshFilters(filtersChanged);
+      if (changed || filtersChanged) this.applyAppearance();
+    }
+    return changed;
   }
   updateMediaPreferences(previous) {
     this.syncSettingsUI();
@@ -971,30 +991,30 @@ export class CompanionApp {
     });
   }
   exportData() {
+    const settings = this.storedSettings();
     const nse = {};
     for (const key of this.storage.list()) if (/^nse/.test(key)) nse[key] = this.storage.get(key);
-    nse.nseBackfillButtonEnabled = this.settings.backfillEnabled;
-    nse.nseBackfillPageLimit = this.settings.backfillPages;
+    nse.nseBackfillButtonEnabled = settings.backfillEnabled;
+    nse.nseBackfillPageLimit = settings.backfillPages;
     return { format: 'empornium-companion', version: 1, createdAt: new Date().toISOString(),
-      settings: this.settings, searches: this.searches, searchDrawerOpen: this.activePane === 'searches', nse };
+      settings, searches: validateSearches(this.storage.get(SEARCH_KEY, this.searches)), searchDrawerOpen: this.activePane === 'searches', nse };
   }
   importData(text, keepUndo = true, { completeOnboarding = false, mergePreferences = false, replaceNSEKeys = null } = {}) {
     let parsed;
     try { parsed = JSON.parse(text); }
     catch { throw new SyntaxError('The backup file is not valid JSON.'); }
-    let searches, settings, nse, drawer;
+    let searches, incomingSettings = {}, nse, drawer;
     if (Array.isArray(parsed)) searches = validateSearches(parsed);
     else if (!parsed || typeof parsed !== 'object') throw new Error('Expected a JSON object or saved-search array.');
     else if (parsed.format === 'empornium-companion') {
       if (parsed.version !== 1) throw new Error('Unsupported backup version.');
-      settings = validateSettings(parsed.settings);
-      if (Object.hasOwn(parsed.settings ?? {}, 'conditionalRules')) compileConditionalRules(settings.conditionalRules);
-      for (const key of ['keyboardShortcuts', 'conditionalRules', 'seenMode', 'freeleechView', 'bookmarkFreeleechView']) {
-        if (!Object.hasOwn(parsed.settings ?? {}, key)) settings[key] = this.settings[key];
+      if (Object.hasOwn(parsed, 'settings')) {
+        if (!parsed.settings || typeof parsed.settings !== 'object' || Array.isArray(parsed.settings)) throw new Error('Invalid Companion settings.');
+        incomingSettings = { ...parsed.settings };
       }
-      if (!mergePreferences) searches = validateSearches(parsed.searches);
-      nse = this.options.validateNSE?.(parsed.nse || {}) || parsed.nse;
-      if (!mergePreferences && !replaceNSEKeys) drawer = !!parsed.searchDrawerOpen;
+      if (!mergePreferences && Object.hasOwn(parsed, 'searches')) searches = validateSearches(parsed.searches);
+      if (Object.hasOwn(parsed, 'nse')) nse = this.options.validateNSE?.(parsed.nse) || parsed.nse;
+      if (!mergePreferences && !replaceNSEKeys && Object.hasOwn(parsed, 'searchDrawerOpen')) drawer = !!parsed.searchDrawerOpen;
     } else if ('empSavedSearches' in parsed) {
       let legacy = parsed.empSavedSearches;
       if (typeof legacy === 'string') {
@@ -1007,65 +1027,45 @@ export class CompanionApp {
       if (!this.options.validateNSE) throw new Error('Filter import is unavailable.');
       nse = this.options.validateNSE(parsed);
     }
-    if (settings && !parsed.settings?.navigationScope) {
-      settings.navigationScope = settings.globalArrowNavigation ? 'site' : nse?.nseArrowNavigationEnabled ? 'results' : 'off';
-    } else if (!settings && nse && Object.hasOwn(nse, 'nseArrowNavigationEnabled')) {
-      settings = validateSettings({ ...this.settings, navigationScope: nse.nseArrowNavigationEnabled ? 'results' : 'off',
-        globalArrowNavigation: false });
+    if (!Object.hasOwn(incomingSettings, 'navigationScope') &&
+        (Object.hasOwn(incomingSettings, 'globalArrowNavigation') || Object.hasOwn(nse ?? {}, 'nseArrowNavigationEnabled'))) {
+      incomingSettings.navigationScope = incomingSettings.globalArrowNavigation ? 'site' : nse?.nseArrowNavigationEnabled ? 'results' : 'off';
+    }
+    if (!Object.hasOwn(incomingSettings, 'animatedCovers') &&
+        (Object.hasOwn(incomingSettings, 'gridAutoplayGifs') || Object.hasOwn(incomingSettings, 'listAutoplayGifs'))) {
+      incomingSettings.animatedCovers = incomingSettings.gridAutoplayGifs === true || incomingSettings.listAutoplayGifs === true;
     }
     if (nse) {
-      const compatible = {};
-      if (Object.hasOwn(nse, 'nseBackfillButtonEnabled') && !Object.hasOwn(parsed.settings || {}, 'backfillEnabled')) compatible.backfillEnabled = nse.nseBackfillButtonEnabled;
-      if (Object.hasOwn(nse, 'nseBackfillPageLimit') && !Object.hasOwn(parsed.settings || {}, 'backfillPages')) compatible.backfillPages = nse.nseBackfillPageLimit;
-      if (Object.keys(compatible).length) settings = validateSettings({ ...this.settings, ...settings, ...compatible });
+      if (Object.hasOwn(nse, 'nseBackfillButtonEnabled') && !Object.hasOwn(incomingSettings, 'backfillEnabled')) incomingSettings.backfillEnabled = nse.nseBackfillButtonEnabled;
+      if (Object.hasOwn(nse, 'nseBackfillPageLimit') && !Object.hasOwn(incomingSettings, 'backfillPages')) incomingSettings.backfillPages = nse.nseBackfillPageLimit;
+    }
+    const before = this.storedSettings();
+    const settings = validateSettings({ ...before, ...incomingSettings });
+    if (Object.hasOwn(incomingSettings, 'conditionalRules')) compileConditionalRules(settings.conditionalRules);
+    const filters = new Map();
+    if (nse && !mergePreferences) {
+      for (const key of replaceNSEKeys ?? this.storage.list().filter(key => /^nse/.test(key))) filters.set(key, undefined);
+    }
+    if (nse) for (const [key, value] of Object.entries(nse)) filters.set(key, value);
+    if (Object.hasOwn(incomingSettings, 'navigationScope')) {
+      settings.globalArrowNavigation = settings.navigationScope === 'site';
+      filters.set('nseArrowNavigationEnabled', settings.navigationScope === 'results');
     }
     const changes = new Map();
     if (completeOnboarding) changes.set('ep.onboardingDone', true);
-    if (settings) changes.set(SETTINGS_KEY, settings);
+    addSettingsWrites(changes, before, settings);
     if (searches) changes.set(SEARCH_KEY, searches);
     if (drawer !== undefined) changes.set('ep.searchDrawerOpen', drawer);
-    if (nse) {
-      if (!mergePreferences) {
-        for (const key of replaceNSEKeys ?? this.storage.list().filter(key => /^nse/.test(key))) changes.set(key, undefined);
-      }
-      for (const [key, value] of Object.entries(nse)) changes.set(key, value);
-    }
-    if (!changes.size) throw new Error('No compatible settings were found.');
+    for (const [key, value] of filters) changes.set(key, value);
+    if (!changes.size && !Object.keys(incomingSettings).length && !nse) throw new Error('No compatible settings were found.');
+    const checkpoint = mergePreferences && !completeOnboarding ? this.preferences.makeCheckpoint(before, settings, filters, false) : null;
+    if (checkpoint) changes.set('ep.preferenceUndo', checkpoint);
+    const writes = keepUndo ? new Map([['ep.previousImport', this.exportData()], ...changes]) : changes;
+    writePreferences(this.storage, writes);
     this.preferences.cancel();
-    const previous = this.exportData();
-    if (keepUndo && replaceNSEKeys) {
-      previous.settings = validateSettings({ ...previous.settings, ...this.storage.get(SETTINGS_KEY, {}) });
-      previous.searches = validateSearches(this.storage.get(SEARCH_KEY, previous.searches));
-    }
-    if (mergePreferences) {
-      const stored = this.storage.get(SETTINGS_KEY, {});
-      changes.set('ep.preferenceUndo', { time: Date.now(), settings: { ...previous.settings, ...stored }, nse: previous.nse });
-    }
-    const writes = keepUndo ? new Map([['ep.previousImport', previous], ...changes]) : changes;
-    const old = new Map(Array.from(writes.keys(), key => [key, this.storage.get(key, undefined)]));
-    try {
-      for (const [key, value] of writes) value === undefined ? this.storage.delete(key) : this.storage.set(key, value);
-    } catch (error) {
-      for (const [key, value] of old) {
-        try { value === undefined ? this.storage.delete(key) : this.storage.set(key, value); } catch {}
-      }
-      throw error;
-    }
-    const conditionalChanged = settings && settings.conditionalRules !== this.settings.conditionalRules;
-    if (settings) {
-      const before = this.settings; this.settings = settings;
-      for (const [key, control] of this.controls || []) {
-        if (control.type === 'checkbox') control.checked = settings[key]; else control.value = settings[key];
-      }
-      if (this.mounted) this.updateMediaPreferences(before);
-      this.resultFilters.refreshRulesEditor();
-    }
-    if ((nse || conditionalChanged) && this.mounted) { this.refreshFilters(true); this.applyAppearance(); }
+    this.applySavedSettings(settings, filters.size > 0, true);
     if (searches) { this.searches = searches; this.renderSavedSearches(); }
-    if (mergePreferences) {
-      this.preferences.checkpoint = changes.get('ep.preferenceUndo');
-      if (this.undoPreferences) this.undoPreferences.hidden = false;
-    }
+    if (checkpoint) this.preferences.setCheckpoint(checkpoint);
     // Legacy drawer state only restores management. Saved shortcuts are always visible.
     // Old drawer flags do not reopen management or hide the primary shortcuts.
     if (this.saveStatus) this.saveStatus.textContent = 'Backup restored';
@@ -1315,7 +1315,7 @@ export class CompanionApp {
     if (!this.settings.keyboardShortcuts || this.onboarding?.open || event.isComposing || event.defaultPrevented) return;
     if (isSaveShortcut(event) &&
         event.target.closest?.('.epc-workspace') && this.activePane !== 'searches') {
-      event.preventDefault(); if (this.dirty) this.applyChanges(); return;
+      event.preventDefault(); if (this.preferences.dirty) this.preferences.flush(); return;
     }
     if (event.key === 'Escape') {
       if (this.preview.open) { event.preventDefault(); this.preview.hide(true); }

@@ -93,7 +93,7 @@ export class ConditionalRuleEditor {
     label.append(setSettingHelp(app.node('span', 'Rule text'),
       'Enter one rule per line. Use $TA for a tag, $TI for a title phrase, or $UP for an uploader, and apply the text to save it.', this.raw), this.raw);
     this.applyText = app.button('Apply rule text', () => this.saveText(this.raw.value));
-    this.discardText = app.button('Discard draft', () => { this.raw.value = this.source; this.validateText(); });
+    this.discardText = app.button('Discard draft', () => { this.raw.value = this.rawBase = this.source; this.validateText(); });
     const rawControls = app.node('div', null, 'epc-actions');
     rawControls.append(this.applyText, this.discardText);
     raw.append(setSettingHelp(app.node('summary', 'Advanced rule text'), 'Edit multiple rules together or use parentheses to group conditions.'),
@@ -107,8 +107,10 @@ export class ConditionalRuleEditor {
   refresh() {
     const source = this.app.settings.conditionalRules;
     if (source === this.source) return;
+    if (this.rawBase === undefined || this.raw.value === this.rawBase || this.raw.value === source) {
+      this.raw.value = this.rawBase = source;
+    }
     this.source = source;
-    this.raw.value = source;
     this.list.replaceChildren();
     try { this.rules = compileConditionalRules(source); }
     catch { this.rules = []; this.rawSection.open = true; }
@@ -135,8 +137,9 @@ export class ConditionalRuleEditor {
     try {
       compileConditionalRules(this.raw.value);
       this.raw.removeAttribute('aria-invalid');
-      this.rawStatus.textContent = changed ? 'Ready to apply.' : '';
-      this.applyText.disabled = !changed;
+      const stale = changed && this.rawBase !== this.source;
+      this.rawStatus.textContent = stale ? 'Rules changed in another tab. Copy or discard this draft to review the saved rules.' : changed ? 'Ready to apply.' : '';
+      this.applyText.disabled = !changed || stale;
     } catch (error) {
       this.raw.setAttribute('aria-invalid', 'true');
       this.rawStatus.textContent = error.message;
@@ -227,7 +230,12 @@ export class ConditionalRuleEditor {
   saveText(text, status = this.rawStatus) {
     try { compileConditionalRules(text); }
     catch (error) { status.textContent = error.message; return false; }
-    if (this.app.preferences.flush(text)) return true;
+    if (this.app.storedSettings().conditionalRules !== this.source) {
+      this.app.preferences.refresh();
+      status.textContent = 'Rules changed in another tab. Review the saved rules before applying changes.';
+      return false;
+    }
+    if (this.app.preferences.flush({ conditionalRules: text })) return true;
     status.textContent = 'Could not apply the rules. Your draft is still here.';
     return false;
   }

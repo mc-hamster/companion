@@ -1,44 +1,112 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { validateSettings } from './core.mjs';
+import { DEFAULTS, validateSettings } from './core.mjs';
 import { compileConditionalRules } from './conditional-rules.mjs';
 
+const undoKey = 'ep.preferenceUndo';
+export const SETTINGS_KEY = 'ep.settings';
+const preferencePrefix = 'ep.preference.';
+export const samePreference = (first, second) => first === second || JSON.stringify(first) === JSON.stringify(second);
+
+export function readPreferenceValues(storage) {
+  const stored = storage.get(SETTINGS_KEY);
+  const values = stored && typeof stored === 'object' ? { ...stored } : {};
+  for (const key of storage.list()) if (key.startsWith(preferencePrefix)) {
+    const name = key.slice(preferencePrefix.length);
+    if (Object.hasOwn(DEFAULTS, name)) values[name] = storage.get(key, values[name]);
+  }
+  return values;
+}
+
+export function addSettingsWrites(writes, before, after) {
+  if (samePreference(before, after)) return;
+  // Each edited preference has its own key so overlapping tab saves can retain both values.
+  for (const [key, value] of Object.entries(after)) {
+    if (!samePreference(before[key], value)) writes.set(preferencePrefix + key, value);
+  }
+  writes.set(SETTINGS_KEY, after);
+}
+
+export function writePreferences(storage, changes) {
+  const attempted = [];
+  const write = (key, value) => value === undefined ? storage.delete(key) : storage.set(key, value);
+  try {
+    for (const [key, value] of changes) {
+      const before = storage.get(key);
+      if (samePreference(before, value)) continue;
+      attempted.push({ key, before, value });
+      write(key, value);
+    }
+  } catch (error) {
+    let restored = true;
+    for (const { key, before, value } of attempted.reverse()) {
+      try {
+        if (samePreference(storage.get(key), value)) write(key, before);
+      } catch { restored = false; }
+    }
+    if (!restored) throw new Error('Storage failed and some preferences could not be restored.', { cause: error });
+    throw error;
+  }
+}
+
 export class PreferencesController {
-  constructor(app) { this.app = app; this.timer = null; this.checkpoint = app.storage.get('ep.preferenceUndo', null); }
+  constructor(app) {
+    this.app = app; this.timer = null;
+    this.settingsEdits = new Set(); this.filterEdits = new Set();
+    this.checkpoint = app.storage.get(undoKey, null);
+  }
+  get dirty() { return !!(this.settingsEdits.size || this.filterEdits.size); }
   status(text) { if (this.app.saveStatus) this.app.saveStatus.textContent = text; }
   changed(target, event = {}) {
-    if (!target.matches?.('[data-setting],[data-ep-filter-control]')) return;
     const app = this.app;
-    app.dirty = true;
-    if (target.hasAttribute('data-ep-filter-control')) app.filterDirty = true;
+    const key = target.dataset?.setting;
+    if (key && app.controls.get(key) === target) this.settingsEdits.add(key);
+    else if (target.id && (target.hasAttribute('data-ep-filter-control') || target.closest('#nseOuter'))) this.filterEdits.add(target.id);
+    else return;
     app.win.clearTimeout(this.timer);
     this.status('Saving…');
     if (event.isComposing || app.composing) return;
     this.timer = app.win.setTimeout(() => this.flush(), event.type === 'change' ? 0 : 550);
   }
-  beforeChange() {
-    const app = this.app;
-    if (!this.checkpoint || Date.now() - this.checkpoint.time > 30000) {
-      const current = app.exportData();
-      const next = { time: Date.now(), settings: { ...current.settings, ...app.tags.storedPreferences() }, nse: current.nse };
-      app.storage.set('ep.preferenceUndo', next); this.checkpoint = next;
-    }
-    if (app.undoPreferences) app.undoPreferences.hidden = false;
+  refresh() {
+    const { app } = this;
+    if (!app.mounted || app.disposed || app.composing || this.dirty) return false;
+    return app.applySavedSettings(app.storedSettings());
   }
-  flush(conditionalRules = this.app.settings.conditionalRules, highlightChanges) {
+  makeCheckpoint(before, after, filters, coalesce = true) {
+    const now = Date.now(), current = this.checkpoint;
+    const previous = coalesce && current?.applied && this.ownCheckpoint && now - current.time <= 30000 ? current : null;
+    const settings = { ...previous?.settings }, nse = { ...previous?.nse };
+    const applied = { settings: { ...previous?.applied.settings }, nse: { ...previous?.applied.nse } };
+    const remember = (original, saved, key, oldValue, newValue) => {
+      if (samePreference(oldValue, newValue)) return;
+      if (!samePreference(saved[key], oldValue)) original[key] = oldValue;
+      saved[key] = newValue;
+      if (samePreference(original[key], newValue)) { delete original[key]; delete saved[key]; }
+    };
+    for (const [key, value] of Object.entries(after)) remember(settings, applied.settings, key, before[key], value);
+    for (const [key, value] of filters) remember(nse, applied.nse, key, this.app.storage.get(key) ?? null, value ?? null);
+    if (!Object.keys(settings).length && !Object.keys(nse).length) return null;
+    return { time: previous?.time ?? now, settings, nse, applied };
+  }
+  setCheckpoint(checkpoint) {
+    this.checkpoint = checkpoint;
+    this.ownCheckpoint = !!checkpoint;
+    if (this.app.undoPreferences) this.app.undoPreferences.hidden = !checkpoint;
+  }
+  flush(changes = {}) {
     const app = this.app;
     app.win.clearTimeout(this.timer); this.timer = null;
-    const wasDirty = app.dirty;
-    const updatingRules = conditionalRules !== app.settings.conditionalRules;
-    if (app.composing || app.disposed) return !updatingRules && !highlightChanges;
-    if (!wasDirty && !updatingRules && !highlightChanges) return true;
+    const explicit = Object.keys(changes).length > 0;
+    if (app.composing || app.disposed) return !explicit && !this.dirty;
+    if (!this.dirty && !explicit) return true;
     const focused = app.doc.activeElement;
-    const restore = focused?.matches?.('textarea[data-ep-filter-control],input[type=text][data-ep-filter-control]') ?
-      { node: focused, value: focused.value, start: focused.selectionStart, end: focused.selectionEnd, scroll: focused.scrollTop } : null;
-    let snapshot, checkpointBefore = this.checkpoint, filterChanged, conditionalChanged;
-    const previousSettings = app.settings;
+    const restore = this.filterEdits.has(focused?.id) && focused.matches('textarea,input[type=text]') ?
+      { start: focused.selectionStart, end: focused.selectionEnd, scroll: focused.scrollTop } : null;
     try {
-      const next = { ...app.settings, ...app.tags.storedPreferences(), conditionalRules };
-      for (const [key, control] of app.controls) {
+      const before = app.storedSettings();
+      const next = { ...before };
+      for (const key of this.settingsEdits) {
+        const control = app.controls.get(key);
         const numeric = control.type === 'number' || control.hasAttribute('data-numeric');
         if (numeric && !control.checkValidity()) {
           control.setAttribute('aria-invalid', 'true'); this.status('Check the highlighted value.'); return false;
@@ -46,80 +114,80 @@ export class PreferencesController {
         if (numeric) control.removeAttribute('aria-invalid');
         next[key] = control.type === 'checkbox' ? control.checked : numeric ? Number(control.value) : control.value;
       }
-      filterChanged = app.filterDirty;
-      next.globalArrowNavigation = next.navigationScope === 'site';
-      Object.assign(next, highlightChanges);
+      Object.assign(next, changes);
+      if (next.navigationScope !== before.navigationScope) next.globalArrowNavigation = next.navigationScope === 'site';
       const checked = validateSettings(next);
-      conditionalChanged = checked.conditionalRules !== previousSettings.conditionalRules;
-      if (conditionalChanged) compileConditionalRules(checked.conditionalRules);
-      if (filterChanged) app.options.validateDraftFilters?.();
-      const keys = new Set(['ep.settings', 'ep.preferenceUndo', 'nseArrowNavigationEnabled',
-        ...(filterChanged ? app.storage.list().filter(key => key.startsWith('nse')) : [])]);
-      snapshot = new Map([...keys].map(key => {
-        const value = app.storage.get(key, undefined);
-        return [key, value === undefined ? undefined : JSON.parse(JSON.stringify(value))];
-      }));
-      this.beforeChange(); app.savingPreferences = true;
-      const arrow = app.doc.getElementById('nseCheckArrowNavigation');
-      if (arrow) arrow.checked = next.navigationScope === 'results';
-      if (filterChanged) app.options.flushNSE?.();
-      const previous = app.settings;
-      app.storage.set('ep.settings', checked);
-      app.storage.set('nseArrowNavigationEnabled', checked.navigationScope === 'results');
-      app.settings = checked;
-      for (const key of ['favoriteTags', 'cautionTags']) if (app.controls.has(key) && app.doc.activeElement !== app.controls.get(key)) {
-        app.controls.get(key).value = checked[key];
-      }
-      app.dirty = app.filterDirty = false;
-      if (filterChanged || conditionalChanged) app.refreshFilters();
-      if (conditionalChanged) app.resultFilters.refreshRulesEditor();
-      app.updateMediaPreferences(previous);
-      app.applyAppearance();
-      this.status(conditionalChanged ? 'Rules saved' : 'Saved automatically');
+      if (checked.conditionalRules !== before.conditionalRules) compileConditionalRules(checked.conditionalRules);
+      const filters = new Map(Object.entries(this.filterEdits.size ? app.options.readFilterDraft?.(this.filterEdits) || {} : {}));
+      if (checked.navigationScope !== before.navigationScope) filters.set('nseArrowNavigationEnabled', checked.navigationScope === 'results');
+      this.save(before, checked, filters);
+      const syncedFilters = this.filterEdits.size > 0;
+      this.cancel();
+      app.applySavedSettings(checked, syncedFilters);
+      this.status(Object.hasOwn(changes, 'conditionalRules') ? 'Rules saved' : 'Saved automatically');
       return true;
     } catch (error) {
-      let restored = true;
-      if (snapshot) {
-        const keys = new Set([...snapshot.keys(), ...(filterChanged ? app.storage.list().filter(key => key.startsWith('nse')) : [])]);
-        for (const key of keys) {
-          try {
-            const value = snapshot.get(key), current = app.storage.get(key, undefined);
-            if (JSON.stringify(value) === JSON.stringify(current)) continue;
-            if (value === undefined) app.storage.delete(key); else app.storage.set(key, value);
-          } catch { restored = false; }
-        }
-        app.settings = previousSettings; this.checkpoint = checkpointBefore;
-        if (app.undoPreferences) app.undoPreferences.hidden = !checkpointBefore;
-        if ((filterChanged || conditionalChanged) && restored) app.refreshFilters();
-      }
-      app.dirty = wasDirty;
-      if (filterChanged) app.filterDirty = true;
       this.status('Could not save. Your edits are still here.');
-      app.toast(restored ? error.message || 'Preferences could not be saved.' : 'Storage failed and some preferences could not be restored. Your draft is still here.');
+      app.toast(error.message || 'Preferences could not be saved.');
       return false;
     } finally {
-      app.savingPreferences = false;
-      if (restore && restore.node.isConnected && app.doc.activeElement === restore.node) {
-        restore.node.value = restore.value;
-        try { restore.node.setSelectionRange(restore.start, restore.end); } catch {}
-        restore.node.scrollTop = restore.scroll;
+      if (restore && focused === app.doc.activeElement) {
+        focused.setSelectionRange(restore.start, restore.end);
+        focused.scrollTop = restore.scroll;
       }
     }
   }
+  save(before, after, filters) {
+    const writes = new Map(filters);
+    addSettingsWrites(writes, before, after);
+    if (![...writes].some(([key, value]) => !samePreference(this.app.storage.get(key), value))) return;
+    const checkpoint = this.makeCheckpoint(before, after, filters);
+    writes.set(undoKey, checkpoint ?? undefined);
+    writePreferences(this.app.storage, writes);
+    this.setCheckpoint(checkpoint);
+  }
+  saveVisibilityOverrides(blacklist, whitelist) {
+    const { app } = this;
+    try {
+      this.saveFilters({ nseIndividualUploadHidingBlacklist: blacklist, nseIndividualUploadHidingWhitelist: whitelist });
+    } catch (error) { app.toast(error.message); }
+    app.scheduleFilterRefresh();
+  }
+  saveFilters(filters) {
+    const { app } = this;
+    const checked = app.options.validateNSE?.(filters) || filters;
+    this.save(app.settings, app.settings, new Map(Object.entries(checked)));
+  }
   cancel() {
     this.app.win.clearTimeout(this.timer); this.timer = null;
-    this.app.dirty = this.app.filterDirty = false;
+    this.settingsEdits.clear(); this.filterEdits.clear();
   }
   undo() {
     const app = this.app;
     if (!this.checkpoint) return;
     this.cancel();
     try {
-      const current = app.exportData();
-      const previous = this.checkpoint;
-      app.importData(JSON.stringify({ ...current, settings: previous.settings, nse: previous.nse }), false);
-      app.storage.delete('ep.preferenceUndo'); this.checkpoint = null;
-      if (app.undoPreferences) app.undoPreferences.hidden = true;
+      const { settings, nse, applied } = this.checkpoint;
+      const current = app.storedSettings();
+      if (applied) {
+        const patch = { ...current };
+        for (const [key, value] of Object.entries(settings)) if (samePreference(current[key], applied.settings[key])) patch[key] = value;
+        const writes = new Map();
+        for (const [key, value] of Object.entries(nse)) {
+          if (samePreference(app.storage.get(key) ?? null, applied.nse[key])) writes.set(key, value ?? undefined);
+        }
+        const filtersChanged = writes.size > 0;
+        const next = validateSettings(patch);
+        addSettingsWrites(writes, current, next);
+        if (samePreference(app.storage.get(undoKey), this.checkpoint)) writes.set(undoKey, undefined);
+        writePreferences(app.storage, writes);
+        app.applySavedSettings(next, filtersChanged, true);
+      } else {
+        const backup = app.exportData();
+        app.importData(JSON.stringify({ ...backup, settings, nse }), false);
+        if (samePreference(app.storage.get(undoKey), this.checkpoint)) app.storage.delete(undoKey);
+      }
+      this.setCheckpoint(null);
       this.status('Changes restored'); app.toast('Recent preference changes undone.');
     } catch (error) { app.toast('Could not undo changes: ' + error.message); }
   }

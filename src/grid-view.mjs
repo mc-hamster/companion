@@ -49,7 +49,7 @@ export class ResultGrid {
     this.layoutButtons = new Map();
     for (const [value, label, help] of [['list', 'List', 'Show results in a list'], ['grid', 'Grid', 'Show results as image cards']]) {
       const button = app.button(label, () => {
-        if (app.settings.resultsView !== value) app.setResultPreference('resultsView', value);
+        app.setResultPreference('resultsView', value);
       });
       button.prepend(companionIcon(app.doc, value));
       button.dataset.epLayout = value;
@@ -183,7 +183,7 @@ export class ResultGrid {
       const input = app.node('input'); input.type = 'checkbox'; input.checked = !hidden.has(key);
       input.dataset.columnChoice = key;
       input.addEventListener('change', () => {
-        const next = new Set(app.settings.listHiddenColumns.split(' ').filter(Boolean));
+        const next = new Set(app.storedSettings().listHiddenColumns.split(' ').filter(Boolean));
         if (input.checked) next.delete(key); else next.add(key);
         if (!app.setResultPreference('listHiddenColumns', [...next].join(' '))) input.checked = !input.checked;
       });

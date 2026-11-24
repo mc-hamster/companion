@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import { COMPANION_HOSTS, COMPANION_MATCH_PATHS } from '../src/core.mjs';
 import { IMAGE_CACHE_HOSTS } from '../src/image-cache.mjs';
 import { HAMSTER_FIXTURE_PATH, HAMSTER_ORIGIN, HAMSTER_PICKER_HASH, HAMSTER_PICKER_SESSION } from '../src/hamster-media.mjs';
+import { NSE_EMPTY_LISTS } from '../src/nse-settings.mjs';
 
 const root = new URL('../', import.meta.url);
 const read = path => readFile(new URL(path, root), 'utf8');
@@ -154,19 +155,26 @@ replace('width: 600px;', 'width: min(600px, 100%); box-sizing: border-box;');
 replace('bottom: 2em;\n    right: 2em;', 'bottom: 72px;\n    right: 16px;');
 replace('elementsToRemove[i].remove();', 'app.detachFilteredRow(elementsToRemove[i]);');
 replace('referenceNode.after(htmlContent);', 'htmlContent.hidden = true; htmlContent.classList.add("epc-engine"); referenceNode.after(htmlContent);');
-replace('storedList = [...new Set(storedList)];', 'storedList = [...new Set(storedList.filter(item => item.trim()))];');
+for (const key of NSE_EMPTY_LISTS) {
+  const name = readerNames[key];
+  replace(`GM_setValue("${key}", ${name});\n`, '');
+}
 nse = nse.replace(/document\.getElementById\("nseOuter"\)\.scrollIntoView\(\);/g, 'app.root?.scrollIntoView({block:"start"});');
 nse = nse.replace(/a\.nseTitleElement/g, "a[href*='torrents.php?id=']");
 nse = nse.replaceAll('"Filter this torrent with NSE"', '"Change result visibility"');
-nse = nse.replace(/^( +)(GM_setValue\("nseIndividualUploadHidingBlacklist"[^\n]+\n +GM_setValue\("nseIndividualUploadHidingWhitelist"[^\n]+)$/gm,
-  (_, indent, writes) => indent + 'app.beforeFilterWrite();\n' + indent + writes + '\n' + indent + 'app.afterFilterWrite();');
+nse = nse.replace(/^( +)GM_setValue\("nseIndividualUploadHidingBlacklist"[^\n]+\n +GM_setValue\("nseIndividualUploadHidingWhitelist"[^\n]+$/gm,
+  (_, indent) => indent + 'app.preferences.saveVisibilityOverrides(nseIndividualUploadHidingBlacklist, nseIndividualUploadHidingWhitelist);');
 nse = nse.replaceAll('<i class="font_icon torrent_icons clickable">', '<i class="font_icon torrent_icons clickable nseToggleIcon">');
 replace('Are you sure you want to reset all blacklists, all whitelists, and all preferences in NSE? This cannot be undone!',
   'Reset all filter lists, individual visibility overrides, and filter preferences? Saved searches and image preferences will be kept.');
 nse = nse.replaceAll('nseExport-', 'empornium-filters-');
-replace('function saveData() {', 'function saveData() {\n    app.beforeFilterWrite();');
-replace('document.getElementById("nseSaveDiv").classList.remove("hidden");',
-  'document.getElementById("nseSaveDiv").classList.remove("hidden");\n    app.afterFilterWrite();');
+section('function saveData() {', 'function nseGoBack(', () => 'function saveData() { app.preferences.flush(); }\n\n');
+for (const assignment of [
+  'document.getElementById(tagListAreaName).value = currList.join(" ");',
+  'document.getElementById(tagListAreaName).value = currList.join(splitChar).replace(/;/,\';\');'
+]) replace(assignment, assignment + '\n    app.preferences.changed(document.getElementById(tagListAreaName));');
+replace('document.getElementById("nseCheckUpdateToasts").checked = false;',
+  'document.getElementById("nseCheckUpdateToasts").checked = false;\n            app.preferences.changed(document.getElementById("nseCheckUpdateToasts"));');
 replace('seeders.innerHTML = "(0)";', '');
 replace('seedersElement.innerHTML = "(" + seedersElement.innerHTML + ")";', '');
 replace('seedersElement2.innerHTML = "(0)";', '');

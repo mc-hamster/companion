@@ -46,7 +46,7 @@ test('native Cover Art uses Grid spacing and plays visible animated covers with 
     originals()[1].fail();
     assert.equal(gif(second), null);
     assert.match(second.querySelector('.epc-cover-image').src, /cover-2\.th\.gif$/);
-    f.app.controls.get('gridSpacing').value = 'standard'; f.app.dirty = true; f.app.preferences.flush();
+    f.app.setResultPreference('gridSpacing', 'standard');
     assert.equal(f.doc.documentElement.hasAttribute('data-ep-compact-cover-grid'), false);
   } finally { f.close(); }
 });

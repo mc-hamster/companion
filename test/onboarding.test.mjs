@@ -80,6 +80,24 @@ test('[ONB-02] existing preferences on first upgrade are prefilled instead of re
   const f=await boot({'ep.onboardingDone':false,'ep.settings':{thumbnailSize:140,backfillPages:12,previews:false,groupVersions:false}});
   try{assert.equal(dialog(f).querySelector('select').value,'140');assert.equal(dialog(f).querySelector('input[type=number]').value,'12');assert.equal(dialog(f).querySelector('[name="welcome-backfill"]:checked').value,'off');clickText(dialog(f),'Start browsing');assert.equal(f.store.get('ep.settings').backfillPages,12);}finally{f.close();}
 });
+
+test('saving setup only applies choices edited in its dialog', async () => {
+  const store = strictStorage({ 'ep.settings': { inlineThumbnails: false, previews: false } });
+  const first = await boot({}, { store }), second = await boot({}, { store });
+  try {
+    pane(first, 'settings');
+    clickText(first.doc.querySelector('.epc-pane[data-pane=settings]'), 'Getting started');
+    pane(second, 'settings');
+    await field(second, '[data-setting=previews]', true);
+    second.doc.querySelector('input[name=searchtext]').value = 'new search';
+    clickText(second.doc.querySelector('.epc-workspace'), 'Save search');
+    dialog(first).querySelector('select').value = '140';
+    clickText(dialog(first), 'Save changes');
+    assert.equal(store.get('ep.settings').previews, true);
+    assert.equal(store.get('ep.settings').thumbnailSize, 140);
+    assert.equal(store.get('ep.searches')[0].title, 'new search');
+  } finally { first.close(); second.close(); }
+});
 test('[ONB-03] invalid count blocks Finish; hidden count is ignored for manual mode; tags use existing live filters',async()=>{
   const store=fresh(),f=await boot({}, {store,rows:rowHTML(1,{tags:'blocked'})+rowHTML(2)});
   try{
@@ -94,7 +112,8 @@ test('[ONB-03] invalid count blocks Finish; hidden count is ignored for manual m
 test('[ONB-03] failed persistence rolls back completion and preferences, retains the draft and allows retry',async()=>{
   const store=fresh(),calls=[],f=await boot({}, {store,fetch:async url=>{calls.push(url);return resultPage(url);}});
   try{
-    const before=store.snapshot();store.failNext('nseTaglist');clickText(dialog(f),'Start browsing');await settle();
+    const before=store.snapshot();dialog(f).querySelector('textarea').value='blocked';
+    store.failNext('nseTaglist');clickText(dialog(f),'Start browsing');await settle();
     assert.ok(dialog(f));assert.match(dialog(f).querySelector('[role=alert]').textContent,/Could not save/);
     assert.deepEqual(store.snapshot(),before);assert.equal(calls.length,0);
     mode(f,'off');clickText(dialog(f),'Start browsing');assert.equal(dialog(f),null);assert.equal(store.get('ep.onboardingDone'),true);

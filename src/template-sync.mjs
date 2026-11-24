@@ -40,8 +40,14 @@ function portableTemplateData(app, nseKeys, data) {
     throw new Error('The Companion template contains invalid settings.');
   }
   const settings = validateSettings(data.settings);
-  for (const key of templateLocalSettings) delete settings[key];
-  compileConditionalRules(settings.conditionalRules);
+  for (const key of Object.keys(settings)) {
+    if (!Object.hasOwn(data.settings, key) || templateLocalSettings.includes(key)) delete settings[key];
+  }
+  if (!Object.hasOwn(settings, 'animatedCovers') &&
+      (Object.hasOwn(data.settings, 'gridAutoplayGifs') || Object.hasOwn(data.settings, 'listAutoplayGifs'))) {
+    settings.animatedCovers = data.settings.gridAutoplayGifs === true || data.settings.listAutoplayGifs === true;
+  }
+  if (Object.hasOwn(settings, 'conditionalRules')) compileConditionalRules(settings.conditionalRules);
   const nse = {};
   for (const key of nseKeys) if (Object.hasOwn(data.nse, key)) nse[key] = data.nse[key];
   return { settings, nse: app.options.validateNSE(nse), searches: validateSearches(data.searches) };
@@ -231,7 +237,7 @@ export function mountTemplateSync(app) {
       'Could not save the passphrase on this device. Reload Companion and try again.';
   }
 
-  const currentSettings = () => ({ ...app.settings, ...storage.get('ep.settings', {}) });
+  const currentSettings = () => app.storedSettings();
   const currentSnapshot = () => {
     const nse = {};
     for (const key of nseKeys) {
@@ -246,8 +252,9 @@ export function mountTemplateSync(app) {
 
   function showPreview(incoming, localChanged = false) {
     const current = currentSnapshot();
+    const target = { ...incoming, settings: { ...current.settings, ...incoming.settings } };
     preview.replaceChildren();
-    if (signature(current) === signature(incoming)) {
+    if (signature(current) === signature(target)) {
       status.textContent = 'Your settings already match the Companion template.';
       return;
     }
@@ -255,8 +262,8 @@ export function mountTemplateSync(app) {
       'Preview only. Choose Restore from Emp below to apply the changes on this device.';
     const changes = app.node('ul', null, 'epc-caption');
     for (const [key, label] of [['settings', 'Companion preferences'], ['nse', 'Filter and theme preferences']]) {
-      const keys = new Set([...Object.keys(current[key]), ...Object.keys(incoming[key])]);
-      const count = [...keys].filter(name => signature(current[key][name]) !== signature(incoming[key][name])).length;
+      const keys = new Set([...Object.keys(current[key]), ...Object.keys(target[key])]);
+      const count = [...keys].filter(name => signature(current[key][name]) !== signature(target[key][name])).length;
       if (count) changes.append(app.node('li', `${label} · ${count} to update`));
     }
     const searchesChanged = signature(current.searches) !== signature(incoming.searches);
@@ -278,8 +285,7 @@ export function mountTemplateSync(app) {
           showPreview(incoming, true);
           return;
         }
-        const settings = { ...currentSettings(), ...incoming.settings };
-        app.importData(JSON.stringify({ format: 'empornium-companion', version: 1, ...incoming, settings }),
+        app.importData(JSON.stringify({ format: 'empornium-companion', version: 1, ...incoming }),
           true, { replaceNSEKeys: nseKeys });
         const searchResult = searchesChanged
           ? searchCount ? ` Restored ${searchCount} ${searchLabel} to Searches.` : ' Cleared saved searches.'

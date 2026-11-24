@@ -28,4 +28,3 @@ bridge.newRows = function(root, rows) {
     adjustHiddenHeaderCount(count);
     if(nseRenumberTorrentsEnabled && currentPage === "Top 10") renumberTorrents();
 };
-bridge.flush = saveData;
