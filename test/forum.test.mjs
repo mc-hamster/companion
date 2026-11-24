@@ -181,14 +181,94 @@ test('floating thread controls jump to page positions and retain the draft launc
     assert.deepEqual(calls, [['page', 0, 'smooth'], ['page', 1800, 'smooth'], ['unread', 'start', 'smooth']]);
     const reply = actions.querySelector('.epc-forum-launch');
     reply.click();
+    const panel = doc.querySelector('.epc-forum-compose');
+    const size = label => [...panel.querySelectorAll('.epc-forum-compose-sizes button')].find(button => button.textContent === label);
+    assert.equal(panel.dataset.size, 'compact');
     assert.equal(reply.hidden, true);
     assert.equal(actions.hidden, false);
     changeBody(f, 'An unfinished reply');
+    size('Wide').click();
+    assert.equal(size('Wide').getAttribute('aria-pressed'), 'true');
+    size('Full').click();
+    assert.equal(panel.dataset.size, 'full');
+    assert.equal(doc.getElementById('wrapper').hasAttribute('inert'), true);
     doc.querySelector('.epc-forum-minimize').click();
     assert.equal(reply.textContent, 'Resume draft');
     assert.equal(reply.hidden, false);
+    assert.equal(doc.getElementById('wrapper').hasAttribute('inert'), false);
     reply.click();
     assert.equal(doc.getElementById('quickpost').value, 'An unfinished reply');
+    assert.equal(panel.dataset.size, 'full');
+    assert.equal(f.storage.get('ep.forum.composerSize'), 'full');
+    size('Compact').click();
+    assert.equal(doc.getElementById('wrapper').hasAttribute('inert'), false);
+  } finally { f.close(); }
+});
+
+test('empty pagination wrappers disappear while links on multipage threads remain available', async () => {
+  const storage = memoryStorage({ 'ep.forum.reader': true });
+  const single = await start('/forum/thread/42?single-page', { storage });
+  const multiple = await start('/forum/thread/42', { storage });
+  try {
+    const pagers = [...single.doc.querySelectorAll('.linkbox.pager')];
+    assert.equal(pagers.length, 2);
+    assert.ok(pagers.every(pager => pager.classList.contains('epc-forum-empty-pager')));
+    assert.ok(pagers.every(pager => single.win.getComputedStyle(pager).display === 'none'));
+    assert.equal(multiple.doc.querySelectorAll('.epc-forum-pager a[href="?page=2"]').length, 3);
+    single.doc.querySelector('.epc-forum-toggle').click();
+    assert.ok(pagers.every(pager => pager.className === 'linkbox pager'));
+  } finally { single.close(); multiple.close(); }
+});
+
+test('cancel confirms a draft, clears the current reply and stops a pending quote', async () => {
+  let request, deliver;
+  const quote = new Promise(resolve => { deliver = resolve; });
+  const storage = memoryStorage({ 'ep.forum.reader': true, 'ep.forum.composerSize': 'full' });
+  const f = await start('/forum/thread/42', { storage, fetch: (_url, options) => { request = options; return quote; } });
+  try {
+    const { doc, win } = f;
+    const launcher = doc.querySelector('.epc-forum-launch');
+    launcher.click();
+    const panel = doc.querySelector('.epc-forum-compose');
+    const size = label => [...panel.querySelectorAll('.epc-forum-compose-sizes button')].find(button => button.textContent === label);
+    const cancel = [...panel.querySelectorAll('button')].find(button => button.textContent === 'Cancel reply');
+    const confirm = doc.querySelector('.epc-forum-discard');
+    const source = doc.getElementById('quickpost');
+    assert.equal(panel.dataset.size, 'full');
+    changeBody(f, 'A draft to discard');
+    await until(() => storedDraft(f)?.body === 'A draft to discard');
+    const savedKey = win.sessionStorage.getItem(draftKey);
+    doc.getElementById('subscribebox').checked = true;
+    cancel.click();
+    assert.equal(confirm.open, true);
+    doc.activeElement.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    assert.equal(confirm.open, false);
+    assert.equal(doc.activeElement, source);
+    assert.equal(source.value, 'A draft to discard');
+
+    size('Compact').click();
+    doc.querySelector('#post12 .epc-forum-quote').click();
+    await until(() => request);
+    size('Full').click();
+    cancel.click();
+    confirm.querySelector('.epc-forum-discard-confirm').click();
+    assert.equal(request.signal.aborted, true);
+    assert.equal(confirm.open, false);
+    assert.equal(panel.hidden, true);
+    assert.equal(doc.getElementById('wrapper').hasAttribute('inert'), false);
+    assert.equal(doc.activeElement, launcher);
+    assert.equal(storedDraft(f), null);
+    assert.equal(storage.get(savedKey, null), null);
+    assert.equal(doc.getElementById('subscribebox').checked, false);
+    deliver({ ok: true, json: async () => 'A late quote' });
+    await new Promise(resolve => setImmediate(resolve));
+    launcher.click();
+    assert.equal(source.value, '');
+    cancel.click();
+    assert.equal(confirm.open, false);
+    assert.equal(panel.hidden, true);
+    assert.equal(launcher.textContent, 'Reply');
+    assert.deepEqual(f.errors, []);
   } finally { f.close(); }
 });
 

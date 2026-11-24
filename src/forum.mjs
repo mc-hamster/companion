@@ -257,7 +257,10 @@ class ForumReader {
       if (heading.querySelector('a[href="/forum"],a[href="/forum/"]') &&
         heading.textContent.replace(/\s+/g, ' ').trim() === headingText) this.mark(heading, 'epc-forum-duplicate-link');
     }
-    for (const pager of this.content.querySelectorAll('.linkbox.pager')) this.mark(pager, 'epc-forum-pager');
+    for (const pager of this.content.querySelectorAll('.linkbox.pager')) {
+      const hasContent = pager.firstElementChild || pager.textContent.trim();
+      this.mark(pager, hasContent ? 'epc-forum-pager' : 'epc-forum-empty-pager');
+    }
     for (const links of this.content.querySelectorAll('.linkbox:not(.pager)')) {
       if ([...links.querySelectorAll('a')].some(link =>
         /^(Report Thread|Subscribe|Unsubscribe|Search this Thread|Search this forum|Search forum|New Thread|Unread Posts|Catch up)$/.test(link.textContent.trim()))) {
@@ -376,6 +379,7 @@ class ForumReader {
       }
       const profile = head.querySelector('.user_dropdown a[href*="user.php"],a.username[href],a[href^="/user.php?id="]');
       const user = profile?.textContent.trim();
+      this.mark(profile, 'epc-forum-author-link');
       const avatar = post.querySelector('td.avatar > img.avatar');
       const awards = post.querySelector('td.avatar > .badges');
       if (avatar) this.move(avatar, head, head.firstChild, 'epc-forum-author-avatar');

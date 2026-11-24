@@ -19,7 +19,8 @@ function forumPostHTML(id, { user, body, unread = false, pinned = false, locked 
     '<span title="2026-11-22 10:00">2 hours ago</span>' +
     (locked ? '' : ' · <button type="button" id="quote' + id + '" title="quote this post">❝</button>') +
     (pinned ? ' <strong><span class="sticky_post">[Pinned]</span></strong>' : '') + '</span>' +
-    '<span id="bar' + id + '" style="float:right"><a href="/reports.php?action=report&type=post&id=' + id + '">Report</a> · <a href="#">↑</a></span></td></tr>' +
+    '<span id="bar' + id + '" style="float:right"><a href="/reports.php?action=report&type=post&id=' + id + '" aria-label="Report post">' +
+    '<i class="font_icon forum_icon icon_forum_report" aria-hidden="true">⚠</i></a> · <a href="#" aria-label="Jump to top">↑</a></span></td></tr>' +
     '<tr><td class="avatar"><img class="avatar" src="/forum-fixture-avatar.svg" alt="' + escapeHTML(user) + '’s avatar">' +
     '<div class="badges"><a href="/user.php?id=' + id + '">Site contributor</a></div></td>' +
     '<td class="postbody"><div id="content' + id + '" class="post_container"><div class="post_content">' + body +
@@ -30,6 +31,11 @@ function forumThreadHTML(url, posted) {
   const locked = url.searchParams.has('locked');
   const id = url.pathname.split('/').filter(Boolean).at(-1);
   const post = url.searchParams.get('postid');
+  const singlePage = url.searchParams.has('single-page');
+  const topPager = singlePage ? '<div class="linkbox pager"></div>' :
+    '<div class="linkbox pager"><a href="?page=1">First</a> | 1–100 | <a href="?page=2">101–130</a> | <a href="?page=2">Next ›</a></div>';
+  const bottomPager = singlePage ? '<div class="linkbox pager"> \n </div>' :
+    '<div class="linkbox pager"><a href="?page=2">Next ›</a></div>';
   const posts = [
     forumPostHTML(11, { ...neutralPosts.get(11), pinned: true, locked }),
     forumPostHTML(12, { ...neutralPosts.get(12), locked }),
@@ -43,8 +49,7 @@ function forumThreadHTML(url, posted) {
     (id === '43' ? secondTitle : articleTitle) + '</h2>' +
     '<div class="linkbox">[<a href="/reports.php?action=report&type=thread&id=' + id + '">Report Thread</a>] ' +
     '[<a href="#" onclick="return false">Subscribe</a>] [<a href="/forum/unread">Unread Posts</a>]</div>' +
-    '<div class="linkbox pager"><a href="?page=1">First</a> | 1–100 | <a href="?page=2">101–130</a> | <a href="?page=2">Next ›</a></div>' +
-    posts.join('') + '<div class="linkbox pager"><a href="?page=2">Next ›</a></div>' +
+    topPager + posts.join('') + bottomPager +
     (locked ? '<p>This thread is locked.</p>' :
       '<div class="head">Post reply</div><div class="box pad">' +
       '<form id="quickpostform" action="/forum/thread/' + id + '/reply" method="post">' +
@@ -110,6 +115,8 @@ export function forumFixtureHTML(url, { bundle = false, posted = '', account = 7
     '#header nav{display:flex;gap:14px;align-items:center}a{color:#274f9d}button,input,textarea{font:inherit}h4{margin:0}' +
     '.head{font-weight:700;padding:7px 10px}.forum_post,table{width:100%;border-spacing:0}.forum_post{margin:7px 0;background:white}' +
     '.smallhead{background:#e4e9f2}.smallhead td,.postbody,td.avatar{padding:8px}.postbody,td.avatar{vertical-align:top}' +
+    'tr.smallhead a:link,tr.smallhead button{color:#ddd;background:unset;border:unset;display:unset}' +
+    'tr.smallhead a:visited{color:#023174}' +
     '.colhead{background:#e4e9f2}.forum_list td,.forum_index td{padding:6px}.avatar img{width:52px;height:52px}.hidden{display:none}' +
     '@media(prefers-color-scheme:dark){body{background:#151c28;color:#dce6f8}a{color:#b9cdff}}' + pageTheme + '</style>' + scripts + '</head><body>' +
     '<div id="wrapper"><header id="header"><nav><strong>Empornium</strong><a href="/forum">Forum</a><a href="/forum/23">Site Bugs</a></nav>' +

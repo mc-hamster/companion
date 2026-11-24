@@ -5,6 +5,8 @@ import { ForumMedia } from './forum-media.mjs';
 import { forumButton, forumElement } from './forum-ui.mjs';
 
 const forumVisualPreference = 'ep.forum.visual';
+const forumSizePreference = 'ep.forum.composerSize';
+const forumSizes = [['compact', 'Compact'], ['wide', 'Wide'], ['full', 'Full']];
 const forumPostID = /^[1-9]\d{0,14}$/;
 const forumPreviewStyle = [
   'body{margin:0;padding:14px 16px;background:var(--preview-bg);color:var(--preview-fg);font:15px/1.55 system-ui,sans-serif;overflow-wrap:anywhere}',
@@ -96,11 +98,13 @@ class ForumDraftStore {
     try { this.win.sessionStorage.setItem(this.key, key); } catch {}
   }
 
-  remove(record) {
+  remove(record, strict = false) {
     if (!record) return;
     try {
       if (this.read(record.key)?.revision === record.revision) this.storage.delete(record.key);
-    } catch {}
+    } catch (error) {
+      if (strict) throw error;
+    }
   }
 
   save(body, previous) {
@@ -120,9 +124,9 @@ class ForumDraftStore {
     return { key, ...record };
   }
 
-  posted(record) {
+  clear(record, strict = false) {
+    this.remove(record, strict);
     this.select('');
-    this.remove(record);
   }
 }
 
@@ -138,6 +142,7 @@ export class ForumComposer {
     this.mediaOptions = mediaOptions;
     this.drafts = new ForumDraftStore(win, storage, 'ep.forum.draft.' + page.origin + '.' + account + '.' + thread);
     this.abort = new win.AbortController();
+    this.quoteAbort = new win.AbortController();
     this.moves = [];
     this.mode = 'bbcode';
     this.writeMode = 'bbcode';
@@ -160,13 +165,10 @@ export class ForumComposer {
     this.panel.id = 'epc-forum-compose';
     this.panel.setAttribute('aria-label', 'Reply composer');
     this.panel.hidden = true;
-    const header = forumElement(doc, 'header', 'epc-forum-compose-head');
-    const title = forumElement(doc, 'h2', '', 'Post reply');
-    const minimize = forumButton(doc, 'Minimize', 'epc-forum-minimize');
-    header.append(title, minimize);
     this.threadActions.append(this.launcher);
     this.dock.append(this.panel);
-    this.panel.append(header);
+    this.panel.append(this.buildHeader());
+    this.mountDiscardDialog();
 
     this.sourceArea.classList.add('epc-forum-source');
     this.label = source.getAttribute('aria-label');
@@ -199,12 +201,7 @@ export class ForumComposer {
     this.preview.title = 'Empornium reply preview';
     this.preview.setAttribute('sandbox', '');
     this.sourceArea.after(this.visualArea, this.preview);
-    this.media = new ForumMedia({
-      win: this.win, storage: this.storage, page: this.page, account: this.account, thread: this.thread,
-      ...this.mediaOptions, insert: urls => this.insertImages(urls), busyChanged: () => this.refreshSubmit(),
-      close: () => this.focusEditor()
-    });
-    this.switcher.after(this.media.root);
+    this.mountMedia();
     this.sourceImages = forumButton(doc, 'Add images', 'epc-forum-source-images');
     this.sourceImages.setAttribute('aria-controls', 'epc-forum-media');
     this.sourceImages.setAttribute('aria-expanded', 'false');
@@ -254,7 +251,6 @@ export class ForumComposer {
 
     this.on(source, 'input', () => this.changed());
     this.on(this.launcher, 'click', () => this.open());
-    this.on(minimize, 'click', () => this.minimize());
     this.on(this.panel, 'keydown', event => {
       if (event.key === 'Escape' && !event.defaultPrevented && !event.isComposing) {
         event.preventDefault();
@@ -272,6 +268,136 @@ export class ForumComposer {
     });
   }
 
+  buildHeader() {
+    const { doc } = this;
+    const header = forumElement(doc, 'header', 'epc-forum-compose-head');
+    const controls = forumElement(doc, 'div', 'epc-forum-compose-controls');
+    const sizes = forumElement(doc, 'div', 'epc-forum-compose-sizes');
+    sizes.setAttribute('role', 'group');
+    sizes.setAttribute('aria-label', 'Reply window size');
+    this.sizes = new Map();
+    for (const [size, label] of forumSizes) {
+      const button = forumButton(doc, label);
+      this.on(button, 'click', () => {
+        this.setSize(size);
+        try { this.storage.set(forumSizePreference, size); } catch {}
+      });
+      this.sizes.set(size, button);
+      sizes.append(button);
+    }
+    let savedSize;
+    try { savedSize = this.storage.get(forumSizePreference, 'compact'); } catch {}
+    this.setSize(this.sizes.has(savedSize) ? savedSize : 'compact');
+    const minimize = forumButton(doc, 'Minimize', 'epc-forum-minimize');
+    this.on(minimize, 'click', () => this.minimize());
+    this.cancelButton = forumButton(doc, 'Cancel reply');
+    this.on(this.cancelButton, 'click', () => this.cancelReply());
+    controls.append(sizes, minimize, this.cancelButton);
+    header.append(forumElement(doc, 'h2', '', 'Post reply'), controls);
+    return header;
+  }
+
+  setSize(size) {
+    this.panel.dataset.size = size;
+    for (const [name, button] of this.sizes) button.setAttribute('aria-pressed', String(name === size));
+    this.syncFullSize();
+  }
+
+  syncFullSize() {
+    const full = !this.panel.hidden && this.panel.dataset.size === 'full';
+    this.doc.documentElement.classList.toggle('epc-forum-composing-full', full);
+    if (full) {
+      const wrapper = this.originBox?.closest('#wrapper') || this.originBox?.closest('#content');
+      if (wrapper && !wrapper.contains(this.dock) && !wrapper.hasAttribute('inert')) {
+        wrapper.setAttribute('inert', '');
+        this.fullBackground = wrapper;
+      }
+    } else if (this.fullBackground) {
+      this.fullBackground.removeAttribute('inert');
+      this.fullBackground = null;
+    }
+  }
+
+  mountDiscardDialog() {
+    const dialog = forumElement(this.doc, 'dialog', 'epc-forum-discard');
+    const title = forumElement(this.doc, 'h3', '', 'Discard this reply?');
+    title.id = 'epc-forum-discard-title';
+    dialog.setAttribute('aria-labelledby', title.id);
+    const actions = forumElement(this.doc, 'div', 'epc-forum-discard-actions');
+    const keep = forumButton(this.doc, 'Keep writing');
+    const discard = forumButton(this.doc, 'Discard draft', 'epc-forum-discard-confirm');
+    const resume = () => { this.closeDiscardDialog(); this.focusEditor(); };
+    this.on(keep, 'click', resume);
+    this.on(discard, 'click', () => this.discardReply());
+    this.on(dialog, 'keydown', event => {
+      if (event.key !== 'Escape' || event.isComposing) return;
+      event.preventDefault();
+      resume();
+    });
+    this.on(dialog, 'cancel', event => { event.preventDefault(); resume(); });
+    actions.append(keep, discard);
+    dialog.append(title, actions);
+    this.discardDialog = dialog;
+    this.keepWriting = keep;
+    this.dock.append(dialog);
+  }
+
+  cancelReply() {
+    if (this.sending || this.panel.hidden || this.discardDialog.open) return;
+    if (!(this.source.value.trim() || this.draft || this.pendingQuotes || this.media.files.length || this.media.id)) {
+      this.discardReply();
+      return;
+    }
+    if (this.discardDialog.showModal) this.discardDialog.showModal();
+    else this.discardDialog.open = true;
+    this.keepWriting.focus();
+  }
+
+  closeDiscardDialog() {
+    if (!this.discardDialog.open) return;
+    if (this.discardDialog.close) this.discardDialog.close();
+    else this.discardDialog.open = false;
+  }
+
+  discardReply() {
+    if (this.sending) return;
+    this.closeDiscardDialog();
+    try { this.drafts.clear(this.draft, true); }
+    catch {
+      this.setStatus('Could not discard the draft. Your reply is still here.', true);
+      this.cancelButton.focus();
+      return;
+    }
+    this.win.clearTimeout(this.timer);
+    this.quoteAbort.abort();
+    this.quoteAbort = new this.win.AbortController();
+    this.pendingQuotes = 0;
+    this.quotes = null;
+    this.media.hide(false);
+    this.media.destroy();
+    this.mountMedia();
+    this.imageSource = null;
+    this.editor?.destroy();
+    this.editor = null;
+    this.form.reset();
+    this.draft = null;
+    this.source.value = this.savedBody = '';
+    this.previewMarkup = undefined;
+    this.preview.removeAttribute('srcdoc');
+    this.setMode(this.writeMode, { focus: false });
+    this.refreshSubmit();
+    this.hidePanel();
+  }
+
+  mountMedia() {
+    this.media = new ForumMedia({
+      win: this.win, storage: this.storage, page: this.page, account: this.account, thread: this.thread,
+      ...this.mediaOptions, insert: urls => this.insertImages(urls), busyChanged: () => this.refreshSubmit(),
+      close: () => this.focusEditor()
+    });
+    this.switcher.after(this.media.root);
+  }
+
   on(element, event, listener) {
     element.addEventListener(event, listener, { signal: this.abort.signal });
   }
@@ -284,11 +410,13 @@ export class ForumComposer {
   }
 
   open(focus = true) {
+    this.minimized = false;
     if (this.panel.hidden) {
       this.panel.hidden = false;
       this.launcher.hidden = true;
       this.launcher.setAttribute('aria-expanded', 'true');
       this.doc.documentElement.classList.add('epc-forum-composing');
+      this.syncFullSize();
       if (!this.opened) {
         this.opened = true;
         try {
@@ -301,11 +429,17 @@ export class ForumComposer {
   }
 
   minimize() {
+    this.minimized = true;
     this.save();
+    this.hidePanel();
+  }
+
+  hidePanel() {
     this.panel.hidden = true;
     this.launcher.hidden = false;
     this.launcher.setAttribute('aria-expanded', 'false');
     this.doc.documentElement.classList.remove('epc-forum-composing');
+    this.syncFullSize();
     this.updateLauncher();
     this.launcher.focus();
   }
@@ -349,7 +483,7 @@ export class ForumComposer {
 
   insertImages(urls) {
     if (this.sending || !urls.length) return false;
-    this.open(false);
+    if (!this.minimized) this.open(false);
     if (this.mode === 'preview') this.setMode(this.writeMode, { focus: false });
     if (this.mode === 'visual') this.editor.insertImages(urls);
     else {
@@ -361,7 +495,7 @@ export class ForumComposer {
       this.changed();
     }
     this.save();
-    this.focusEditor();
+    if (!this.panel.hidden) this.focusEditor();
     return true;
   }
 
@@ -439,6 +573,7 @@ export class ForumComposer {
   }
 
   refreshSubmit() {
+    this.cancelButton.disabled = Boolean(this.sending);
     this.submit.disabled = this.initialDisabled || Boolean(this.sending) || Boolean(this.media?.uploading) ||
       this.pendingQuotes > 0 || !this.source.value.trim();
   }
@@ -490,16 +625,17 @@ export class ForumComposer {
     if (this.mode === 'preview') this.setMode(this.writeMode, { focus: false });
     this.pendingQuotes++;
     this.refreshSubmit();
+    const signal = this.quoteAbort.signal;
     const previousQuote = this.quotes || Promise.resolve();
     this.quotes = previousQuote.then(async () => {
-      if (this.abort.signal.aborted) return;
+      if (signal.aborted) return;
       try {
         let body = excerpt === undefined ? undefined : forumLiteralText(excerpt);
         if (body === undefined) {
           this.setStatus('Loading quote…');
           const url = new URL('/forum/post/' + post + '/get?body=1', this.page);
           const response = await this.win.fetch(url.href, {
-            credentials: 'same-origin', mode: 'same-origin', redirect: 'error', signal: this.abort.signal
+            credentials: 'same-origin', mode: 'same-origin', redirect: 'error', signal
           });
           if (!response.ok) throw new Error('Quote was rejected.');
           const raw = await response.json();
@@ -508,7 +644,7 @@ export class ForumComposer {
           decode.innerHTML = raw;
           body = decode.value.trim();
         }
-        if (!body || this.abort.signal.aborted) return;
+        if (!body || signal.aborted) return;
         const quote = formatForumQuote(author, this.thread, post, body);
         if (this.mode !== 'visual' || !this.editor.appendQuote(quote)) {
           const existing = this.source.value;
@@ -522,11 +658,13 @@ export class ForumComposer {
         if (this.status.textContent === 'Loading quote…') this.setStatus('');
         if (!this.panel.hidden) this.focusEditor();
       } catch {
-        if (!this.abort.signal.aborted) this.setStatus('Quote unavailable. Select text in the post to quote it.', true);
+        if (!signal.aborted) this.setStatus('Quote unavailable. Select text in the post to quote it.', true);
       }
     }).finally(() => {
-      this.pendingQuotes--;
-      if (!this.abort.signal.aborted) this.refreshSubmit();
+      if (!signal.aborted) {
+        this.pendingQuotes--;
+        this.refreshSubmit();
+      }
     });
     return this.quotes;
   }
@@ -554,7 +692,7 @@ export class ForumComposer {
         this.setStatus('Empornium didn’t confirm the reply. Check the thread before trying again.', true);
         return;
       }
-      this.drafts.posted(draft);
+      this.drafts.clear(draft);
       this.media.endRequest();
       this.draft = null;
       this.source.value = this.savedBody = '';
@@ -584,6 +722,7 @@ export class ForumComposer {
   dispose() {
     this.save();
     this.abort.abort();
+    this.quoteAbort.abort();
     this.previewRequest?.abort();
     this.media.destroy();
     this.editor?.destroy();
@@ -595,6 +734,10 @@ export class ForumComposer {
     this.originHead?.classList.remove('epc-forum-native-reply');
     this.originBox.classList.remove('epc-forum-native-reply');
     this.doc.documentElement.classList.remove('epc-forum-composing');
+    this.panel.hidden = true;
+    this.syncFullSize();
+    this.closeDiscardDialog();
+    this.discardDialog.remove();
     if (this.label === null) this.source.removeAttribute('aria-label');
     else this.source.setAttribute('aria-label', this.label);
     this.submit.disabled = this.initialDisabled;

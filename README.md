@@ -65,7 +65,9 @@ On a forum page, flip **Enable in forum** directly in the Companion toolbar. Use
 
 Open **Settings** on the toolbar for color theme, post text size, and long-quote folding. **Match site** follows the forum's light or dark theme. **Post link** opens the permanent link to an individual post, and **Awards** opens beside the author's avatar.
 
-On a thread, use the floating control for **Top**, **Bottom**, **Unread** when available, or **Reply**. **Bottom** jumps to the end of the current page. Use **Quote** on a post or select an excerpt and choose **Quote selection**. Drafts save in this browser per site, account, and thread. When two tabs have different drafts for the same thread, each tab restores its own draft after a reload.
+On a thread, use the floating control for **Top**, **Bottom**, **Unread** when available, or **Reply**. **Bottom** jumps to the end of the current page. Use **Quote** on a post or select an excerpt and choose **Quote selection**.
+
+Choose **Compact**, **Wide**, or **Full** in the reply window. **Minimize** saves your draft and tucks the window away. **Cancel reply** closes an empty reply and asks before discarding a draft. Companion remembers the window size. Drafts save in this browser per site, account, and thread. When two tabs have different drafts for the same thread, each tab restores its own draft after a reload.
 
 **Visual** supports fonts, sizes, colors, alignment, links, images, video links, tables, anchors, spoilers, site smilies, and post labels. Use **BBCode** for the full native toolbar and exact source editing. **Preview** uses Empornium's renderer so you can check your formatting before posting.
 

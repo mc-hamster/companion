@@ -212,6 +212,7 @@ export function createForumEditor(root, doc, onChange, options) {
   const { nodes } = forumSchema;
   const commands = forumFormattingCommands(forumSchema);
   const surface = root.ownerDocument.createElement('div');
+  surface.className = 'epc-forum-editor-surface';
   const shortcuts = keymap({
     'Mod-b': commands.strong, 'Mod-i': commands.em, 'Mod-u': commands.underline,
     'Mod-z': undo, 'Shift-Mod-z': redo, 'Mod-y': redo,
