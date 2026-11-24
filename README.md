@@ -61,7 +61,9 @@ On a torrent detail page, turn on **Reformat details** in the Companion toolbar 
 
 ## Forum
 
-On a forum page, open **Companion → Settings** and check **Enable in forum**. The same control offers color themes, post text size, and long-quote folding. **Match site** follows the forum's light or dark theme. Open **Topics** in the thread header to browse that board. **Post link** opens the permanent link to an individual post, and **Awards** opens beside the author's avatar.
+On a forum page, flip **Enable in forum** directly in the Companion toolbar. Use **Boards**, **Unread**, **Subscriptions**, and **Search** on the toolbar to navigate the forum. In an enhanced thread, **Topics** opens a compact list of topics in the current board.
+
+Open **Settings** on the toolbar for color theme, post text size, and long-quote folding. **Match site** follows the forum's light or dark theme. **Post link** opens the permanent link to an individual post, and **Awards** opens beside the author's avatar.
 
 On a thread, use the floating control for **Top**, **Bottom**, **Unread** when available, or **Reply**. **Bottom** jumps to the end of the current page. Use **Quote** on a post or select an excerpt and choose **Quote selection**. Drafts save in this browser per site, account, and thread. When two tabs have different drafts for the same thread, each tab restores its own draft after a reload.
 

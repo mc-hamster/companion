@@ -51,6 +51,8 @@ export function createWorkspaceChrome(doc, pageName, closePane) {
 
   const navigation = workspaceElement(doc, 'nav', 'epc-navigation');
   navigation.setAttribute('aria-label', 'Companion tools');
+  const context = workspaceElement(doc, 'div', 'epc-toolbar-context');
+  const contextActions = workspaceElement(doc, 'div', 'epc-context-actions');
   const panel = workspaceElement(doc, 'section', 'epc-panel');
   panel.hidden = true;
   const heading = workspaceElement(doc, 'header', 'epc-panel-heading');
@@ -60,7 +62,13 @@ export function createWorkspaceChrome(doc, pageName, closePane) {
   close.addEventListener('click', closePane);
   heading.append(paneHeading, close);
   panel.append(heading);
-  return { root, toolbar, main, brand, launcher, navigation, panel, paneHeading };
+  return { root, toolbar, main, brand, launcher, navigation, context, contextActions, panel, paneHeading };
+}
+
+export function styleWorkspaceSwitch(label, input) {
+  label.classList.add('epc-toolbar-switch');
+  input.setAttribute('role', 'switch');
+  label.prepend(input);
 }
 
 export function createWorkspacePane(doc, key, title, openPane) {

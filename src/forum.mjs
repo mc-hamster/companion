@@ -2,7 +2,7 @@
 import { emporniumAccountID } from './core.mjs';
 import { ForumComposer, forumReplyForm } from './forum-composer.mjs';
 import { forumButton, forumElement, forumSiteTheme } from './forum-ui.mjs';
-import { createWorkspaceChrome, createWorkspacePane, updateWorkspacePane } from './workspace.mjs';
+import { createWorkspaceChrome, createWorkspacePane, styleWorkspaceSwitch, updateWorkspacePane } from './workspace.mjs';
 export { mountHamsterPicker } from './hamster-picker.mjs';
 export { hamsterServiceBase } from './hamster-media.mjs';
 
@@ -54,9 +54,20 @@ class ForumReader {
     workspace.paneButtons = new Map([['settings', button]]);
     this.workspace = workspace;
     workspace.root.classList.add('epc-forum-control');
-    workspace.navigation.append(button);
+
+    const toggle = forumElement(doc, 'label');
+    toggle.append(forumElement(doc, 'span', '', 'Enable in forum'));
+    this.toggle = forumElement(doc, 'input', 'epc-forum-toggle');
+    this.toggle.type = 'checkbox';
+    this.toggle.checked = this.preference('reader', false) === true;
+    this.toggle.addEventListener('change', () => this.setEnabled(this.toggle.checked));
+    styleWorkspaceSwitch(toggle, this.toggle);
+    workspace.navigation.append(toggle, button);
+
+    this.mountNavigation(workspace.contextActions);
+    workspace.context.append(workspace.contextActions);
     workspace.main.append(workspace.brand, workspace.navigation);
-    workspace.toolbar.append(workspace.main);
+    workspace.toolbar.append(workspace.main, workspace.context);
     workspace.panel.append(pane);
     workspace.root.append(workspace.toolbar, workspace.panel);
 
@@ -86,12 +97,6 @@ class ForumReader {
       field(name, input);
       return input;
     };
-
-    this.toggle = forumElement(doc, 'input', 'epc-forum-toggle');
-    this.toggle.type = 'checkbox';
-    this.toggle.checked = this.preference('reader', false) === true;
-    field('Enable in forum', this.toggle);
-    this.toggle.addEventListener('change', () => this.setEnabled(this.toggle.checked));
 
     this.theme = select('Color theme', forumThemes, this.preference('theme', 'site'), 'site');
     this.theme.addEventListener('change', () => {
@@ -204,7 +209,7 @@ class ForumReader {
   }
 
   mountHeader() {
-    const { doc, page, route } = this;
+    const { doc, page } = this;
     const row = forumElement(doc, 'div', 'epc-forum-heading-row');
     const titles = forumElement(doc, 'div', 'epc-forum-titles');
     const crumbs = forumElement(doc, 'nav', 'epc-forum-crumbs');
@@ -224,7 +229,13 @@ class ForumReader {
     }
     titles.append(forumElement(doc, 'h2', '', title));
     row.append(titles);
-    const nav = forumElement(doc, 'nav', 'epc-forum-nav');
+    this.header.replaceChildren(row);
+  }
+
+  mountNavigation(nav) {
+    const { doc, page, route } = this;
+    nav.classList.add('epc-forum-nav');
+    nav.setAttribute('role', 'navigation');
     nav.setAttribute('aria-label', 'Forum navigation');
     const search = new URL('/forum/search', page);
     if (route.board) search.searchParams.set('forums[]', route.board);
@@ -238,7 +249,6 @@ class ForumReader {
       if (kind === route.kind) link.setAttribute('aria-current', 'page');
       nav.append(link);
     }
-    this.header.replaceChildren(row, nav);
   }
 
   styleNativeNavigation() {
@@ -534,7 +544,7 @@ class ForumReader {
   }
 
   mountBoardTopics() {
-    const { board, header, doc, page } = this;
+    const { board, doc, page } = this;
     const topics = forumElement(doc, 'details', 'epc-forum-topics');
     const summary = forumElement(doc, 'summary', '', 'Topics');
     summary.setAttribute('aria-label', 'Topics in ' + board.name);
@@ -545,7 +555,7 @@ class ForumReader {
     browse.href = board.url.href;
     panel.append(list, browse);
     topics.append(summary, panel);
-    header.querySelector('.epc-forum-nav').append(topics);
+    this.workspace.contextActions.append(topics);
     this.changes.push(() => topics.remove());
     this.on(doc, 'pointerdown', event => {
       if (topics.open && !topics.contains(event.target)) topics.open = false;

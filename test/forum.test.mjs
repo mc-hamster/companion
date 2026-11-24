@@ -60,9 +60,16 @@ test('forum enhancements are gated to authenticated browsing routes and stay out
 test('the board exposes distinct native jumps, scoped search, and full titles when enabled', async () => {
   const f = await start('/forum/23');
   try {
-    const toggle = f.doc.querySelector('.epc-forum-toggle');
+    const toolbar = f.doc.querySelector('.epc-forum-control > .epc-toolbar');
+    const toggle = toolbar.querySelector('.epc-toolbar-main .epc-toolbar-switch input');
     assert.equal(toggle.labels[0].textContent, 'Enable in forum');
+    assert.equal(toggle.getAttribute('role'), 'switch');
     assert.equal(toggle.checked, false);
+    const navigation = toolbar.querySelector('.epc-toolbar-context [aria-label="Forum navigation"]');
+    assert.deepEqual([...navigation.querySelectorAll('a')].map(link => link.textContent), ['Boards', 'Unread', 'Subscriptions', 'Search']);
+    assert.equal(navigation.closest('[hidden]'), null);
+    const search = [...navigation.querySelectorAll('a')].find(a => a.textContent === 'Search');
+    assert.equal(new URL(search.href).searchParams.get('forums[]'), '23');
     assert.equal(f.doc.querySelector('.epc-forum-jump'), null);
     toggle.click();
     assert.equal(f.storage.get('ep.forum.reader'), true);
@@ -72,9 +79,8 @@ test('the board exposes distinct native jumps, scoped search, and full titles wh
     ]);
     assert.equal(f.doc.querySelector('.epc-forum-subject').textContent, 'Photo uploads stall on large files');
     assert.deepEqual([...f.doc.querySelectorAll('.epc-forum-count-heading')].map(cell => cell.textContent), ['Posts', 'Views']);
-    const search = [...f.doc.querySelectorAll('.epc-forum-nav a')].find(a => a.textContent === 'Search');
-    assert.equal(new URL(search.href).searchParams.get('forums[]'), '23');
     toggle.click();
+    assert.equal(navigation.closest('[hidden]'), null);
     assert.equal(f.doc.querySelector('.epc-forum-jump'), null);
     assert.match(f.doc.querySelector('.forum_list strong').textContent, /stall…$/);
     assert.ok(f.doc.querySelector('.epc-workspace .epc-toolbar'));
@@ -102,7 +108,7 @@ test('Companion settings persist theme, text size, and long-quote folding', asyn
     size.dispatchEvent(new win.Event('change', { bubbles: true }));
     const collapse = [...settings.querySelectorAll('label')].find(label => label.textContent === 'Collapse long quotes');
     collapse.querySelector('input').click();
-    settings.querySelector('.epc-forum-toggle').click();
+    control.querySelector('.epc-forum-toggle').click();
     assert.equal(panel.hidden, false);
     assert.equal(doc.documentElement.dataset.epForumPalette, 'plum');
     assert.equal(doc.documentElement.dataset.epForumTheme, 'dark');
@@ -147,7 +153,7 @@ test('the shared Settings pane toggles and restores focus on close', async () =>
     f.menu.get('Companion settings')();
     assert.equal(panel.hidden, false);
     f.storage.set('ep.settings', { keyboardShortcuts: false });
-    pane.querySelector('.epc-forum-toggle').focus();
+    pane.querySelector('select').focus();
     doc.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape' }));
     assert.equal(panel.hidden, false);
     f.storage.set('ep.settings', { keyboardShortcuts: true });
@@ -227,7 +233,7 @@ test('topics load from a compact menu on demand and post links retain their nati
     const link = post.querySelector('a.post_id');
     assert.equal(link.textContent, 'Post link');
     assert.equal(link.href, site + '/forum/thread/42?postid=12#post12');
-    const topics = f.doc.querySelector('.epc-forum-nav .epc-forum-topics');
+    const topics = f.doc.querySelector('.epc-toolbar-context .epc-forum-nav .epc-forum-topics');
     assert.equal(topics.open, false);
     assert.deepEqual(requests, []);
     topics.open = true;

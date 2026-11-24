@@ -2,7 +2,7 @@
 import { DEFAULTS, validateSettings, escapeHTML, safeImageURL, canonicalImageURL, clamp,
   legacyOriginal, fullSizeURL, thumbnailCandidates, parseOverlayDefinitions,
   imageState, editableTarget, isSaveShortcut, SEARCH_NAMES, validateSearches, MediaPool } from './core.mjs';
-import { mountFilterControls, adoptRuleMenu, positionTagMenu, styleRowControls, applyWorkspaceTheme, adoptNotificationControls, optionGroup, setupSettingsSearch, keyboardShortcutList, companionIcon, toolbarPageName, createWorkspaceChrome, createWorkspacePane, updateWorkspacePane } from './workspace.mjs';
+import { mountFilterControls, adoptRuleMenu, positionTagMenu, styleRowControls, applyWorkspaceTheme, adoptNotificationControls, optionGroup, setupSettingsSearch, keyboardShortcutList, companionIcon, toolbarPageName, createWorkspaceChrome, createWorkspacePane, styleWorkspaceSwitch, updateWorkspacePane } from './workspace.mjs';
 import { PreferencesController, captureFilterBaseline, restoreFilterBaseline } from './preferences.mjs';
 import { BackfillController, backfillURL, torrentID } from './backfill.mjs';
 import { CollageQuickAdd } from './collage-quick-add.mjs';
@@ -342,9 +342,9 @@ export class CompanionApp {
       this.panel.append(pane);
     }
     main.append(navigation);
-    this.toolbarContext = this.node('div', null, 'epc-toolbar-context');
+    this.toolbarContext = chrome.context;
     this.resultActions = resultActions;
-    this.contextActions = this.node('div', null, 'epc-context-actions');
+    this.contextActions = chrome.contextActions;
     const footer = this.node('div', null, 'epc-toolbar-footer');
     this.toolbarUtilities = this.node('div', null, 'epc-toolbar-utilities');
     this.toolbarStatus = this.node('div', null, 'epc-toolbar-status');
@@ -542,9 +542,7 @@ export class CompanionApp {
           this.coverMotionNote.setAttribute('role', 'status');
           main.after(this.coverMotionNote);
         }
-        control.setAttribute('role', 'switch');
-        row.classList.add('epc-toolbar-switch');
-        row.prepend(control);
+        styleWorkspaceSwitch(row, control);
         row.hidden = true;
         this.paneButtons.get('settings').before(row);
         continue;
