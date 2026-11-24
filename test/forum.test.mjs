@@ -402,7 +402,11 @@ test('the full native toolbar is immediately available in BBCode and the Visual 
     assert.equal(native.open, true);
     assert.equal(doc.getElementById('fixture-bold').tabIndex, 0);
     doc.querySelector('.epc-forum-launch').click();
+    changeBody(f, '[*][url=https://example.test/]Linked bullet[/url]');
     doc.querySelector('.epc-forum-modes button').click();
+    const bullet = doc.querySelector('.ProseMirror li');
+    assert.equal(bullet.textContent, 'Linked bullet');
+    assert.equal(f.win.getComputedStyle(bullet).listStylePosition, 'outside');
     const tools = doc.querySelector('.epc-forum-format');
     for (const name of ['sup', 'sub', 'color', 'image', 'video', 'table', 'anchor', 'horizontal_rule', 'bg', 'smilies']) {
       assert.ok(tools.querySelector('[data-format="' + name + '"]'), name);
@@ -412,6 +416,45 @@ test('the full native toolbar is immediately available in BBCode and the Visual 
     doc.querySelector('.epc-forum-toggle').click();
     assert.equal(doc.querySelector('.epc-forum-source-tools'), null);
     assert.equal(doc.getElementById('fixture-bold').hasAttribute('tabindex'), false);
+    assert.deepEqual(f.errors, []);
+  } finally { f.close(); }
+});
+
+test('Visual loads native smilie image markup and inserts its BBCode', async () => {
+  const pages = [];
+  const f = await start('/forum/thread/42', {
+    storage: memoryStorage({ 'ep.forum.reader': true }),
+    fetch: async url => {
+      const request = new URL(url);
+      assert.equal(request.origin, site);
+      assert.equal(request.pathname, '/ajax.php');
+      assert.equal(request.searchParams.get('action'), 'get_smilies');
+      const offset = request.searchParams.get('indexfrom');
+      pages.push(offset);
+      return { ok: true, text: async () => '<smilies>' + (offset === '0'
+        ? '<smiley><bbcode>:smile1:</bbcode><url><![CDATA[<img class="bbcode smiley" src="/static/common/smileys/smile1.gif" alt=":smile1:" />]]></url></smiley>' +
+          '<smiley><bbcode>:invalid:</bbcode><url><![CDATA[<img src="javascript:void(0)" />]]></url></smiley>'
+        : '<smiley><bbcode>:wave:</bbcode><url>/static/common/smileys/wave.gif</url></smiley>') +
+        '<maxsmilies>3</maxsmilies></smilies>' };
+    }
+  });
+  try {
+    const { doc } = f;
+    doc.querySelector('.epc-forum-launch').click();
+    doc.querySelector('.epc-forum-modes button').click();
+    doc.querySelector('[data-format="smilies"]').click();
+    const first = doc.querySelector('.epc-forum-smiley-grid');
+    await until(() => first.querySelector('img'));
+    assert.deepEqual([...first.querySelectorAll('img')].map(img => img.src), [site + '/static/common/smileys/smile1.gif']);
+    const more = doc.querySelector('[data-format="more-smilies"]');
+    assert.equal(more.hidden, false);
+    more.click();
+    await until(() => first.children.length === 2);
+    assert.deepEqual(pages, ['0', '2']);
+    assert.equal(more.hidden, true);
+    first.querySelector('[aria-label=":smile1:"]').click();
+    assert.equal(doc.querySelector('.ProseMirror .epc-forum-editor-smiley').src, site + '/static/common/smileys/smile1.gif');
+    assert.equal(doc.getElementById('quickpost').value.trim(), ':smile1:');
     assert.deepEqual(f.errors, []);
   } finally { f.close(); }
 });

@@ -142,10 +142,17 @@ async function loadForumSmilies(page, from, signal, win) {
   const xml = new win.DOMParser().parseFromString(await response.text(), 'application/xml');
   if (xml.querySelector('parsererror') || xml.documentElement.localName !== 'smilies') throw new Error('Smilies are unavailable.');
   const records = [...xml.querySelectorAll('smiley')];
+  const template = win.document.createElement('template');
   const items = [];
   for (const record of records) {
     const code = record.querySelector('bbcode')?.textContent.trim();
-    const uri = record.querySelector('url')?.textContent.trim();
+    let uri = record.querySelector('url')?.textContent.trim();
+    // Empornium returns an escaped image tag in the URL field.
+    if (uri?.startsWith('<')) {
+      template.innerHTML = uri;
+      const image = template.content.firstElementChild;
+      uri = image?.matches('img') ? image.getAttribute('src')?.trim() : undefined;
+    }
     if (!code || !uri || !/^[^\[\]\r\n]{1,64}$/.test(code) || !URL.canParse(uri, page)) continue;
     const href = safeForumMediaURL(new URL(uri, page).href);
     if (href) items.push({ code, href });
@@ -452,10 +459,11 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
       }
       smileys = smileys.concat(batch.items);
       total = batch.max;
+      const advanced = batch.next > offset;
       offset = batch.next;
       more.textContent = 'Load more';
       more.setAttribute('aria-label', 'Load more smilies');
-      more.hidden = offset >= total || !batch.items.length;
+      more.hidden = offset >= total || !advanced;
       smileyStatus.textContent = smileys.length ? '' : 'No smilies available.';
       if (activePanel === picker && doc.activeElement === picker) smileyGrid.firstElementChild?.focus();
     } catch {

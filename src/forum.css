@@ -684,6 +684,8 @@ html.epc-forum-composing-full { overflow: hidden; }
 }
 .epc-forum-visual .ProseMirror:focus { outline: 2px solid var(--epc-accent); outline-offset: -2px; border-radius: 0 0 7px 7px; }
 .epc-forum-visual .ProseMirror p { margin: 0; min-height: 1.55em; }
+.epc-forum-visual .ProseMirror ul { padding-inline-start: 1.5em; }
+.epc-forum-visual .ProseMirror li { list-style-position: outside; }
 .epc-forum-visual .ProseMirror-hideselection *::selection { background: transparent; }
 .epc-forum-visual .ProseMirror-hideselection { caret-color: transparent; }
 .epc-forum-visual .ProseMirror-selectednode { outline: 2px solid var(--epc-accent); }

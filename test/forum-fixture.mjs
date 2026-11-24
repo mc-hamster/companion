@@ -5,6 +5,9 @@ import { parseForumBBCode } from '../src/forum-bbcode.mjs';
 const articleTitle = 'Photo uploads stall on large files';
 const secondTitle = 'A simpler way to organize bug reports';
 const longQuote = 'Uploads over 50 MB were stalling for me on a slower connection. I tried three browsers before narrowing it down to the upload itself.';
+const smilies = [':smile1:', ':wave:', ':thanks:',
+  ...Array.from({ length: 35 }, (_, index) => ':demo-smilie-' + (index + 4) + ':')];
+const smileyImage = code => '<img class="bbcode smiley" src="/forum-fixture-avatar.svg" alt="' + escapeHTML(code) + '" />';
 const neutralPosts = new Map([
   [11, { user: 'Mara', body: 'Please include your browser, file size, and approximate time when reporting an upload issue.' }],
   [12, { user: 'Riley', body: longQuote }],
@@ -113,6 +116,7 @@ export function forumFixtureHTML(url, { bundle = false, posted = '', account = 7
     '#wrapper{width:960px;min-width:960px;margin:auto}#content{min-width:940px;margin:auto}' +
     '#header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;margin-block-end:10px;border-block-end:1px solid #dbe2ee}' +
     '#header nav{display:flex;gap:14px;align-items:center}a{color:#274f9d}button,input,textarea{font:inherit}h4{margin:0}' +
+    'li{list-style-position:inside}' +
     '.head{font-weight:700;padding:7px 10px}.forum_post,table{width:100%;border-spacing:0}.forum_post{margin:7px 0;background:white}' +
     '.smallhead{background:#e4e9f2}.smallhead td,.postbody,td.avatar{padding:8px}.postbody,td.avatar{vertical-align:top}' +
     'tr.smallhead a:link,tr.smallhead button{color:#ddd;background:unset;border:unset;display:unset}' +
@@ -130,10 +134,11 @@ function forumFixturePreview(bbcode) {
   if (!tree) return '<pre>' + escapeHTML(bbcode) + '</pre>';
   function format(node) {
     if (node.type === 'text') {
-      let value = escapeHTML(node.text);
-      for (const { type } of node.marks ?? []) {
+      let value = escapeHTML(node.text).replace(/:[a-z0-9_-]+:/gi, code => smilies.includes(code) ? smileyImage(code) : code);
+      for (const { type, attrs } of node.marks ?? []) {
         const tag = { strong: 'strong', em: 'em', underline: 'u', strike: 's', sup: 'sup', sub: 'sub' }[type];
-        if (tag) value = '<' + tag + '>' + value + '</' + tag + '>';
+        if (type === 'link') value = '<a href="' + escapeHTML(attrs.href) + '">' + value + '</a>';
+        else if (tag) value = '<' + tag + '>' + value + '</' + tag + '>';
       }
       return value;
     }
@@ -141,6 +146,7 @@ function forumFixturePreview(bbcode) {
     if (node.type === 'spoiler') return '<strong>' + escapeHTML(node.attrs.label || 'Spoiler') +
       '</strong>: <a href="#" onclick="BBCode.spoiler(this);">Show</a><blockquote class="hidden spoiler">' + children + '</blockquote>';
     if (node.type === 'image') return '<img src="' + escapeHTML(node.attrs.href) + '" alt="Image">';
+    if (node.type === 'url_text') return '<a href="' + escapeHTML(node.attrs.href) + '">' + escapeHTML(node.attrs.href) + '</a>';
     if (node.type === 'video') return '<span>Video link</span>';
     if (node.type === 'site_label') return '<strong>' + escapeHTML(node.attrs.tag) + '</strong>';
     if (node.type === 'horizontal_rule') return '<hr>';
@@ -167,12 +173,11 @@ export function createForumFixture() {
       return true;
     }
     if (path === '/ajax.php' && url.searchParams.get('action') === 'get_smilies') {
-      const smilies = [':smile:', ':wave:', ':thanks:'];
       const from = Number(url.searchParams.get('indexfrom')) || 0;
       const to = Number(url.searchParams.get('indexto')) || smilies.length;
       res.setHeader('Content-Type', 'application/xml; charset=utf-8');
       res.end('<smilies>' + smilies.slice(from, to).map(code =>
-        '<smiley><bbcode>' + code + '</bbcode><url>/forum-fixture-avatar.svg</url></smiley>'
+        '<smiley><bbcode>' + escapeHTML(code) + '</bbcode><url><![CDATA[' + smileyImage(code) + ']]></url></smiley>'
       ).join('') + '<maxsmilies>' + smilies.length + '</maxsmilies></smilies>');
       return true;
     }
