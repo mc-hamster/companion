@@ -30,6 +30,65 @@ export function companionIcon(doc, name) {
   return icon;
 }
 
+function workspaceElement(doc, tag, className, text) {
+  const element = doc.createElement(tag);
+  if (className) element.className = className;
+  if (text) element.textContent = text;
+  return element;
+}
+
+export function createWorkspaceChrome(doc, pageName, closePane) {
+  const root = workspaceElement(doc, 'section', 'epc-root epc-workspace');
+  root.setAttribute('aria-label', 'Companion');
+  const toolbar = workspaceElement(doc, 'header', 'epc-toolbar');
+  const main = workspaceElement(doc, 'div', 'epc-toolbar-main');
+  const brand = workspaceElement(doc, 'div', 'epc-toolbar-brand');
+  const mark = workspaceElement(doc, 'span', 'epc-brand-mark');
+  mark.append(companionIcon(doc, 'brand'));
+  const launcher = workspaceElement(doc, 'strong', 'epc-brand', 'Companion');
+  brand.append(mark, launcher);
+  if (pageName) brand.append(workspaceElement(doc, 'span', 'epc-page-name', pageName));
+
+  const navigation = workspaceElement(doc, 'nav', 'epc-navigation');
+  navigation.setAttribute('aria-label', 'Companion tools');
+  const panel = workspaceElement(doc, 'section', 'epc-panel');
+  panel.hidden = true;
+  const heading = workspaceElement(doc, 'header', 'epc-panel-heading');
+  const paneHeading = workspaceElement(doc, 'strong', '', 'Companion');
+  const close = workspaceElement(doc, 'button', '', 'Close');
+  close.type = 'button';
+  close.addEventListener('click', closePane);
+  heading.append(paneHeading, close);
+  panel.append(heading);
+  return { root, toolbar, main, brand, launcher, navigation, panel, paneHeading };
+}
+
+export function createWorkspacePane(doc, key, title, openPane) {
+  const pane = workspaceElement(doc, 'section', 'epc-pane');
+  pane.hidden = true;
+  pane.dataset.pane = key;
+  pane.id = 'epc-pane-' + key;
+  const button = workspaceElement(doc, 'button', '', title);
+  button.type = 'button';
+  button.dataset.pane = key;
+  button.setAttribute('aria-controls', pane.id);
+  button.setAttribute('aria-expanded', 'false');
+  button.addEventListener('click', openPane);
+  if (Object.hasOwn(toolbarIcons, key)) button.prepend(companionIcon(doc, key));
+  return { pane, button };
+}
+
+export function updateWorkspacePane(workspace, key) {
+  workspace.panel.hidden = !key;
+  if (key) {
+    for (const [name, pane] of Object.entries(workspace.panes)) pane.hidden = name !== key;
+    workspace.paneHeading.textContent = ({
+      filters: 'Filter your results', searches: 'Saved searches', images: 'Images & previews', settings: 'Settings'
+    })[key];
+  }
+  for (const [name, button] of workspace.paneButtons) button.setAttribute('aria-expanded', String(name === key));
+}
+
 export function toolbarPageName(url) {
   const { pathname, searchParams } = new URL(url);
   if (/^\/collage\//.test(pathname)) return 'Collage';

@@ -2,7 +2,7 @@
 import { DEFAULTS, validateSettings, escapeHTML, safeImageURL, canonicalImageURL, clamp,
   legacyOriginal, fullSizeURL, thumbnailCandidates, parseOverlayDefinitions,
   imageState, editableTarget, isSaveShortcut, SEARCH_NAMES, validateSearches, MediaPool } from './core.mjs';
-import { mountFilterControls, adoptRuleMenu, positionTagMenu, styleRowControls, applyWorkspaceTheme, adoptNotificationControls, optionGroup, setupSettingsSearch, keyboardShortcutList, companionIcon, toolbarPageName } from './workspace.mjs';
+import { mountFilterControls, adoptRuleMenu, positionTagMenu, styleRowControls, applyWorkspaceTheme, adoptNotificationControls, optionGroup, setupSettingsSearch, keyboardShortcutList, companionIcon, toolbarPageName, createWorkspaceChrome, createWorkspacePane, updateWorkspacePane } from './workspace.mjs';
 import { PreferencesController, captureFilterBaseline, restoreFilterBaseline } from './preferences.mjs';
 import { BackfillController, backfillURL, torrentID } from './backfill.mjs';
 import { CollageQuickAdd } from './collage-quick-add.mjs';
@@ -321,35 +321,22 @@ export class CompanionApp {
   }
   buildUI() {
     const detailPage = !!this.detailLayout.torrentID;
-    this.root = this.node('section', null, 'epc-root epc-workspace');
-    this.root.setAttribute('aria-label', 'Companion');
-    this.toolbar = this.node('header', null, 'epc-toolbar');
-    const main = this.node('div', null, 'epc-toolbar-main');
-    const brand = this.node('div', null, 'epc-toolbar-brand');
-    const mark = this.node('span', null, 'epc-brand-mark'); mark.append(companionIcon(this.doc, 'brand'));
-    this.launcher = this.node('strong', 'Companion', 'epc-brand');
-    const pageName = toolbarPageName(this.win.location.href);
-    brand.append(mark, this.launcher);
-    if (pageName) brand.append(this.node('span', pageName, 'epc-page-name'));
+    const chrome = createWorkspaceChrome(this.doc, toolbarPageName(this.win.location.href), () => this.closePane());
+    const { main, brand, navigation } = chrome;
+    this.root = chrome.root;
+    this.toolbar = chrome.toolbar;
+    this.launcher = chrome.launcher;
+    this.panel = chrome.panel;
+    this.paneHeading = chrome.paneHeading;
     this.buildLoadProgress(brand, main);
     main.append(brand);
-    this.panel = this.node('section', null, 'epc-panel'); this.panel.hidden = true;
-    const heading = this.node('header', null, 'epc-panel-heading');
-    this.paneHeading = this.node('strong', 'Companion');
-    heading.append(this.paneHeading, this.button('Close', () => this.closePane()));
-    this.panel.append(heading);
     this.panes = {}; this.paneButtons = new Map();
-    const navigation = this.node('nav', null, 'epc-navigation'); navigation.setAttribute('aria-label', 'Companion tools');
     const resultActions = this.node('nav', null, 'epc-navigation epc-result-actions');
     resultActions.setAttribute('aria-label', 'Result controls');
     for (const [key, title] of [['filters', 'Filters'], ['searches', 'Searches'], ['images', 'Images'], ['settings', 'Settings']]) {
-      const pane = this.node('section', null, 'epc-pane'); pane.hidden = true;
-      pane.dataset.pane = key; pane.id = 'epc-pane-' + key;
-      const button = this.button(title, () => this.openPane(key));
-      button.dataset.pane = key; button.setAttribute('aria-controls', pane.id); button.setAttribute('aria-expanded', 'false');
+      const { pane, button } = createWorkspacePane(this.doc, key, title, () => this.openPane(key));
       this.paneButtons.set(key, button); this.panes[key] = pane;
       if (key !== 'images' && !(detailPage && key === 'filters')) {
-        button.prepend(companionIcon(this.doc, key));
         (key === 'filters' ? resultActions : navigation).append(button);
       }
       this.panel.append(pane);
@@ -687,11 +674,8 @@ export class CompanionApp {
     }
     const close = this.activePane === key && !this.panel.hidden;
     if (close) { this.closePane(); return; }
-    this.activePane = key; this.panel.hidden = false;
-    for (const [name, pane] of Object.entries(this.panes)) {
-      pane.hidden = name !== key; this.paneButtons.get(name).setAttribute('aria-expanded', String(name === key));
-    }
-    this.paneHeading.textContent = ({ filters: 'Filter your results', searches: 'Saved searches', images: 'Images & previews', settings: 'Settings' })[key];
+    this.activePane = key;
+    updateWorkspacePane(this, key);
     this.saveBar.hidden = key === 'searches';
     if (key === 'filters' && this.resultFilters.history?.open) this.resultFilters.refreshSeen();
     this.storage.set('ep.searchDrawerOpen', key === 'searches');
@@ -805,9 +789,9 @@ export class CompanionApp {
     this.hideSettingHelp?.();
     this.preferences.flush();
     const trigger = this.paneButtons.get(this.activePane);
-    this.panel.hidden = true; this.activePane = null;
+    this.activePane = null;
+    updateWorkspacePane(this, null);
     if (!this.cacheStatsPinned) this.cancelCacheUsage();
-    for (const button of this.paneButtons.values()) button.setAttribute('aria-expanded', 'false');
     this.storage.set('ep.searchDrawerOpen', false); trigger?.focus();
     this.media.demandListener?.();
   }

@@ -2,7 +2,7 @@
 import { emporniumAccountID } from './core.mjs';
 import { ForumComposer, forumReplyForm } from './forum-composer.mjs';
 import { forumButton, forumElement, forumSiteTheme } from './forum-ui.mjs';
-import { companionIcon } from './workspace.mjs';
+import { createWorkspaceChrome, createWorkspacePane, updateWorkspacePane } from './workspace.mjs';
 export { mountHamsterPicker } from './hamster-picker.mjs';
 export { hamsterServiceBase } from './hamster-media.mjs';
 
@@ -30,7 +30,7 @@ class ForumReader {
     this.header = forumElement(this.doc, 'header', 'epc-root epc-forum-header');
     this.header.hidden = true;
     this.mountCompanionControl();
-    this.heading.after(this.header);
+    this.workspace.root.after(this.header);
     const updateTheme = () => this.updateTheme();
     updateTheme();
     if (this.doc.readyState !== 'complete') win.addEventListener('load', updateTheme, { once: true });
@@ -48,25 +48,32 @@ class ForumReader {
 
   mountCompanionControl() {
     const { doc } = this;
-    const control = forumElement(doc, 'details', 'epc-root epc-toolbar epc-forum-control');
-    const summary = forumElement(doc, 'summary', 'epc-toolbar-main');
-    const brand = forumElement(doc, 'span', 'epc-toolbar-brand');
-    const mark = forumElement(doc, 'span', 'epc-brand-mark');
-    mark.append(companionIcon(doc, 'brand'));
-    brand.append(mark, forumElement(doc, 'strong', 'epc-brand', 'Companion'), forumElement(doc, 'span', 'epc-page-name', 'Forum'));
-    const settings = forumElement(doc, 'span', 'epc-forum-settings-caption', 'Settings');
-    settings.prepend(companionIcon(doc, 'settings'));
-    summary.append(brand, settings);
-    const panel = forumElement(doc, 'div', 'epc-forum-settings-panel');
-    panel.id = 'epc-forum-settings';
-    panel.setAttribute('role', 'group');
-    panel.setAttribute('aria-label', 'Forum settings');
-    summary.setAttribute('aria-controls', panel.id);
+    const workspace = createWorkspaceChrome(doc, 'Forum', () => this.closeSettings());
+    const { pane, button } = createWorkspacePane(doc, 'settings', 'Settings', () => this.openSettings());
+    workspace.panes = { settings: pane };
+    workspace.paneButtons = new Map([['settings', button]]);
+    this.workspace = workspace;
+    workspace.root.classList.add('epc-forum-control');
+    workspace.navigation.append(button);
+    workspace.main.append(workspace.brand, workspace.navigation);
+    workspace.toolbar.append(workspace.main);
+    workspace.panel.append(pane);
+    workspace.root.append(workspace.toolbar, workspace.panel);
+
+    const section = forumElement(doc, 'section', 'epc-settings-section');
+    section.setAttribute('aria-label', 'Forum settings');
+    const fields = forumElement(doc, 'div', 'epc-basic-settings');
+    section.append(forumElement(doc, 'h3', '', 'Forum'), fields);
+    pane.append(section);
 
     const field = (name, input) => {
-      const label = forumElement(doc, 'label', 'epc-forum-setting');
+      const label = forumElement(doc, 'label', 'epc-setting');
       label.append(forumElement(doc, 'span', '', name), input);
-      panel.append(label);
+      if (input.type === 'checkbox') {
+        label.classList.add('epc-setting-toggle');
+        label.prepend(input);
+      }
+      fields.append(label);
     };
     const select = (name, choices, saved, fallback) => {
       const input = forumElement(doc, 'select');
@@ -107,17 +114,25 @@ class ForumReader {
       for (const quote of this.content.querySelectorAll('.epc-forum-folded-quote')) quote.open = !this.collapseQuotes.checked;
     });
 
-    control.append(summary, panel);
-    this.heading.before(control);
-    doc.addEventListener('pointerdown', event => {
-      if (control.open && !control.contains(event.target)) control.open = false;
+    const footer = forumElement(doc, 'footer', 'epc-savebar');
+    footer.append(forumElement(doc, 'span', 'epc-caption', 'Changes save automatically'));
+    workspace.panel.append(footer);
+    this.heading.after(workspace.root);
+    doc.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || workspace.panel.hidden || event.isComposing || event.defaultPrevented) return;
+      try { if (this.storage.get('ep.settings', {})?.keyboardShortcuts === false) return; } catch {}
+      this.closeSettings();
     });
-    control.addEventListener('keydown', event => {
-      if (event.key !== 'Escape' || !control.open || event.isComposing) return;
-      event.preventDefault();
-      control.open = false;
-      summary.focus();
-    });
+  }
+
+  openSettings() {
+    if (this.workspace.panel.hidden) updateWorkspacePane(this.workspace, 'settings');
+    else this.closeSettings();
+  }
+
+  closeSettings() {
+    updateWorkspacePane(this.workspace, null);
+    this.workspace.paneButtons.get('settings').focus();
   }
 
   updateTheme() {
@@ -370,7 +385,8 @@ class ForumReader {
           } else if (openAwards === details) openAwards = null;
         });
         this.on(details, 'keydown', event => {
-          if (event.key !== 'Escape' || !details.open) return;
+          if (event.key !== 'Escape' || !details.open || event.isComposing) return;
+          event.preventDefault();
           details.open = false;
           summary.focus();
         });
@@ -535,7 +551,8 @@ class ForumReader {
       if (topics.open && !topics.contains(event.target)) topics.open = false;
     });
     this.on(topics, 'keydown', event => {
-      if (event.key !== 'Escape' || !topics.open) return;
+      if (event.key !== 'Escape' || !topics.open || event.isComposing) return;
+      event.preventDefault();
       topics.open = false;
       summary.focus();
     });

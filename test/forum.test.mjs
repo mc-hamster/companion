@@ -19,17 +19,18 @@ async function start(path, { storage = memoryStorage(), account = 7, fetch, sess
   const url = new URL(path, site);
   const fixture = domFixture(forumFixtureHTML(url, { account }), url.href);
   const { win, doc } = fixture;
+  const menu = new Map();
   for (const [key, value] of Object.entries(session)) win.sessionStorage.setItem(key, value);
   Object.assign(win, {
     GM_getValue: storage.get, GM_setValue: storage.set, GM_listValues: storage.list, GM_deleteValue: storage.delete,
     GM_addStyle: css => doc.head.append(Object.assign(doc.createElement('style'), { textContent: css })),
-    GM_registerMenuCommand() {},
+    GM_registerMenuCommand: (name, action) => menu.set(name, action),
     matchMedia: () => ({ matches: darkSystem }),
     fetch: fetch || (() => assert.fail('Forum should not fetch before a user action'))
   });
   win.eval(bundle);
   await until(() => doc.readyState === 'complete');
-  return { ...fixture, storage };
+  return { ...fixture, storage, menu };
 }
 
 function changeBody(fixture, value) {
@@ -76,7 +77,8 @@ test('the board exposes distinct native jumps, scoped search, and full titles wh
     toggle.click();
     assert.equal(f.doc.querySelector('.epc-forum-jump'), null);
     assert.match(f.doc.querySelector('.forum_list strong').textContent, /stall…$/);
-    assert.equal(f.doc.querySelector('.epc-workspace'), null);
+    assert.ok(f.doc.querySelector('.epc-workspace .epc-toolbar'));
+    assert.equal(f.doc.querySelector('.epc-engine'), null);
     assert.deepEqual(f.errors, []);
   } finally { f.close(); }
 });
@@ -87,10 +89,11 @@ test('Companion settings persist theme, text size, and long-quote folding', asyn
   try {
     const { doc, win } = initial;
     const control = doc.querySelector('.epc-forum-control');
-    control.querySelector('summary').click();
-    assert.equal(control.open, true);
-    assert.equal(control.compareDocumentPosition(doc.querySelector('#content > h2')) & win.Node.DOCUMENT_POSITION_FOLLOWING,
-      win.Node.DOCUMENT_POSITION_FOLLOWING);
+    const trigger = control.querySelector('.epc-toolbar .epc-navigation button[data-pane="settings"]');
+    const panel = control.querySelector(':scope > .epc-panel');
+    trigger.click();
+    assert.equal(panel.hidden, false);
+    assert.equal(doc.querySelector('#content > h2').nextElementSibling, control);
     const settings = control.querySelector('[aria-label="Forum settings"]');
     const [theme, size] = settings.querySelectorAll('select');
     theme.value = 'plum';
@@ -100,7 +103,7 @@ test('Companion settings persist theme, text size, and long-quote folding', asyn
     const collapse = [...settings.querySelectorAll('label')].find(label => label.textContent === 'Collapse long quotes');
     collapse.querySelector('input').click();
     settings.querySelector('.epc-forum-toggle').click();
-    assert.equal(control.open, true);
+    assert.equal(panel.hidden, false);
     assert.equal(doc.documentElement.dataset.epForumPalette, 'plum');
     assert.equal(doc.documentElement.dataset.epForumTheme, 'dark');
     assert.equal(doc.documentElement.dataset.epForumTextSize, 'large');
@@ -114,10 +117,47 @@ test('Companion settings persist theme, text size, and long-quote folding', asyn
     assert.equal(doc.documentElement.dataset.epForumPalette, 'plum');
     assert.equal(doc.documentElement.dataset.epForumTextSize, 'large');
     assert.equal(doc.querySelector('.epc-forum-folded-quote').open, true);
-    const collapse = [...doc.querySelectorAll('.epc-forum-setting')].find(label => label.textContent === 'Collapse long quotes');
+    const collapse = [...doc.querySelectorAll('.epc-forum-control .epc-setting')].find(label => label.textContent === 'Collapse long quotes');
     collapse.querySelector('input').click();
     assert.equal(doc.querySelector('.epc-forum-folded-quote').open, false);
   } finally { restored.close(); }
+});
+
+test('the shared Settings pane toggles and restores focus on close', async () => {
+  const f = await start('/forum/thread/42');
+  try {
+    const { doc, win } = f;
+    const workspace = doc.querySelector('.epc-workspace.epc-forum-control');
+    const trigger = workspace.querySelector('.epc-toolbar-main .epc-navigation button[data-pane="settings"]');
+    const panel = workspace.querySelector(':scope > .epc-panel');
+    const pane = panel.querySelector('.epc-pane[data-pane="settings"]');
+    assert.equal(panel.hidden, true);
+    assert.equal(trigger.getAttribute('aria-controls'), pane.id);
+    trigger.click();
+    assert.equal(panel.hidden, false);
+    assert.equal(pane.hidden, false);
+    assert.equal(trigger.getAttribute('aria-expanded'), 'true');
+    doc.body.dispatchEvent(new win.Event('pointerdown', { bubbles: true }));
+    assert.equal(panel.hidden, false);
+    panel.querySelector('.epc-panel-heading button').click();
+    assert.equal(panel.hidden, true);
+    assert.equal(trigger.getAttribute('aria-expanded'), 'false');
+    assert.equal(doc.activeElement, trigger);
+
+    f.menu.get('Companion settings')();
+    assert.equal(panel.hidden, false);
+    f.storage.set('ep.settings', { keyboardShortcuts: false });
+    pane.querySelector('.epc-forum-toggle').focus();
+    doc.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape' }));
+    assert.equal(panel.hidden, false);
+    f.storage.set('ep.settings', { keyboardShortcuts: true });
+    doc.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape' }));
+    assert.equal(panel.hidden, true);
+    assert.equal(doc.activeElement, trigger);
+    trigger.click();
+    trigger.click();
+    assert.equal(panel.hidden, true);
+  } finally { f.close(); }
 });
 
 test('floating thread controls jump to page positions and retain the draft launcher', async () => {

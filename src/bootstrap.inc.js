@@ -34,8 +34,16 @@ if (epForum || epHamster) {
     const addStyle = css => GM_addStyle(css);
     const service = bundle.hamsterServiceBase(epPage, epFixture);
     if (epHamster) bundle.mountHamsterPicker(window, epStorage, service, addStyle, epStyle + epForumStyle);
-    else bundle.mountCompanionForum(window, epStorage, epPage, epForum, addStyle, epStyle + epForumStyle,
-      { service, request: epRequest });
+    else {
+      const forum = bundle.mountCompanionForum(window, epStorage, epPage, epForum, addStyle, epStyle + epForumStyle,
+        { service, request: epRequest });
+      if (forum && typeof GM_registerMenuCommand === 'function') {
+        GM_registerMenuCommand('Companion settings', () => {
+          forum.openSettings();
+          forum.workspace.root.scrollIntoView({ block: 'start' });
+        });
+      }
+    }
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startForum, { once: true });
   else startForum();
