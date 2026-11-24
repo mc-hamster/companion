@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Companion
 // @namespace    empornium-companion.local
-// @version      2.16.4
+// @version      2.16.5
 // @homepageURL  https://github.com/mc-hamster/companion#readme
 // @supportURL   https://github.com/mc-hamster/companion/issues
 // @source       https://github.com/mc-hamster/companion
@@ -605,7 +605,9 @@ class MediaPool {
     }
   }
   recordMemoryHit(entry) {
-    this.env.imageCache?.recordActivity?.('hit', entry.cacheBytes);
+    const cache = this.env.imageCache;
+    cache?.recordActivity?.('hit', entry.cacheBytes);
+    if (entry.cacheBytes > 0 && cache?.enabled?.()) cache.touch?.(entry.actualKey);
     if (this.settings.diagnostics) this.env.diagnostic?.(entry, 'cache', {cacheOutcome: 'hit', cacheReason: 'memory-reuse', elapsedMs: 0});
   }
   request(url, options = {}) {
@@ -1349,7 +1351,7 @@ class PersistentImageCache {
     await new Promise(resolve=>{try{const tx=db.transaction(['meta','stats'],'readwrite'),store=tx.objectStore('meta'),stats=tx.objectStore('stats');
       stats.get('total').onsuccess=e=>{const total=e.target.result||{bytes:0,count:0,thumbnailBytes:0};let pending=touches.size;
         for(const[key,touch]of touches)store.get(key).onsuccess=event=>{const row=event.target.result;if(row){const kind=this.kind(row.kind,touch.kind),tier=this.tier(kind,row.size);
-          const next={...row,used:touch.used,kind,tier};this.adjust(total,row,-1);this.adjust(total,next,1);store.put(next);
+          const next={...row,used:Math.max(row.used??0,touch.used),kind,tier};this.adjust(total,row,-1);this.adjust(total,next,1);store.put(next);
           changed ||= kind!==row.kind||tier!==row.tier;
         }if(!--pending)stats.put(total,'total');};
       };

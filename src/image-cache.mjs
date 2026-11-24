@@ -231,7 +231,7 @@ export class PersistentImageCache {
     await new Promise(resolve=>{try{const tx=db.transaction(['meta','stats'],'readwrite'),store=tx.objectStore('meta'),stats=tx.objectStore('stats');
       stats.get('total').onsuccess=e=>{const total=e.target.result||{bytes:0,count:0,thumbnailBytes:0};let pending=touches.size;
         for(const[key,touch]of touches)store.get(key).onsuccess=event=>{const row=event.target.result;if(row){const kind=this.kind(row.kind,touch.kind),tier=this.tier(kind,row.size);
-          const next={...row,used:touch.used,kind,tier};this.adjust(total,row,-1);this.adjust(total,next,1);store.put(next);
+          const next={...row,used:Math.max(row.used??0,touch.used),kind,tier};this.adjust(total,row,-1);this.adjust(total,next,1);store.put(next);
           changed ||= kind!==row.kind||tier!==row.tier;
         }if(!--pending)stats.put(total,'total');};
       };

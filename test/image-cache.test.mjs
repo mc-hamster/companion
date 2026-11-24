@@ -242,6 +242,87 @@ test('[CACHE-02] LRU byte pressure removes oldest bytes, touches protect recent 
     await f.cache.commit(c,blob(5));assert.equal((await f.cache.stats()).bytes,17);assert.equal((await f.cache.stats()).count,2);
   }finally{f.cache.close();}
 });
+test('[CACHE-02] memory hits share the last-use batch and protect saved files from eviction', async () => {
+  const clock = fakeClock();
+  const f = setup({
+    limit: 36 / (1024 * 1024),
+    request: ({onload}) => {
+      queueMicrotask(() => onload({status: 200, response: blob()}));
+      return {abort() {}};
+    }
+  });
+  Object.assign(f.env, clock.env);
+  const pool = new MediaPool({...clock.env, imageCache: f.cache});
+  const preferred = url.replace('.th.', '.md.');
+  const options = {cacheMode: 'thumbnail', smallFirst: true, candidates: [preferred, url]};
+  const downloaded = url + '?downloaded', idle = url + '?idle';
+  try {
+    await f.cache.commit(url, blob(), undefined, 'thumbnail');
+    const saved = pool.request(preferred, options);
+    await until(() => saved.image?.src?.startsWith('data:'));
+    assert.equal(saved.actualKey, url);
+    saved.image.succeed(160, 90);
+    await f.cache.flushTouches();
+
+    clock.tick(10);
+    const fetched = pool.request(downloaded, {cacheMode: 'thumbnail'});
+    await until(() => fetched.image?.src?.startsWith('data:'));
+    fetched.image.succeed(160, 90);
+    await f.cache.writes;
+
+    clock.tick(10);
+    await f.cache.commit(idle, blob(), undefined, 'thumbnail');
+    assert.ok(await f.cache.get(idle));
+    const touchTimer = f.cache.touchTimer;
+    assert.ok(touchTimer);
+    clock.tick(10);
+    assert.equal(pool.request(preferred, options), saved);
+    assert.equal(pool.request(downloaded, {cacheMode: 'thumbnail', tier: 'hover'}), fetched);
+    assert.equal(f.cache.touchTimer, touchTimer);
+    await f.cache.flushTouches();
+
+    clock.tick(10);
+    await f.cache.commit(url + '?incoming', blob(), undefined, 'thumbnail');
+    assert.equal(await f.cache.get(idle), null);
+    assert.ok(await f.cache.get(url));
+    assert.ok(await f.cache.get(downloaded));
+
+    await f.cache.clear();
+    assert.equal(pool.request(preferred, options), saved);
+    await f.cache.flushTouches();
+    assert.equal((await f.cache.stats()).count, 0);
+    assert.equal(await f.cache.get(url), null);
+  } finally {
+    pool.dispose();
+    f.cache.close();
+  }
+});
+test('[CACHE-02] a delayed touch from another tab preserves the newer last-use time', async () => {
+  const f = setup({limit: 30 / (1024 * 1024)}), g = setup({indexedDB: f.env.indexedDB});
+  const clock = fakeClock();
+  f.env.setTimeout = clock.env.setTimeout;
+  f.env.clearTimeout = clock.env.clearTimeout;
+  const idle = url + '?idle';
+  try {
+    await f.cache.commit(url, blob());
+    f.tick(10);
+    assert.ok(await f.cache.get(url));
+    f.tick(10);
+    await f.cache.commit(idle, blob());
+    g.tick(30);
+    assert.ok(await g.cache.get(url));
+    await g.cache.flushTouches();
+    await f.cache.flushTouches();
+
+    f.tick(20);
+    await f.cache.commit(url + '?incoming', blob());
+    assert.equal(await f.cache.get(idle), null);
+    assert.ok(await f.cache.get(url));
+  } finally {
+    f.cache.close();
+    g.cache.close();
+  }
+});
 test('[CACHE-02] concurrent tab-style writers preserve atomic byte/count totals',async()=>{
   const f=setup(),g=setup({indexedDB:f.env.indexedDB});
   try{await Promise.all(Array.from({length:20},(_,i)=>(i%2?f:g).cache.commit(url+'?image='+i,blob(10))));

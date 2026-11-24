@@ -419,7 +419,9 @@ export class MediaPool {
     }
   }
   recordMemoryHit(entry) {
-    this.env.imageCache?.recordActivity?.('hit', entry.cacheBytes);
+    const cache = this.env.imageCache;
+    cache?.recordActivity?.('hit', entry.cacheBytes);
+    if (entry.cacheBytes > 0 && cache?.enabled?.()) cache.touch?.(entry.actualKey);
     if (this.settings.diagnostics) this.env.diagnostic?.(entry, 'cache', {cacheOutcome: 'hit', cacheReason: 'memory-reuse', elapsedMs: 0});
   }
   request(url, options = {}) {
