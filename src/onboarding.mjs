@@ -18,7 +18,7 @@ export class OnboardingController {
     dialog.setAttribute('aria-labelledby', 'epc-welcome-title');
     const title = app.node('h2', 'Welcome to Companion'); title.id = 'epc-welcome-title';
     const heading = app.node('header', null, 'epc-welcome-heading');
-    const mark = app.node('span', null, 'epc-brand-mark'); mark.append(companionIcon(app, 'brand'));
+    const mark = app.node('span', null, 'epc-brand-mark'); mark.append(companionIcon(app.doc, 'brand'));
     heading.append(mark, title);
     dialog.append(heading, app.node('p', 'Reliable thumbnails, image grids, larger previews on hover, filters, grouped versions, saved searches, and more results on one page.'));
     dialog.append(app.node('p', 'These options—and much more—are available in Settings anytime. Reopen this setup with Settings → Getting started.', 'epc-caption'));

@@ -7,9 +7,9 @@ import { forumButton, forumElement } from './forum-ui.mjs';
 const forumVisualPreference = 'ep.forum.visual';
 const forumPostID = /^[1-9]\d{0,14}$/;
 const forumPreviewStyle = [
-  'body{margin:0;padding:14px 16px;background:Canvas;color:CanvasText;font:15px/1.55 system-ui,sans-serif;overflow-wrap:anywhere}',
-  'a{color:LinkText}img,video{max-width:100%;height:auto}',
-  'blockquote{margin:8px 0;padding:8px 12px;border-inline-start:3px solid GrayText;background:color-mix(in srgb,CanvasText 5%,Canvas)}',
+  'body{margin:0;padding:14px 16px;background:var(--preview-bg);color:var(--preview-fg);font:15px/1.55 system-ui,sans-serif;overflow-wrap:anywhere}',
+  'a{color:var(--preview-accent)}img,video{max-width:100%;height:auto}',
+  'blockquote{margin:8px 0;padding:8px 12px;border-inline-start:3px solid GrayText;background:color-mix(in srgb,var(--preview-fg) 5%,var(--preview-bg))}',
   'pre{max-width:100%;overflow:auto}table{max-width:100%;border-collapse:collapse}td,th{padding:4px 8px;border:1px solid GrayText}',
   'details>summary{font-weight:650;cursor:pointer}details{margin:.4em 0}',
   '.hidden{display:none}'
@@ -153,19 +153,19 @@ export class ForumComposer {
 
   mount() {
     const { doc, form, source, submit } = this;
-    this.dock = forumElement(doc, 'section', 'epc-root epc-forum-dock');
-    this.dock.setAttribute('aria-label', 'Reply composer');
     this.launcher = forumButton(doc, '', 'epc-forum-launch');
     this.launcher.setAttribute('aria-expanded', 'false');
     this.launcher.setAttribute('aria-controls', 'epc-forum-compose');
-    this.panel = forumElement(doc, 'div', 'epc-forum-compose');
+    this.panel = forumElement(doc, 'section', 'epc-forum-compose');
     this.panel.id = 'epc-forum-compose';
+    this.panel.setAttribute('aria-label', 'Reply composer');
     this.panel.hidden = true;
     const header = forumElement(doc, 'header', 'epc-forum-compose-head');
     const title = forumElement(doc, 'h2', '', 'Post reply');
     const minimize = forumButton(doc, 'Minimize', 'epc-forum-minimize');
     header.append(title, minimize);
-    this.dock.append(this.launcher, this.panel);
+    this.threadActions.append(this.launcher);
+    this.dock.append(this.panel);
     this.panel.append(header);
 
     this.sourceArea.classList.add('epc-forum-source');
@@ -178,7 +178,6 @@ export class ForumComposer {
       this.originBox.classList.add('epc-forum-native-reply');
     }
     this.move(form, this.panel);
-    doc.body.append(this.dock);
 
     this.switcher = forumElement(doc, 'div', 'epc-forum-modes');
     this.switcher.setAttribute('role', 'group');
@@ -460,15 +459,29 @@ export class ForumComposer {
       if (!response.ok) throw new Error('Preview was rejected.');
       const markup = await response.text();
       if (controller.signal.aborted) return;
-      const theme = this.doc.documentElement.dataset.epForumTheme === 'dark' ? 'dark' : 'light';
-      this.preview.srcdoc = '<!doctype html><meta charset="utf-8">' +
-        '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src https: http: data:; media-src https: http:; base-uri \'none\'; form-action \'none\'">' +
-        '<style>html{color-scheme:' + theme + '}' + forumPreviewStyle + '</style>' + forumPreviewMarkup(this.doc, this.page, markup);
+      this.previewMarkup = forumPreviewMarkup(this.doc, this.page, markup);
       this.preview.hidden = false;
+      this.renderPreview();
       this.setStatus('');
     } catch {
       if (!controller.signal.aborted) this.setStatus('Preview unavailable. Your reply is still here.', true);
     }
+  }
+
+  renderPreview() {
+    if (this.preview.hidden || this.previewMarkup === undefined) return;
+    const theme = this.doc.documentElement.dataset.epForumTheme === 'dark' ? 'dark' : 'light';
+    const style = this.win.getComputedStyle(this.dock);
+    const color = (property, fallback) => {
+      const value = style.getPropertyValue(property).trim();
+      return /^#[\da-f]{6}$/i.test(value) ? value : fallback;
+    };
+    const palette = 'html{color-scheme:' + theme + ';--preview-bg:' + color('--epc-bg', 'Canvas') +
+      ';--preview-fg:' + color('--epc-fg', 'CanvasText') + ';--preview-accent:' + color('--epc-accent', 'LinkText') + '}';
+    const preview = '<!doctype html><meta charset="utf-8">' +
+      '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src https: http: data:; media-src https: http:; base-uri \'none\'; form-action \'none\'">' +
+      '<style>' + palette + forumPreviewStyle + '</style>' + this.previewMarkup;
+    if (this.preview.srcdoc !== preview) this.preview.srcdoc = preview;
   }
 
   async quote(post, author, excerpt) {
@@ -591,6 +604,7 @@ export class ForumComposer {
     this.status.remove();
     for (const restore of this.moves.reverse()) restore();
     this.tools?.remove();
-    this.dock.remove();
+    this.launcher.remove();
+    this.panel.remove();
   }
 }

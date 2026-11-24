@@ -60,7 +60,8 @@ test('the board exposes distinct native jumps, scoped search, and full titles wh
   const f = await start('/forum/23');
   try {
     const toggle = f.doc.querySelector('.epc-forum-toggle');
-    assert.equal(toggle.textContent, 'Enable Companion Forum');
+    assert.equal(toggle.labels[0].textContent, 'Enable in forum');
+    assert.equal(toggle.checked, false);
     assert.equal(f.doc.querySelector('.epc-forum-jump'), null);
     toggle.click();
     assert.equal(f.storage.get('ep.forum.reader'), true);
@@ -77,6 +78,71 @@ test('the board exposes distinct native jumps, scoped search, and full titles wh
     assert.match(f.doc.querySelector('.forum_list strong').textContent, /stall…$/);
     assert.equal(f.doc.querySelector('.epc-workspace'), null);
     assert.deepEqual(f.errors, []);
+  } finally { f.close(); }
+});
+
+test('Companion settings persist theme, text size, and long-quote folding', async () => {
+  const storage = memoryStorage();
+  const initial = await start('/forum/thread/42?theme=site-light', { storage });
+  try {
+    const { doc, win } = initial;
+    const control = doc.querySelector('.epc-forum-control');
+    control.querySelector('summary').click();
+    assert.equal(control.open, true);
+    assert.equal(control.compareDocumentPosition(doc.querySelector('#content > h2')) & win.Node.DOCUMENT_POSITION_FOLLOWING,
+      win.Node.DOCUMENT_POSITION_FOLLOWING);
+    const settings = control.querySelector('[aria-label="Forum settings"]');
+    const [theme, size] = settings.querySelectorAll('select');
+    theme.value = 'plum';
+    theme.dispatchEvent(new win.Event('change', { bubbles: true }));
+    size.value = 'large';
+    size.dispatchEvent(new win.Event('change', { bubbles: true }));
+    const collapse = [...settings.querySelectorAll('label')].find(label => label.textContent === 'Collapse long quotes');
+    collapse.querySelector('input').click();
+    settings.querySelector('.epc-forum-toggle').click();
+    assert.equal(control.open, true);
+    assert.equal(doc.documentElement.dataset.epForumPalette, 'plum');
+    assert.equal(doc.documentElement.dataset.epForumTheme, 'dark');
+    assert.equal(doc.documentElement.dataset.epForumTextSize, 'large');
+    assert.equal(doc.querySelector('.epc-forum-folded-quote').open, true);
+  } finally { initial.close(); }
+
+  const restored = await start('/forum/thread/42?theme=site-light', { storage });
+  try {
+    const { doc } = restored;
+    assert.equal(doc.querySelector('.epc-forum-toggle').checked, true);
+    assert.equal(doc.documentElement.dataset.epForumPalette, 'plum');
+    assert.equal(doc.documentElement.dataset.epForumTextSize, 'large');
+    assert.equal(doc.querySelector('.epc-forum-folded-quote').open, true);
+    const collapse = [...doc.querySelectorAll('.epc-forum-setting')].find(label => label.textContent === 'Collapse long quotes');
+    collapse.querySelector('input').click();
+    assert.equal(doc.querySelector('.epc-forum-folded-quote').open, false);
+  } finally { restored.close(); }
+});
+
+test('floating thread controls jump to page positions and retain the draft launcher', async () => {
+  const f = await start('/forum/thread/42', { storage: memoryStorage({ 'ep.forum.reader': true }) });
+  try {
+    const { doc, win } = f;
+    const actions = doc.querySelector('[aria-label="Thread controls"]');
+    const calls = [];
+    win.scrollTo = options => calls.push(['page', options.top, options.behavior]);
+    Object.defineProperty(doc.scrollingElement || doc.documentElement, 'scrollHeight', { value: 1800 });
+    doc.querySelector('.epc-forum-unread-marker').scrollIntoView = options => calls.push(['unread', options.block, options.behavior]);
+    for (const label of ['Jump to top', 'Jump to bottom', 'Jump to first unread post']) {
+      actions.querySelector('button[aria-label="' + label + '"]').click();
+    }
+    assert.deepEqual(calls, [['page', 0, 'smooth'], ['page', 1800, 'smooth'], ['unread', 'start', 'smooth']]);
+    const reply = actions.querySelector('.epc-forum-launch');
+    reply.click();
+    assert.equal(reply.hidden, true);
+    assert.equal(actions.hidden, false);
+    changeBody(f, 'An unfinished reply');
+    doc.querySelector('.epc-forum-minimize').click();
+    assert.equal(reply.textContent, 'Resume draft');
+    assert.equal(reply.hidden, false);
+    reply.click();
+    assert.equal(doc.getElementById('quickpost').value, 'An unfinished reply');
   } finally { f.close(); }
 });
 
@@ -305,7 +371,8 @@ test('selected quotes are attributed locally and a reload restores only the curr
     assert.match(restores.doc.getElementById('quickpost').value, /Riley,f42,12/);
     assert.equal(other.doc.getElementById('quickpost').value, '');
     assert.equal(anotherThread.doc.getElementById('quickpost').value, '');
-    assert.equal(locked.doc.querySelector('.epc-forum-dock'), null);
+    assert.ok(locked.doc.querySelector('[aria-label="Thread controls"] button[aria-label="Jump to top"]'));
+    assert.equal(locked.doc.querySelector('.epc-forum-launch'), null);
   } finally { restores.close(); other.close(); anotherThread.close(); locked.close(); }
 });
 

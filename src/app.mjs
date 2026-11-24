@@ -326,7 +326,7 @@ export class CompanionApp {
     this.toolbar = this.node('header', null, 'epc-toolbar');
     const main = this.node('div', null, 'epc-toolbar-main');
     const brand = this.node('div', null, 'epc-toolbar-brand');
-    const mark = this.node('span', null, 'epc-brand-mark'); mark.append(companionIcon(this, 'brand'));
+    const mark = this.node('span', null, 'epc-brand-mark'); mark.append(companionIcon(this.doc, 'brand'));
     this.launcher = this.node('strong', 'Companion', 'epc-brand');
     const pageName = toolbarPageName(this.win.location.href);
     brand.append(mark, this.launcher);
@@ -349,7 +349,7 @@ export class CompanionApp {
       button.dataset.pane = key; button.setAttribute('aria-controls', pane.id); button.setAttribute('aria-expanded', 'false');
       this.paneButtons.set(key, button); this.panes[key] = pane;
       if (key !== 'images' && !(detailPage && key === 'filters')) {
-        button.prepend(companionIcon(this, key));
+        button.prepend(companionIcon(this.doc, key));
         (key === 'filters' ? resultActions : navigation).append(button);
       }
       this.panel.append(pane);
@@ -1118,7 +1118,7 @@ export class CompanionApp {
     if (!this.quickSaveSearch) {
       this.quickSaveSearch = this.button('Save search', () => this.saveCurrentSearch());
       this.quickSaveSearch.className = 'epc-quiet epc-quick-search';
-      this.quickSaveSearch.prepend(companionIcon(this, 'add'));
+      this.quickSaveSearch.prepend(companionIcon(this.doc, 'add'));
       this.toolbarUtilities.prepend(this.quickSaveSearch);
     }
     this.quickSaveSearch.hidden = !form;
@@ -1171,7 +1171,7 @@ export class CompanionApp {
       this.savedShortcuts.replaceChildren();
       for (const saved of searches) {
         const link = this.searchLink(saved); link.className = 'epc-saved-shortcut';
-        link.append(companionIcon(this, 'open'));
+        link.append(companionIcon(this.doc, 'open'));
         this.savedShortcuts.append(link);
       }
       this.savedShortcuts.hidden = !searches.length;

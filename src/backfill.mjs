@@ -79,7 +79,7 @@ export class BackfillController {
     this.button.dataset.epBackfill = '';
     this.button.className = 'epc-primary epc-load-more';
     this.buttonLabel = this.app.node('span', 'Load more');
-    const add = companionIcon(this.app, 'add'), stop = companionIcon(this.app, 'stop');
+    const add = companionIcon(this.app.doc, 'add'), stop = companionIcon(this.app.doc, 'stop');
     add.classList.add('epc-load-icon'); stop.classList.add('epc-stop-icon');
     this.button.append(add, stop, this.buttonLabel);
     this.status = this.app.node('span', '', 'epc-backfill-status');

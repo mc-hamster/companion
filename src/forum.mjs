@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { emporniumAccountID } from './core.mjs';
 import { ForumComposer, forumReplyForm } from './forum-composer.mjs';
-import { forumElement, forumSiteTheme } from './forum-ui.mjs';
+import { forumButton, forumElement, forumSiteTheme } from './forum-ui.mjs';
+import { companionIcon } from './workspace.mjs';
 export { mountHamsterPicker } from './hamster-picker.mjs';
 export { hamsterServiceBase } from './hamster-media.mjs';
 
-const forumReaderPreference = 'ep.forum.reader';
+const forumThemes = [['site', 'Match site'], ['light', 'Light'], ['graphite', 'Graphite'], ['plum', 'Plum']];
+const forumTextSizes = [['small', 'Small'], ['regular', 'Regular'], ['large', 'Large']];
 const forumTopicPath = /^\/forum\/thread\/([1-9]\d{0,14})\/?$/;
 const forumBoardPath = /^\/forum\/([1-9]\d{0,14})\/?$/;
 const forumPostElement = /^post([1-9]\d{0,14})$/;
@@ -26,42 +28,122 @@ class ForumReader {
   constructor(win, storage, page, route, content, heading, account, media) {
     Object.assign(this, { win, doc: win.document, storage, page, route, content, heading, account, media });
     this.header = forumElement(this.doc, 'header', 'epc-root epc-forum-header');
-    this.toggle = forumElement(this.doc, 'button', 'epc-forum-toggle');
-    this.toggle.type = 'button';
-    this.toggle.addEventListener('click', () => this.setEnabled(!this.abort));
-    this.header.append(this.toggle);
+    this.header.hidden = true;
+    this.mountCompanionControl();
     this.heading.after(this.header);
-    const updateTheme = () => { this.doc.documentElement.dataset.epForumTheme = forumSiteTheme(win, content); };
+    const updateTheme = () => this.updateTheme();
     updateTheme();
     if (this.doc.readyState !== 'complete') win.addEventListener('load', updateTheme, { once: true });
     win.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change', updateTheme);
-    if (this.preference()) this.setEnabled(true, false);
-    else this.setToggle(false);
+    if (this.toggle.checked) this.setEnabled(true, false);
   }
 
-  preference() {
-    try { return this.storage.get(forumReaderPreference, false) === true; } catch { return false; }
+  preference(name, fallback) {
+    try { return this.storage.get('ep.forum.' + name, fallback); } catch { return fallback; }
   }
 
-  setToggle(on) {
-    this.toggle.textContent = on ? 'Classic view' : 'Enable Companion Forum';
-    this.toggle.setAttribute('aria-pressed', String(on));
+  savePreference(name, value) {
+    try { this.storage.set('ep.forum.' + name, value); } catch {}
+  }
+
+  mountCompanionControl() {
+    const { doc } = this;
+    const control = forumElement(doc, 'details', 'epc-root epc-toolbar epc-forum-control');
+    const summary = forumElement(doc, 'summary', 'epc-toolbar-main');
+    const brand = forumElement(doc, 'span', 'epc-toolbar-brand');
+    const mark = forumElement(doc, 'span', 'epc-brand-mark');
+    mark.append(companionIcon(doc, 'brand'));
+    brand.append(mark, forumElement(doc, 'strong', 'epc-brand', 'Companion'), forumElement(doc, 'span', 'epc-page-name', 'Forum'));
+    const settings = forumElement(doc, 'span', 'epc-forum-settings-caption', 'Settings');
+    settings.prepend(companionIcon(doc, 'settings'));
+    summary.append(brand, settings);
+    const panel = forumElement(doc, 'div', 'epc-forum-settings-panel');
+    panel.id = 'epc-forum-settings';
+    panel.setAttribute('role', 'group');
+    panel.setAttribute('aria-label', 'Forum settings');
+    summary.setAttribute('aria-controls', panel.id);
+
+    const field = (name, input) => {
+      const label = forumElement(doc, 'label', 'epc-forum-setting');
+      label.append(forumElement(doc, 'span', '', name), input);
+      panel.append(label);
+    };
+    const select = (name, choices, saved, fallback) => {
+      const input = forumElement(doc, 'select');
+      for (const [value, label] of choices) {
+        const option = forumElement(doc, 'option', '', label);
+        option.value = value;
+        input.append(option);
+      }
+      input.value = choices.some(([value]) => value === saved) ? saved : fallback;
+      field(name, input);
+      return input;
+    };
+
+    this.toggle = forumElement(doc, 'input', 'epc-forum-toggle');
+    this.toggle.type = 'checkbox';
+    this.toggle.checked = this.preference('reader', false) === true;
+    field('Enable in forum', this.toggle);
+    this.toggle.addEventListener('change', () => this.setEnabled(this.toggle.checked));
+
+    this.theme = select('Color theme', forumThemes, this.preference('theme', 'site'), 'site');
+    this.theme.addEventListener('change', () => {
+      this.savePreference('theme', this.theme.value);
+      this.updateTheme();
+    });
+    const textSize = select('Post text size', forumTextSizes, this.preference('textSize', 'regular'), 'regular');
+    doc.documentElement.dataset.epForumTextSize = textSize.value;
+    textSize.addEventListener('change', () => {
+      this.savePreference('textSize', textSize.value);
+      doc.documentElement.dataset.epForumTextSize = textSize.value;
+    });
+
+    this.collapseQuotes = forumElement(doc, 'input');
+    this.collapseQuotes.type = 'checkbox';
+    this.collapseQuotes.checked = this.preference('collapseQuotes', true) !== false;
+    field('Collapse long quotes', this.collapseQuotes);
+    this.collapseQuotes.addEventListener('change', () => {
+      this.savePreference('collapseQuotes', this.collapseQuotes.checked);
+      for (const quote of this.content.querySelectorAll('.epc-forum-folded-quote')) quote.open = !this.collapseQuotes.checked;
+    });
+
+    control.append(summary, panel);
+    this.heading.before(control);
+    doc.addEventListener('pointerdown', event => {
+      if (control.open && !control.contains(event.target)) control.open = false;
+    });
+    control.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || !control.open || event.isComposing) return;
+      event.preventDefault();
+      control.open = false;
+      summary.focus();
+    });
+  }
+
+  updateTheme() {
+    const theme = this.theme.value;
+    const { dataset } = this.doc.documentElement;
+    dataset.epForumPalette = theme;
+    dataset.epForumTheme = theme === 'site' ? forumSiteTheme(this.win, this.content) : theme === 'light' ? 'light' : 'dark';
+    this.composer?.renderPreview();
   }
 
   setEnabled(on, remember = true) {
-    if (this.composer?.sending) return;
-    if (remember) {
-      try { this.storage.set(forumReaderPreference, on); } catch {}
+    const enabled = Boolean(this.abort);
+    if (this.composer?.sending || on === enabled) {
+      this.toggle.checked = enabled;
+      return;
     }
-    this.setToggle(on);
+    if (remember) this.savePreference('reader', on);
+    this.toggle.checked = on;
+    this.header.hidden = !on;
     if (!on) {
       this.abort.abort();
       this.abort = null;
       this.composer?.dispose();
       this.composer = null;
       for (const undo of this.changes.reverse()) undo();
-      this.header.replaceChildren(this.toggle);
-      if (remember) this.toggle.focus({ preventScroll: true });
+      this.header.replaceChildren();
       return;
     }
 
@@ -86,7 +168,6 @@ class ForumReader {
     this.on(this.win, 'resize', fitWidth);
     if (this.doc.readyState !== 'complete') this.on(this.win, 'load', fitWidth);
     this.changes.push(() => this.doc.documentElement.classList.remove('epc-forum-fit'));
-    if (remember) this.toggle.focus({ preventScroll: true });
   }
 
   fitWidth() {
@@ -127,7 +208,7 @@ class ForumReader {
       titles.append(crumbs);
     }
     titles.append(forumElement(doc, 'h2', '', title));
-    row.append(titles, this.toggle);
+    row.append(titles);
     const nav = forumElement(doc, 'nav', 'epc-forum-nav');
     nav.setAttribute('aria-label', 'Forum navigation');
     const search = new URL('/forum/search', page);
@@ -234,11 +315,18 @@ class ForumReader {
   mountThread() {
     const { doc, page, route, content } = this;
     this.mark(content, 'epc-forum-thread');
+    const dock = forumElement(doc, 'div', 'epc-root epc-forum-dock');
+    const actions = forumElement(doc, 'nav', 'epc-forum-thread-actions');
+    actions.setAttribute('aria-label', 'Thread controls');
+    dock.append(actions);
+    doc.body.append(dock);
+    this.changes.push(() => dock.remove());
     const controls = forumReplyForm(content, page, route.thread);
-    if (controls) this.composer = new ForumComposer(this.win, this.storage, page, route.thread, this.account, controls, this.media);
+    if (controls) this.composer = new ForumComposer(this.win, this.storage, page, route.thread, this.account,
+      { ...controls, dock, threadActions: actions }, this.media);
     this.posts = new Map();
     const pinned = new Map();
-    let unread = false;
+    let unread;
     let openAwards = null;
     for (const post of content.querySelectorAll('table.forum_post[id^="post"]')) {
       const id = forumPostElement.exec(post.id)?.[1];
@@ -291,16 +379,19 @@ class ForumReader {
 
       const isPinned = Boolean(head.querySelector('.sticky_post'));
       if (!isPinned && !unread && post.classList.contains('forum_unread')) {
-        unread = true;
-        const marker = forumElement(doc, 'div', 'epc-forum-unread-marker');
-        marker.append(forumElement(doc, 'span', '', 'Unread from here'));
-        post.before(marker);
-        this.changes.push(() => marker.remove());
+        unread = forumElement(doc, 'div', 'epc-forum-unread-marker');
+        unread.append(forumElement(doc, 'span', '', 'Unread from here'));
+        post.before(unread);
+        this.changes.push(() => unread.remove());
       }
       if (isPinned) pinned.set(id, this.fold(post, user ? 'Pinned post · ' + user : 'Pinned post', 'epc-forum-pinned'));
       for (const quote of body.querySelectorAll('.post_content blockquote.bbcode:not(.spoiler)')) {
         if (quote.closest('.spoiler,.epc-forum-folded-quote') || !(quote.querySelector('blockquote') || quote.textContent.length > 360)) continue;
-        this.fold(quote, 'Show quoted text', 'epc-forum-folded-quote');
+        const details = this.fold(quote, '', 'epc-forum-folded-quote');
+        const summary = details.firstElementChild;
+        summary.append(forumElement(doc, 'span', 'epc-forum-quote-show', 'Show quoted text'),
+          forumElement(doc, 'span', 'epc-forum-quote-hide', 'Hide quoted text'));
+        details.open = !this.collapseQuotes.checked;
       }
 
       const nativeQuote = head.querySelector('button[id="quote' + id + '"]');
@@ -323,8 +414,28 @@ class ForumReader {
       if (openAwards?.open && !openAwards.contains(event.target)) openAwards.open = false;
     });
     this.on(this.win, 'hashchange', openPinned);
+    this.mountThreadActions(actions, unread);
     if (this.posts.size) this.mountSelectionQuote();
     if (this.board) this.mountBoardTopics();
+  }
+
+  mountThreadActions(parent, unread) {
+    const behavior = () => this.win.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'instant' : 'smooth';
+    const actions = [
+      ['Top', 'Jump to top', () => this.win.scrollTo({ top: 0, behavior: behavior() })],
+      ['Bottom', 'Jump to bottom', () => this.win.scrollTo({
+        top: (this.doc.scrollingElement || this.doc.documentElement).scrollHeight,
+        behavior: behavior()
+      })]
+    ];
+    if (unread) actions.push(['Unread', 'Jump to first unread post', () => unread.scrollIntoView({ block: 'start', behavior: behavior() })]);
+    for (const [label, title, action] of actions) {
+      const button = forumButton(this.doc, label);
+      button.setAttribute('aria-label', title);
+      button.title = title;
+      this.on(button, 'click', action);
+      parent.insertBefore(button, this.composer?.launcher || null);
+    }
   }
 
   on(element, event, listener) {

@@ -51,7 +51,7 @@ export class ResultGrid {
       const button = app.button(label, () => {
         if (app.settings.resultsView !== value) app.setResultPreference('resultsView', value);
       });
-      button.prepend(companionIcon(app, value));
+      button.prepend(companionIcon(app.doc, value));
       button.dataset.epLayout = value;
       button.title = help;
       this.layoutButtons.set(value, button); this.layout.append(button);

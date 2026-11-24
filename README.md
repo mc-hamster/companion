@@ -61,9 +61,9 @@ On a torrent detail page, turn on **Reformat details** in the Companion toolbar 
 
 ## Forum
 
-On a forum page, select **Enable Companion Forum** for a responsive reader that follows the site's theme, with **Continue** and **Latest** links, unread markers, collapsible quotes, and quick access to search and subscriptions. Open **Topics** in the thread header to browse that board. **Post link** opens the permanent link to an individual post, and **Awards** opens beside the author's avatar. Select **Classic view** to switch back.
+On a forum page, open **Companion → Settings** and check **Enable in forum**. The same control offers color themes, post text size, and long-quote folding. **Match site** follows the forum's light or dark theme. Open **Topics** in the thread header to browse that board. **Post link** opens the permanent link to an individual post, and **Awards** opens beside the author's avatar.
 
-Select **Reply** to open the composer. Use **Quote** on a post or select an excerpt and choose **Quote selection**. Drafts save in this browser per site, account, and thread. When two tabs have different drafts for the same thread, each tab restores its own draft after a reload.
+On a thread, use the floating control for **Top**, **Bottom**, **Unread** when available, or **Reply**. **Bottom** jumps to the end of the current page. Use **Quote** on a post or select an excerpt and choose **Quote selection**. Drafts save in this browser per site, account, and thread. When two tabs have different drafts for the same thread, each tab restores its own draft after a reload.
 
 **Visual** supports fonts, sizes, colors, alignment, links, images, video links, tables, anchors, spoilers, site smilies, and post labels. Use **BBCode** for the full native toolbar and exact source editing. **Preview** uses Empornium's renderer so you can check your formatting before posting.
 
