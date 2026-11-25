@@ -15,10 +15,11 @@ function storedDraft(fixture) {
   return fixture.storage.get(fixture.win.sessionStorage.getItem(draftKey), null);
 }
 
-async function start(path, { storage = memoryStorage(), account = 7, fetch, session = {}, darkSystem = false } = {}) {
+async function start(path, { storage = memoryStorage(), account = 7, fetch, session = {}, darkSystem = false, prepare } = {}) {
   const url = new URL(path, site);
   const fixture = domFixture(forumFixtureHTML(url, { account }), url.href);
   const { win, doc } = fixture;
+  prepare?.(doc);
   const menu = new Map();
   for (const [key, value] of Object.entries(session)) win.sessionStorage.setItem(key, value);
   Object.assign(win, {
@@ -203,6 +204,47 @@ test('Threaded view groups quoted replies on the current page and restores chron
     assert.equal(doc.querySelector('.epc-forum-launch'), null);
     assert.deepEqual(restored.errors, []);
   } finally { restored.close(); }
+});
+
+test('deep reply chains keep conversation order and link to each reply’s direct parent', async () => {
+  let nativeRows;
+  const f = await start('/forum/thread/42', {
+    storage: memoryStorage({ 'ep.forum.reader': true }),
+    prepare(doc) {
+      const posts = [[30, 13], [31, 30], [32, 31], [33, 32], [34, 33], [35, 32], [36, 34]];
+      doc.getElementById('post13').insertAdjacentHTML('afterend', posts.map(([id, parent]) =>
+        '<table class="forum_post" id="post' + id + '"><tr><td>' +
+        (id === 32 ? '<a class="username" href="/user.php?id=32">Ari</a>' : 'Post ' + id) + '</td></tr>' +
+        '<tr><td class="postbody"><div class="post_content"><span class="quote_label">' +
+        '<a class="postlink" href="?postid=' + parent + '#post' + parent + '">Original post</a>' +
+        '</span><blockquote class="bbcode">Quote</blockquote>Reply</div></td></tr></table>').join(''));
+      nativeRows = doc.getElementById('post33').innerHTML;
+    }
+  });
+  try {
+    const { doc } = f;
+    const toggle = doc.querySelector('.epc-forum-threaded-toggle');
+    const order = () => [...doc.querySelectorAll('table.epc-forum-post')].map(post => Number(post.id.slice(4)));
+    const parentLink = id => doc.getElementById('post' + id).querySelector('.epc-forum-reply-parent');
+    const original = order();
+    toggle.click();
+    const groups = [...doc.querySelectorAll('.epc-forum-replies')];
+    assert.deepEqual(groups.map(group => group.getAttribute('aria-label')),
+      [12, 13, 30, 31].map(id => 'Replies to post #' + id));
+    for (const id of [32, 33, 34, 35, 36]) assert.equal(doc.getElementById('post' + id).parentElement, groups.at(-1));
+    assert.deepEqual(order(), [11, 12, 13, 30, 31, 32, 33, 34, 36, 35]);
+    assert.equal(parentLink(32), null);
+    assert.deepEqual([33, 34, 35, 36].map(id => parentLink(id).hash), ['#post32', '#post33', '#post32', '#post34']);
+    assert.equal(parentLink(33).textContent, 'In reply to Ari (#32)');
+    assert.equal(parentLink(34).textContent, 'In reply to post #33');
+    const link = parentLink(33);
+    doc.getElementById('post33').innerHTML = nativeRows;
+    await until(() => parentLink(33) === link);
+    toggle.click();
+    assert.deepEqual(order(), original);
+    assert.equal(doc.querySelector('.epc-forum-reply-parent'), null);
+    assert.deepEqual(f.errors, []);
+  } finally { f.close(); }
 });
 
 test('the shared Settings pane toggles and restores focus on close', async () => {
@@ -631,8 +673,6 @@ test('asynchronous native post edits keep BBCode and restore forum controls afte
     const post = doc.getElementById('post13');
     const nativeRows = post.innerHTML;
     doc.querySelector('.epc-forum-toggle').click();
-    doc.querySelector('.epc-forum-threaded-toggle').click();
-    const replies = post.parentElement;
     const content = doc.getElementById('content13');
     assert.ok(content.querySelector('.epc-forum-folded-quote'));
     let original;
@@ -645,8 +685,10 @@ test('asynchronous native post edits keep BBCode and restore forum controls afte
     const host = doc.getElementById('editcont13');
     host.innerHTML = '<table class="bb_holder"></table><textarea id="editbox13" name="body">[b]Original[/b]</textarea>';
     await until(() => host.querySelector('.ProseMirror strong'));
+    doc.querySelector('.epc-forum-threaded-toggle').click();
+    const replies = post.parentElement;
+    assert.equal(replies.previousElementSibling.id, 'post12');
     const source = host.querySelector('textarea');
-    assert.equal(post.parentElement, replies);
     assert.equal(source.value, '[b]Original[/b]');
     host.querySelector('[data-format="horizontal_rule"]').click();
     assert.match(source.value, /\[hr\]/);

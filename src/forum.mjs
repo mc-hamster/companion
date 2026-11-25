@@ -13,6 +13,7 @@ const forumTopicPath = /^\/forum\/thread\/([1-9]\d{0,14})\/?$/;
 const forumBoardPath = /^\/forum\/([1-9]\d{0,14})\/?$/;
 const forumPostElement = /^post([1-9]\d{0,14})$/;
 const forumJumpLabels = { 'Jump to last read': 'Continue', 'Jump to last post': 'Latest', 'Jump to post': 'Matched post' };
+const forumReplyIndentLimit = 4;
 
 function forumURL(anchor, base) {
   const href = anchor?.getAttribute('href');
@@ -88,7 +89,7 @@ class ForumReader {
       threaded.disabled = true;
       threaded.addEventListener('change', () => {
         this.savePreference('threaded', threaded.checked);
-        this.updateThreadLayout();
+        this.updateThreadLayout(true);
       });
       this.threadedToggle = threaded;
       styleWorkspaceSwitch(label, threaded);
@@ -461,7 +462,7 @@ class ForumReader {
     if (this.board) this.mountBoardTopics();
   }
 
-  updateThreadLayout() {
+  updateThreadLayout(refreshTargets = false) {
     this.restorePostOrder?.();
     this.restorePostOrder = null;
     if (!this.threadViews || !this.threadedToggle.checked) return;
@@ -469,10 +470,12 @@ class ForumReader {
     const changes = [];
     this.restorePostOrder = () => { for (const undo of changes.reverse()) undo(); };
     const earlier = new Map();
+    const roots = [];
     for (const view of this.threadViews.values()) {
       if (!this.content.contains(view.post)) continue;
+      if (refreshTargets) this.updateReplyTarget(view);
       const element = view.pinned || view.post;
-      const entry = { element, container: element.parentElement, depth: 0 };
+      const entry = { view, element, replies: [] };
       if (view.unread) {
         const label = view.unread.firstElementChild;
         const text = label.textContent;
@@ -481,21 +484,44 @@ class ForumReader {
       }
 
       const parent = earlier.get(view.replyTo);
-      if (!view.pinned && parent?.container === entry.container) {
-        entry.depth = parent.depth + 1;
-        if (!parent.replies) {
-          const replies = forumElement(this.doc, 'div', 'epc-forum-replies');
-          replies.setAttribute('role', 'group');
-          replies.setAttribute('aria-label', 'Replies to post #' + view.replyTo);
-          replies.classList.toggle('epc-forum-replies-deep', entry.depth > 4);
-          parent.element.after(replies);
-          parent.replies = replies;
-          changes.push(() => replies.remove());
-        }
-        if (view.unread) this.move(view.unread, parent.replies, null, null, changes);
-        this.move(element, parent.replies, null, null, changes);
-      }
+      if (!view.pinned && parent && parent.element.parentElement === element.parentElement) parent.replies.push(entry);
+      else roots.push(entry);
       earlier.set(view.id, entry);
+    }
+
+    const pending = roots.reverse().map(entry => ({ entry, group: null, depth: 0 }));
+    while (pending.length) {
+      const { entry: { view, element, replies }, group, depth, parent } = pending.pop();
+      if (group) {
+        if (view.unread) this.move(view.unread, group, null, null, changes);
+        this.move(element, group, null, null, changes);
+      }
+      if (depth > forumReplyIndentLimit) {
+        const target = parent.author ? parent.author + ' (#' + parent.id + ')' : 'post #' + parent.id;
+        const link = forumElement(this.doc, 'a', 'epc-forum-reply-parent', 'In reply to ' + target);
+        link.href = '#post' + parent.id;
+        view.parentLink = link;
+        view.head.insertBefore(link, view.actions);
+        changes.push(() => {
+          link.remove();
+          view.parentLink = null;
+        });
+      }
+      if (!replies.length) continue;
+
+      // Deeper replies share the last visible indent and keep their order within it.
+      let replyGroup = group;
+      if (depth < forumReplyIndentLimit) {
+        const list = forumElement(this.doc, 'div', 'epc-forum-replies');
+        list.setAttribute('role', 'group');
+        list.setAttribute('aria-label', 'Replies to post #' + view.id);
+        element.after(list);
+        changes.push(() => list.remove());
+        replyGroup = list;
+      }
+      for (let i = replies.length - 1; i >= 0; i--) {
+        pending.push({ entry: replies[i], group: replyGroup, depth: depth + 1, parent: view });
+      }
     }
   }
 
@@ -510,6 +536,8 @@ class ForumReader {
     this.mark(body, 'epc-forum-post-body', changes);
     const actions = head.querySelector('[id="bar' + id + '"]');
     this.mark(actions, 'epc-forum-post-actions', changes);
+    view.actions = actions?.parentElement === head ? actions : null;
+    if (view.parentLink) head.insertBefore(view.parentLink, view.actions);
     const permalink = head.querySelector('a.post_id[href]');
     if (permalink) {
       const label = permalink.textContent;
@@ -525,6 +553,7 @@ class ForumReader {
     }
     const profile = head.querySelector('.user_dropdown a[href*="user.php"],a.username[href],a[href^="/user.php?id="]');
     const user = profile?.textContent.trim();
+    view.author = user;
     this.mark(profile, 'epc-forum-author-link', changes);
     const avatar = post.querySelector('td.avatar > img.avatar');
     const awards = post.querySelector('td.avatar > .badges');
@@ -587,6 +616,7 @@ class ForumReader {
       const button = event.target.closest?.('button[id^="edit"]');
       const view = views.get(button?.closest('table.epc-forum-post'));
       if (!view || button.disabled || button.id !== 'edit' + view.id) return;
+      if (!this.threadedToggle.checked) this.updateReplyTarget(view);
       // The native edit action snapshots the post HTML for Cancel.
       for (const undo of view.folds.reverse()) undo();
       view.folds.length = 0;
@@ -595,7 +625,8 @@ class ForumReader {
     const observer = new win.MutationObserver(records => {
       const updated = new Set();
       for (const { target } of records) {
-        if (!/^(?:post|content|editcont)[1-9]\d{0,14}$/.test(target.id || '') && !target.classList?.contains('post_content')) continue;
+        const nativeUpdate = /^(?:post|content|editcont)[1-9]\d{0,14}$/.test(target.id || '');
+        if (!nativeUpdate && !(this.threadedToggle.checked && target.classList?.contains('post_content'))) continue;
         const view = views.get(target.closest('table.epc-forum-post'));
         if (view) updated.add(view);
       }
@@ -630,9 +661,12 @@ class ForumReader {
       view.editor = source ? mountForumInlineEditor(source, this, { context: 'edit.' + id, label: 'Post body', submit }) : null;
     }
     if (!host && !view.folds.length) this.foldPostQuotes(view, body);
+    return this.threadedToggle.checked && !host && this.updateReplyTarget(view, body);
+  }
 
+  updateReplyTarget(view, body = view.post.querySelector('td.postbody')) {
     // Keep the reply under its saved parent while the native editor replaces the rendered body.
-    const rendered = body.querySelector('.post_content');
+    const rendered = body?.querySelector('.post_content');
     if (!rendered) return false;
     const replyTo = forumReplyTarget(rendered, this.page, this.route.thread);
     const changed = replyTo !== view.replyTo;
