@@ -65,6 +65,7 @@ test('the board exposes distinct native jumps, scoped search, and full titles wh
     assert.equal(toggle.labels[0].textContent, 'Enable in forum');
     assert.equal(toggle.getAttribute('role'), 'switch');
     assert.equal(toggle.checked, false);
+    assert.equal(toolbar.querySelector('.epc-forum-threaded-toggle'), null);
     const navigation = toolbar.querySelector('.epc-toolbar-context [aria-label="Forum navigation"]');
     assert.deepEqual([...navigation.querySelectorAll('a')].map(link => link.textContent), ['Boards', 'Unread', 'Subscriptions', 'Search']);
     assert.equal(navigation.closest('[hidden]'), null);
@@ -148,6 +149,59 @@ test('Companion settings persist theme, text size, and long-quote folding', asyn
     const collapse = [...doc.querySelectorAll('.epc-forum-control .epc-setting')].find(label => label.textContent === 'Collapse long quotes');
     collapse.querySelector('input').click();
     assert.equal(doc.querySelector('.epc-forum-folded-quote').open, false);
+  } finally { restored.close(); }
+});
+
+test('Threaded view groups quoted replies on the current page and restores chronological order', async () => {
+  const storage = memoryStorage();
+  const path = '/forum/thread/42?threaded-demo';
+  const f = await start(path, { storage });
+  try {
+    const { doc } = f;
+    const enable = doc.querySelector('.epc-forum-toggle');
+    const threaded = doc.querySelector('.epc-forum-threaded-toggle');
+    const posts = () => [...doc.querySelectorAll('table.forum_post[id^="post"]')];
+    const original = posts();
+    const post = id => doc.getElementById('post' + id);
+    assert.equal(threaded.labels[0].textContent, 'Threaded view');
+    assert.equal(threaded.checked, false);
+    assert.equal(threaded.disabled, true);
+    enable.click();
+    assert.equal(threaded.disabled, false);
+    const quote = post(13).querySelector('.epc-forum-quote');
+    threaded.click();
+    assert.equal(storage.get('ep.forum.threaded'), true);
+    assert.deepEqual(posts().map(post => post.id), [11, 12, 13, 17, 18, 16, 19, 20, 21].map(id => 'post' + id));
+    const replies = post(12).nextElementSibling;
+    assert.equal(replies.getAttribute('aria-label'), 'Replies to post #12');
+    assert.equal(post(13).parentElement, replies);
+    assert.equal(post(18).parentElement, replies);
+    assert.equal(post(17).parentElement.previousElementSibling, post(13));
+    assert.equal(post(13).querySelector('.epc-forum-quote'), quote);
+    assert.equal(post(13).previousElementSibling.textContent, 'First unread post');
+    for (const id of [16, 19, 20, 21]) assert.equal(post(id).parentElement, post(12).parentElement);
+
+    threaded.click();
+    assert.deepEqual(posts(), original);
+    assert.equal(doc.querySelector('.epc-forum-replies'), null);
+    assert.equal(post(13).previousElementSibling.textContent, 'Unread from here');
+    threaded.click();
+    enable.click();
+    assert.deepEqual(posts(), original);
+    assert.equal(doc.querySelector('.epc-forum-replies'), null);
+    assert.equal(threaded.disabled, true);
+    enable.click();
+    assert.equal(post(17).parentElement.previousElementSibling, post(13));
+    assert.deepEqual(f.errors, []);
+  } finally { f.close(); }
+
+  const restored = await start(path + '&locked#post17', { storage });
+  try {
+    const { doc } = restored;
+    assert.equal(doc.querySelector('.epc-forum-threaded-toggle').checked, true);
+    assert.equal(doc.querySelector('.epc-forum-replies #post17'), doc.getElementById('post17'));
+    assert.equal(doc.querySelector('.epc-forum-launch'), null);
+    assert.deepEqual(restored.errors, []);
   } finally { restored.close(); }
 });
 
@@ -577,6 +631,8 @@ test('asynchronous native post edits keep BBCode and restore forum controls afte
     const post = doc.getElementById('post13');
     const nativeRows = post.innerHTML;
     doc.querySelector('.epc-forum-toggle').click();
+    doc.querySelector('.epc-forum-threaded-toggle').click();
+    const replies = post.parentElement;
     const content = doc.getElementById('content13');
     assert.ok(content.querySelector('.epc-forum-folded-quote'));
     let original;
@@ -590,6 +646,7 @@ test('asynchronous native post edits keep BBCode and restore forum controls afte
     host.innerHTML = '<table class="bb_holder"></table><textarea id="editbox13" name="body">[b]Original[/b]</textarea>';
     await until(() => host.querySelector('.ProseMirror strong'));
     const source = host.querySelector('textarea');
+    assert.equal(post.parentElement, replies);
     assert.equal(source.value, '[b]Original[/b]');
     host.querySelector('[data-format="horizontal_rule"]').click();
     assert.match(source.value, /\[hr\]/);
@@ -599,17 +656,22 @@ test('asynchronous native post edits keep BBCode and restore forum controls afte
     assert.equal(host.querySelector('textarea'), source);
     content.innerHTML = original;
     await until(() => content.querySelector('.epc-forum-folded-quote'));
+    assert.equal(post.parentElement, replies);
     assert.equal(source.classList.contains('epc-forum-inline-hidden'), false);
     assert.equal(post.querySelector('.epc-forum-inline-editor'), null);
 
     doc.getElementById('edit13').click();
     doc.getElementById('editcont13').innerHTML = '<textarea id="editbox13" name="body">Draft edit</textarea>';
     await until(() => post.querySelector('.epc-forum-inline-editor'));
-    post.innerHTML = nativeRows.replace('The retry works for me', 'The edited reply works');
+    post.innerHTML = nativeRows.replace('?postid=12#post12', '?postid=11#post11')
+      .replace('The retry works for me', 'The edited reply works');
     await until(() => post.querySelector('.epc-forum-quote'));
     assert.match(post.querySelector('.post_content').textContent, /The edited reply works/);
     assert.equal(post.querySelector('.epc-forum-inline-editor'), null);
     assert.ok(post.querySelector('.epc-forum-folded-quote'));
+    const pinned = doc.querySelector('.epc-forum-pinned');
+    assert.equal(post.parentElement.previousElementSibling, pinned);
+    assert.equal(pinned.open, false);
     doc.querySelector('.epc-forum-toggle').click();
     assert.equal(post.querySelector('.epc-forum-quote, .epc-forum-folded-quote'), null);
     assert.deepEqual(f.errors, []);

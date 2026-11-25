@@ -258,6 +258,14 @@ html.epc-forum-fit, html.epc-forum-fit body, .epc-forum-fit #wrapper { min-width
   scroll-margin-top: 14px;
 }
 .epc-forum-thread .epc-forum-post:target { border-color: var(--forum-accent); }
+.epc-forum-replies {
+  display: flow-root;
+  margin-inline-start: 5px;
+  padding-inline-start: clamp(7px, 1.4vw, 18px);
+  border-inline-start: 2px solid var(--forum-line);
+}
+.epc-forum-replies-deep { margin-inline-start: 0; padding-inline-start: 0; border-inline-start: 0; }
+.epc-forum-replies > :first-child { margin-block-start: 0; }
 .epc-forum-thread .breadcrumbs {
   margin: 6px 0;
   padding: 0 9px;

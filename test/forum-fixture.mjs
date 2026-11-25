@@ -1,6 +1,6 @@
 // Neutral forum markup shaped like the Luminance templates.
 import { escapeHTML } from '../src/core.mjs';
-import { forumTableLayout, forumTableStyle, parseForumBBCode } from '../src/forum-bbcode.mjs';
+import { forumQuoteCredit, forumTableLayout, forumTableStyle, parseForumBBCode } from '../src/forum-bbcode.mjs';
 
 const articleTitle = 'Photo uploads stall on large files';
 const secondTitle = 'A simpler way to organize bug reports';
@@ -59,10 +59,23 @@ function forumThreadHTML(url, posted, { created, edits } = {}) {
     forumPostHTML(12, { ...neutralPosts.get(12), locked,
       body: edits?.has(12) ? forumFixturePreview(edits.get(12)) : neutralPosts.get(12).body }),
     forumPostHTML(13, { ...neutralPosts.get(13), locked, unread: true,
-      body: edits?.has(13) ? forumFixturePreview(edits.get(13)) : '<br><br><span class="quote_label"><strong>Riley</strong> <a href="?postid=12#post12">Original post</a></span>' +
+      body: edits?.has(13) ? forumFixturePreview(edits.get(13)) : '<br><br><span class="quote_label"><strong>Riley</strong> <a class="postlink" href="?postid=12#post12">Original post</a></span>' +
         '<blockquote class="bbcode"><blockquote class="bbcode">An earlier report about a slow connection.</blockquote>' +
         'Uploads over 50 MB were stalling for me on a slower connection.</blockquote><br><br>' + neutralPosts.get(13).body })
   ];
+  if (url.searchParams.has('threaded-demo')) {
+    const examples = [
+      [16, 'Taylor', 'The upload works on my desktop. Is this related to mobile browsing?'],
+      [17, 'Sam', `[quote=Jordan,f${id},13]The retry works for me when I leave the tab open.[/quote]\nLeaving the tab open fixed it for me too.`],
+      [18, 'Lee', `[quote=Riley,f${id},12]Uploads over 50 MB were stalling.[/quote]\nI could reproduce that threshold.`],
+      [19, 'Avery', `[quote=Riley,f${id},12]Uploads over 50 MB were stalling.[/quote]\n[quote=Taylor,f${id},16]The upload works on my desktop.[/quote]\nI’ll compare the desktop and mobile requests.`],
+      [20, 'Morgan', `[quote=Pat,f99,16][quote=Riley,f${id},12]My earlier test.[/quote] This may be related.[/quote]\nA related report from another topic.`],
+      [21, 'Quinn', `[quote=Casey,f${id},10]The progress bar reaches 99%.[/quote]\nI saw the same thing yesterday.`]
+    ];
+    for (const [postID, user, bbcode] of examples) {
+      posts.push(forumPostHTML(postID, { user, body: forumFixturePreview(bbcode), locked }));
+    }
+  }
   if (id === '44' && created) posts.unshift(forumPostHTML(15, { user: 'Tester', body: forumFixturePreview(created.body), locked }));
   if (post === '14' && posted) posts.push(forumPostHTML(14, { user: 'Tester', body: forumFixturePreview(posted), locked }));
   return '<h2><a href="/forum">Forum</a> &gt; <a href="/forum/23">Site Bugs</a> &gt; ' +
@@ -259,7 +272,13 @@ function forumFixturePreview(bbcode) {
     if (node.type === 'video') return '<span>Video link</span>';
     if (node.type === 'site_label') return '<strong>' + escapeHTML(node.attrs.tag) + '</strong>';
     if (node.type === 'horizontal_rule') return '<hr>';
-    const tag = { paragraph: 'p', quote: 'blockquote', bullet_list: 'ul', list_item: 'li', code_block: 'pre',
+    if (node.type === 'quote') {
+      const { author, href } = forumQuoteCredit(node.attrs.label);
+      const link = href ? ' <a class="postlink" href="' + escapeHTML(href) + '">Original post</a>' : '';
+      const label = author ? '<span class="quote_label"><strong>' + escapeHTML(author) + '</strong>' + link + '</span>' : '';
+      return label + '<blockquote class="bbcode">' + children + '</blockquote>';
+    }
+    const tag = { paragraph: 'p', bullet_list: 'ul', list_item: 'li', code_block: 'pre',
       table: 'table', table_row: 'tr', table_cell: 'td', table_header: 'th' }[node.type];
     if (['table', 'tr', 'td', 'th'].includes(tag) && node.attrs?.label) {
       const layout = forumTableLayout(node.attrs.label).values;

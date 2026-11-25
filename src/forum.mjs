@@ -25,6 +25,22 @@ function forumThreadTitle(link) {
   return (link.title || link.textContent).trim();
 }
 
+function forumReplyTarget(body, page, thread) {
+  let replyTo = null;
+  for (const link of body.querySelectorAll('.quote_label a[href]')) {
+    if (link.closest('blockquote,.spoiler')) continue;
+    const url = forumURL(link, page);
+    if (!url || forumTopicPath.exec(url.pathname)?.[1] !== thread) continue;
+    const [queryID, duplicate] = url.searchParams.getAll('postid');
+    const fragment = url.hash ? url.hash.slice(1) : 'post' + (queryID ?? '');
+    const id = forumPostElement.exec(fragment)?.[1];
+    if (!id || duplicate !== undefined || (queryID !== undefined && queryID !== id)) continue;
+    if (replyTo && replyTo !== id) return null;
+    replyTo = id;
+  }
+  return replyTo;
+}
+
 class ForumReader {
   constructor(win, storage, page, route, content, heading, account, media) {
     Object.assign(this, { win, doc: win.document, storage, page, route, content, heading, account, media });
@@ -63,7 +79,22 @@ class ForumReader {
     this.toggle.checked = this.preference('reader', false) === true;
     this.toggle.addEventListener('change', () => this.setEnabled(this.toggle.checked));
     styleWorkspaceSwitch(toggle, this.toggle);
-    workspace.navigation.append(toggle, button);
+    workspace.navigation.append(toggle);
+    if (this.route.kind === 'thread') {
+      const label = forumElement(doc, 'label', '', 'Threaded view');
+      const threaded = forumElement(doc, 'input', 'epc-forum-threaded-toggle');
+      threaded.type = 'checkbox';
+      threaded.checked = this.preference('threaded', false) === true;
+      threaded.disabled = true;
+      threaded.addEventListener('change', () => {
+        this.savePreference('threaded', threaded.checked);
+        this.updateThreadLayout();
+      });
+      this.threadedToggle = threaded;
+      styleWorkspaceSwitch(label, threaded);
+      workspace.navigation.append(label);
+    }
+    workspace.navigation.append(button);
 
     this.mountNavigation(workspace.contextActions);
     workspace.context.append(workspace.contextActions);
@@ -157,6 +188,7 @@ class ForumReader {
     }
     if (remember) this.savePreference('reader', on);
     this.toggle.checked = on;
+    if (this.threadedToggle) this.threadedToggle.disabled = !on;
     this.header.hidden = !on;
     if (!on) {
       this.abort.abort();
@@ -403,11 +435,21 @@ class ForumReader {
         unread = forumElement(doc, 'div', 'epc-forum-unread-marker');
         unread.append(forumElement(doc, 'span', '', 'Unread from here'));
         post.before(unread);
+        view.unread = unread;
         this.changes.push(() => unread.remove());
       }
-      if (isPinned) pinned.set(id, this.fold(post, user ? 'Pinned post · ' + user : 'Pinned post', 'epc-forum-pinned'));
+      if (isPinned) {
+        view.pinned = this.fold(post, user ? 'Pinned post · ' + user : 'Pinned post', 'epc-forum-pinned');
+        pinned.set(id, view.pinned);
+      }
     }
+    this.threadViews = views;
     this.observePostEditors(views);
+    this.changes.push(() => {
+      this.threadViews = null;
+      this.updateThreadLayout();
+    });
+    this.updateThreadLayout();
     const openPinned = () => {
       const id = forumPostElement.exec(this.win.location.hash.slice(1))?.[1] || page.searchParams.get('postid');
       if (pinned.has(id)) pinned.get(id).open = true;
@@ -417,6 +459,44 @@ class ForumReader {
     this.mountThreadActions(actions, unread);
     if (this.posts.size) this.mountSelectionQuote();
     if (this.board) this.mountBoardTopics();
+  }
+
+  updateThreadLayout() {
+    this.restorePostOrder?.();
+    this.restorePostOrder = null;
+    if (!this.threadViews || !this.threadedToggle.checked) return;
+
+    const changes = [];
+    this.restorePostOrder = () => { for (const undo of changes.reverse()) undo(); };
+    const earlier = new Map();
+    for (const view of this.threadViews.values()) {
+      if (!this.content.contains(view.post)) continue;
+      const element = view.pinned || view.post;
+      const entry = { element, container: element.parentElement, depth: 0 };
+      if (view.unread) {
+        const label = view.unread.firstElementChild;
+        const text = label.textContent;
+        label.textContent = 'First unread post';
+        changes.push(() => { label.textContent = text; });
+      }
+
+      const parent = earlier.get(view.replyTo);
+      if (!view.pinned && parent?.container === entry.container) {
+        entry.depth = parent.depth + 1;
+        if (!parent.replies) {
+          const replies = forumElement(this.doc, 'div', 'epc-forum-replies');
+          replies.setAttribute('role', 'group');
+          replies.setAttribute('aria-label', 'Replies to post #' + view.replyTo);
+          replies.classList.toggle('epc-forum-replies-deep', entry.depth > 4);
+          parent.element.after(replies);
+          parent.replies = replies;
+          changes.push(() => replies.remove());
+        }
+        if (view.unread) this.move(view.unread, parent.replies, null, null, changes);
+        this.move(element, parent.replies, null, null, changes);
+      }
+      earlier.set(view.id, entry);
+    }
   }
 
   stylePost(view, head, body) {
@@ -515,11 +595,15 @@ class ForumReader {
     const observer = new win.MutationObserver(records => {
       const updated = new Set();
       for (const { target } of records) {
-        if (!/^(?:post|content|editcont)[1-9]\d{0,14}$/.test(target.id || '')) continue;
+        if (!/^(?:post|content|editcont)[1-9]\d{0,14}$/.test(target.id || '') && !target.classList?.contains('post_content')) continue;
         const view = views.get(target.closest('table.epc-forum-post'));
         if (view) updated.add(view);
       }
-      for (const view of updated) this.updatePostEditor(view);
+      let repliesChanged = false;
+      for (const view of updated) {
+        if (this.updatePostEditor(view)) repliesChanged = true;
+      }
+      if (repliesChanged && this.threadedToggle.checked) this.updateThreadLayout();
     });
     observer.observe(content, { childList: true, subtree: true });
     this.changes.push(() => {
@@ -546,6 +630,14 @@ class ForumReader {
       view.editor = source ? mountForumInlineEditor(source, this, { context: 'edit.' + id, label: 'Post body', submit }) : null;
     }
     if (!host && !view.folds.length) this.foldPostQuotes(view, body);
+
+    // Keep the reply under its saved parent while the native editor replaces the rendered body.
+    const rendered = body.querySelector('.post_content');
+    if (!rendered) return false;
+    const replyTo = forumReplyTarget(rendered, this.page, this.route.thread);
+    const changed = replyTo !== view.replyTo;
+    view.replyTo = replyTo;
+    return changed;
   }
 
   mountThreadActions(parent, unread) {
@@ -575,8 +667,15 @@ class ForumReader {
     if (className) this.mark(element, className, changes);
     const marker = this.doc.createComment('');
     element.before(marker);
-    target.insertBefore(element, before);
-    changes.push(() => marker.replaceWith(element));
+    const place = (parent, reference) => {
+      if (parent.moveBefore && parent.isConnected && element.isConnected) parent.moveBefore(element, reference);
+      else parent.insertBefore(element, reference);
+    };
+    place(target, before);
+    changes.push(() => {
+      if (marker.parentNode && element.parentNode === target) place(marker.parentNode, marker);
+      marker.remove();
+    });
   }
 
   fold(element, title, className, changes = this.changes) {

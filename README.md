@@ -63,6 +63,8 @@ On a torrent detail page, turn on **Reformat details** in the Companion toolbar 
 
 On a forum page, flip **Enable in forum** directly in the Companion toolbar. Use **Boards**, **Unread**, **Subscriptions**, and **Search** on the toolbar to navigate the forum. In an enhanced thread, **Topics** opens a compact list of topics in the current board.
 
+On a topic page, turn on **Threaded view** in the toolbar to nest replies beneath the posts they quote on that page. Posts without a single identifiable parent stay in the main list. Turn the switch off to return to chronological order. Companion remembers your choice.
+
 Open **Settings** on the toolbar for color theme, post text size, and long-quote folding. **Match site** follows the forum's light or dark theme. **Post link** opens the permanent link to an individual post, and awards appear beside the author's avatar.
 
 On a thread, use the floating control for **Top**, **Bottom**, **Unread** when available, or **Reply**. **Bottom** jumps to the end of the current page. Use **Quote** on a post or select an excerpt and choose **Quote selection**.
