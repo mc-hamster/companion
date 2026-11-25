@@ -1,5 +1,7 @@
 # Validation
 
+Version 2.16.7 passes 466 automated checks. In local Chrome and Firefox fixtures, Post reply stayed visible while the editor scrolled in Compact, Wide, and Full at viewport sizes down to 320 × 200. Chrome submitted a fixture reply from Preview at 320 × 256.
+
 Version 2.16.6 passes 466 automated checks, including upgrading the old amber Caution default to red and remembering a subsequently chosen color across reloads. A local Chromium fixture verified rounded highlights in List and Grid and immediate updates when changing a category color.
 
 Version 2.16.0 passes 423 automated checks. In an isolated Chromium profile, Tampermonkey 5.5.1 imported the versioned file and updated 2.15.9 in place. The local site fixtures retained a saved search, a blocked tag, the Grid layout, and a Favorite highlight as Liked. With touch emulation at 390 px, the Grid picker assigned a tag and the category view narrowed results. Filtered only, a save from a second open tab, a mirror URL with a query, and rejection of a PHP lookalike path also passed.

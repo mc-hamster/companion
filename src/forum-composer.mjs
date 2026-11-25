@@ -194,7 +194,10 @@ export class ForumComposer {
       this.modes.set(mode, button);
       this.switcher.append(button);
     }
-    form.prepend(this.switcher);
+    this.editorBody = forumElement(doc, 'div', 'epc-forum-compose-body');
+    this.editorBody.append(this.switcher);
+    form.prepend(this.editorBody);
+    this.move(this.sourceArea, this.editorBody);
     this.visualArea = forumElement(doc, 'div', 'epc-forum-visual');
     this.visualArea.hidden = true;
     this.preview = forumElement(doc, 'iframe', 'epc-forum-preview-frame');
@@ -742,9 +745,7 @@ export class ForumComposer {
     if (this.label === null) this.source.removeAttribute('aria-label');
     else this.source.setAttribute('aria-label', this.label);
     this.submit.disabled = this.initialDisabled;
-    this.switcher.remove();
-    this.preview.remove();
-    this.visualArea.remove();
+    this.editorBody.remove();
     this.status.remove();
     for (const restore of this.moves.reverse()) restore();
     this.tools?.remove();
