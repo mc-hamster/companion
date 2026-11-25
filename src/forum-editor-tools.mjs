@@ -202,7 +202,6 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
     return node;
   };
   const toolbar = element('div', '', 'epc-forum-format');
-  toolbar.id = 'epc-forum-visual-toolbar';
   const textTools = element('div', '', 'epc-forum-format-row');
   const insertTools = element('div', '', 'epc-forum-format-row');
   const tableTools = element('div', '', 'epc-forum-table-tools epc-forum-format-row');
@@ -609,12 +608,6 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
   const labels = dropdown(insertTools, 'Post labels', Object.entries(forumSiteLabels), tag => {
     if (Object.hasOwn(forumSiteLabels, tag)) view.dispatch(view.state.tr.replaceSelectionWith(nodes.site_label.create({ tag })));
   });
-  const help = element('a', 'Help');
-  help.setAttribute('aria-label', 'BBCode help');
-  help.href = '/articles/view/bbcode';
-  help.target = '_blank';
-  help.rel = 'noopener noreferrer';
-  textTools.append(help);
 
   function openTableOptions(trigger, scope) {
     const { state } = view;

@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.16.9](dist/EmporniumCompanion-2.16.9.user.js)**
+**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.16.10](dist/EmporniumCompanion-2.16.10.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -69,7 +69,7 @@ On a thread, use the floating control for **Top**, **Bottom**, **Unread** when a
 
 Choose **Compact**, **Wide**, or **Full** in the reply window. **Minimize** saves your draft and tucks the window away. **Cancel reply** closes an empty reply and asks before discarding a draft. Companion remembers the window size. Drafts save in this browser per site, account, and thread. When two tabs have different drafts for the same thread, each tab restores its own draft after a reload.
 
-**Visual** supports fonts, sizes, alignment, links, images, video links, tables, anchors, spoilers, site smilies, and post labels. On short or narrow windows, choose **Tools** to show the Visual toolbar. The color picker offers a palette, custom colors, and recently used colors. Select a table, row, or cells to reveal their formatting controls. Use **BBCode** for the full native toolbar and exact source editing. **Preview** uses Empornium's renderer so you can check your formatting before posting.
+**Visual** supports fonts, sizes, alignment, links, images, video links, tables, anchors, spoilers, site smilies, and post labels. On narrow windows, scroll a toolbar row sideways to reach more commands. The color picker offers a palette, custom colors, and recently used colors. Select a table, row, or cells to reveal their formatting controls. Use **BBCode** for the full native toolbar and exact source editing. **Preview** uses Empornium's renderer so you can check your formatting before posting.
 
 In **Image → Upload**, select **Connect Hamsterimg** once. Sign in on the Hamsterimg tab and choose **Use displayed key**, or paste the key you saved earlier. The key is stored locally for your forum account and excluded from backups. Back in the reply, choose files or drop or paste images into the editor to upload and insert them. **Recent uploads** shows images uploaded through Companion, **My images** opens the signed-in Hamsterimg library, and **From URL** accepts an existing image link. In BBCode mode, these choices are under **Add images**.
 

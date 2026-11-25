@@ -1,5 +1,7 @@
 # Validation
 
+Version 2.16.10 passes 467 automated checks. At 1122 × 533, Compact showed 181 CSS pixels of draft compared with 96 in 2.16.9 with Tools open. Editor modes, sizes, and Help fit in one header row, and the formatting toolbar fit in two rows. Chrome verified keyboard access to overflowing toolbar controls and submitted a local reply at 320 × 256.
+
 Version 2.16.9 passes 467 automated checks. At 1122 × 533, the visible Visual editor in Compact grew from 97 to 172 CSS pixels in a 330-pixel composer. Chrome and Firefox kept Post reply within reach in all editor modes and composer sizes down to 320 × 200. Chrome verified the Tools button, Visual and native BBCode formatting, and a local reply submitted from Preview at 320 × 256.
 
 Version 2.16.8 passes 467 automated checks. The forum fixture now includes the native reply form's inline display rule. At 1122 × 533, the button was clipped in 2.16.7 and stayed visible in 2.16.8. Local Chrome and Firefox verified all composer sizes and editor modes down to 320 × 200. Chrome submitted a fixture reply from Preview at 320 × 256. [Luminance reply form](https://github.com/Empornium/Luminance/blob/master/application/Plugins/Forum/templates/thread.html.twig#L168-L190)

@@ -168,7 +168,8 @@ export class ForumComposer {
     this.panel.hidden = true;
     this.threadActions.append(this.launcher);
     this.dock.append(this.panel);
-    this.panel.append(this.buildHeader());
+    const header = this.buildHeader();
+    this.panel.append(header);
     this.mountDiscardDialog();
 
     this.sourceArea.classList.add('epc-forum-source');
@@ -195,7 +196,7 @@ export class ForumComposer {
       this.switcher.append(button);
     }
     this.editorBody = forumElement(doc, 'div', 'epc-forum-compose-body');
-    this.editorBody.append(this.switcher);
+    header.prepend(this.switcher);
     form.prepend(this.editorBody);
     this.move(this.sourceArea, this.editorBody);
     this.visualArea = forumElement(doc, 'div', 'epc-forum-visual');
@@ -210,24 +211,19 @@ export class ForumComposer {
     this.sourceImages.setAttribute('aria-controls', 'epc-forum-media');
     this.sourceImages.setAttribute('aria-expanded', 'false');
     this.on(this.sourceImages, 'click', () => this.openImages(null, this.sourceImages));
-    this.visualTools = forumButton(doc, 'Tools', 'epc-forum-visual-tools');
-    this.visualTools.hidden = true;
-    this.visualTools.setAttribute('aria-controls', 'epc-forum-visual-toolbar');
-    this.visualTools.setAttribute('aria-expanded', 'false');
-    this.on(this.visualTools, 'click', () => {
-      const expanded = this.visualTools.getAttribute('aria-expanded') === 'true';
-      this.visualTools.setAttribute('aria-expanded', String(!expanded));
-    });
-    this.switcher.append(this.sourceImages, this.visualTools);
+    this.visualHelp = forumElement(doc, 'a', 'epc-forum-reply-help', 'Help');
+    this.visualHelp.hidden = true;
+    this.visualHelp.setAttribute('aria-label', 'BBCode help');
+    this.visualHelp.href = '/articles/view/bbcode';
+    this.visualHelp.target = '_blank';
+    this.visualHelp.rel = 'noopener noreferrer';
+    this.switcher.append(this.sourceImages, this.visualHelp);
     this.listenForImages();
 
     const tools = this.sourceArea.querySelector(':scope > .bb_holder, :scope > .bbcode_assistant, :scope > table');
     if (tools) {
       this.tools = forumElement(doc, 'details', 'epc-forum-source-tools');
-      const constrained = this.win.matchMedia?.('(max-height: 640px), (max-width: 690px)');
-      const updateTools = () => { this.tools.open = !constrained?.matches; };
-      updateTools();
-      constrained?.addEventListener?.('change', updateTools, { signal: this.abort.signal });
+      this.tools.open = true;
       this.tools.append(forumElement(doc, 'summary', '', 'Native BBCode tools'));
       tools.before(this.tools);
       this.move(tools, this.tools);
@@ -308,7 +304,7 @@ export class ForumComposer {
     this.cancelButton = forumButton(doc, 'Cancel reply', 'epc-forum-cancel');
     this.on(this.cancelButton, 'click', () => this.cancelReply());
     controls.append(sizes, minimize, this.cancelButton);
-    header.append(forumElement(doc, 'h2', '', 'Post reply'), controls);
+    header.append(controls);
     return header;
   }
 
@@ -410,7 +406,7 @@ export class ForumComposer {
       ...this.mediaOptions, insert: urls => this.insertImages(urls), busyChanged: () => this.refreshSubmit(),
       close: () => this.focusEditor()
     });
-    this.switcher.after(this.media.root);
+    this.editorBody.prepend(this.media.root);
   }
 
   on(element, event, listener) {
@@ -537,7 +533,7 @@ export class ForumComposer {
     }
     this.mode = mode;
     this.sourceImages.hidden = mode !== 'bbcode';
-    this.visualTools.hidden = mode !== 'visual';
+    this.visualHelp.hidden = mode !== 'visual';
     this.sourceArea.hidden = mode !== 'bbcode';
     this.visualArea.hidden = mode !== 'visual';
     this.preview.hidden = true;
