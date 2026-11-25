@@ -5,7 +5,7 @@ const defaultTagCategories = Object.freeze([
   ['favorite', 'Liked', '#ccefe0'], ['loved', 'Loved', '#75c399'],
   ['liked-performer', 'Liked performer', '#d0e4ff'], ['loved-performer', 'Loved performer', '#82aff1'],
   ['new-performer', 'New performer', '#f6ecaa'], ['liked-site', 'Liked site', '#ead6f9'],
-  ['loved-site', 'Loved site', '#cda4ef'], ['caution', 'Caution', '#ffe2a8']
+  ['loved-site', 'Loved site', '#cda4ef'], ['caution', 'Caution', '#c33c3c']
 ].map(([id, name, color]) => Object.freeze({ id, name, color, enabled: true, ...(LEGACY_TAG_LISTS.has(id) ? {} : { tags: '' }) })));
 
 export const DEFAULTS = Object.freeze({
@@ -72,9 +72,14 @@ function normalizeTagCategories(input, settings) {
     if (!preset && !/^custom-[a-f0-9-]{36}$/.test(group.id)) continue;
     const name = typeof group.name === 'string' && group.name.trim().slice(0, 64);
     if (!name && !preset) continue;
-    const color = typeof group.color === 'string' && /^#[0-9a-f]{6}$/i.test(group.color)
+    let color = typeof group.color === 'string' && /^#[0-9a-f]{6}$/i.test(group.color)
       ? group.color.toLowerCase() : preset?.color || '#ccefe0';
+    const caution = group.id === 'caution';
+    const colorCustomized = caution && group.colorCustomized === true;
+    // Older settings stored the amber default alongside manually chosen colors.
+    if (caution && color === '#ffe2a8' && !colorCustomized) color = preset.color;
     const next = { id: group.id, name: name || preset.name, color, enabled: group.enabled !== false };
+    if (colorCustomized) next.colorCustomized = true;
     if (!LEGACY_TAG_LISTS.has(group.id)) {
       if (typeof group.tags === 'string' && group.tags.length > 50000) throw new Error('Tag highlight list exceeds 50,000 characters.');
       next.tags = tagListTokens(group.tags).filter(tag => {

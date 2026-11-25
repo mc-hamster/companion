@@ -11,7 +11,7 @@ export class TagHighlightManager {
     this.selection = new Set();
     this.list = app.node('div', null, 'epc-tag-categories');
     const add = app.button('Add category', () => this.addCategory());
-    section.append(this.list, add, this.buildSearch());
+    section.append(app.node('p', 'Open any category to change its color.', 'epc-caption'), this.list, add, this.buildSearch());
     this.refresh();
   }
   field(caption, control, className = 'epc-field') {
@@ -61,7 +61,11 @@ export class TagHighlightManager {
           control.value = categories.find(group => group.id === id).name;
           return;
         }
-        const saved = this.highlights.commit(groups => { groups.find(group => group.id === id)[key] = value; });
+        const saved = this.highlights.commit(groups => {
+          const group = groups.find(group => group.id === id);
+          group[key] = value;
+          if (key === 'color' && id === 'caution') group.colorCustomized = true;
+        });
         status.textContent = saved ? '' : 'Could not save the category.';
         this.refresh();
       });

@@ -1,5 +1,7 @@
 # Validation
 
+Version 2.16.6 passes 466 automated checks, including upgrading the old amber Caution default to red and remembering a subsequently chosen color across reloads. A local Chromium fixture verified rounded highlights in List and Grid and immediate updates when changing a category color.
+
 Version 2.16.0 passes 423 automated checks. In an isolated Chromium profile, Tampermonkey 5.5.1 imported the versioned file and updated 2.15.9 in place. The local site fixtures retained a saved search, a blocked tag, the Grid layout, and a Favorite highlight as Liked. With touch emulation at 390 px, the Grid picker assigned a tag and the category view narrowed results. Filtered only, a save from a second open tab, a mirror URL with a query, and rejection of a PHP lookalike path also passed.
 
 Version 2.15.9 passes 413 automated checks. Chromium fixtures verified that the lightbox preserves zoom as an original loads, opens distinct originals that share a thumbnail, keeps navigation working during artwork reclassification, and shows Retry when the original fails to load.

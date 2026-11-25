@@ -1071,6 +1071,32 @@ test('one contextual tag menu offers exclusive highlights without altering visib
   } finally { f.close(); }
 });
 
+test('Caution updates the old default and remembers a color chosen after upgrading', async t => {
+  const rows = rowHTML(1, { tags: 'handheld portrait' });
+  const f = await setup({ 'ep.settings': { inlineThumbnails: false, cautionTags: 'handheld' },
+    'ep.preference.tagCategories': [{ id: 'caution', color: '#ffe2a8' }, { id: 'new-performer', tags: 'portrait' }] }, rows);
+  t.after(f.close);
+  const background = element => element.style.getPropertyValue('--epc-tag-background');
+  const [caution, performer] = f.doc.querySelectorAll('.tags a');
+  assert.equal(background(caution), '#c33c3c');
+  assert.equal(background(performer), '#f6ecaa');
+  assert.equal(f.win.getComputedStyle(caution).borderRadius, '999px');
+
+  f.doc.querySelector('[data-pane=filters]').click();
+  const category = f.doc.querySelector('[data-tag-category=caution]');
+  const color = category.querySelector('input[type=color]');
+  assert.equal(color.value, '#c33c3c');
+  color.value = '#ffe2a8';
+  color.dispatchEvent(new f.win.Event('change', { bubbles: true }));
+  assert.equal(background(caution), '#ffe2a8');
+  assert.equal(background(category.querySelector('.epc-tag-swatch')), '#ffe2a8');
+  assert.equal(background(performer), '#f6ecaa');
+
+  const reopened = await setup(Object.fromEntries(f.storage.data), rows);
+  t.after(reopened.close);
+  assert.equal(background(reopened.doc.querySelector('.tags a')), '#ffe2a8');
+});
+
 test('custom tag categories support conflict review, bulk moves, colors, order, and undo', async () => {
   const f = await setup({ 'ep.settings': { inlineThumbnails: false, favoriteTags: 'sample.tag sample.other' } });
   try {
