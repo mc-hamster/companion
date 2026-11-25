@@ -64,7 +64,7 @@ export class TagHighlightManager {
         const saved = this.highlights.commit(groups => {
           const group = groups.find(group => group.id === id);
           group[key] = value;
-          if (key === 'color' && id === 'caution') group.colorCustomized = true;
+          if (key === 'color') group.colorCustomized = true;
         });
         status.textContent = saved ? '' : 'Could not save the category.';
         this.refresh();

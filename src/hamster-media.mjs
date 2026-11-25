@@ -10,6 +10,12 @@ export const HAMSTER_PICKER_HASH = 'companion-media';
 export const HAMSTER_SELECTION_LIMIT = 50;
 const jobLifetime = 60 * 60 * 1000;
 const validID = /^[1-9]\d{0,14}$/;
+const validInlineContext = /^(?:topic|edit)\.[1-9]\d{0,14}$/;
+
+function validComposer(job) {
+  return job.context === undefined ? validID.test(job.thread || '') :
+    job.thread === undefined && typeof job.context === 'string' && validInlineContext.test(job.context);
+}
 const validNonce = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function hamsterServiceBase(page, fixture = false) {
@@ -31,7 +37,7 @@ export function readHamsterRequest(storage, id, service, now = Date.now()) {
   try {
     const job = storage.get(HAMSTER_JOB_PREFIX + id, null);
     if (!job || !['connect', 'browse'].includes(job.action) || !validID.test(job.account || '') ||
-      !validID.test(job.thread || '') || !Number.isFinite(job.started) || now - job.started > jobLifetime ||
+      !validComposer(job) || !Number.isFinite(job.started) || now - job.started > jobLifetime ||
       job.started > now || !URL.canParse(job.origin)) return null;
     const origin = new URL(job.origin);
     if (origin.origin !== job.origin) return null;

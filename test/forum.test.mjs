@@ -40,13 +40,13 @@ function changeBody(fixture, value) {
 }
 
 test('forum enhancements are gated to authenticated browsing routes and stay out of the filter engine', async () => {
-  for (const path of ['/forum', '/forum/23', '/forum/thread/42?postid=12', '/forum/search', '/forum/23/unread',
+  for (const path of ['/forum', '/forum/23', '/forum/23/new', '/forum/thread/42?postid=12', '/forum/search', '/forum/23/unread',
     '/userhistory.php?action=subscriptions&page=2']) {
     const url = new URL(path, site);
     assert.ok(companionForumPage(url), path);
     assert.equal(isNSEPage(url.href), false, path);
   }
-  for (const path of ['/forum/23/new', '/forum/post/12/get', '/forum/catchup', '/forum/thread/42/reply',
+  for (const path of ['/forum/23/new?autofill=1&action=other', '/forum/post/12/get', '/forum/catchup', '/forum/thread/42/reply',
     '/userhistory.php?action=thread_subscribe', '/userhistory.php?action=subscriptions&action=catchup']) {
     assert.equal(companionForumPage(new URL(path, site)), null, path);
   }
@@ -85,6 +85,28 @@ test('the board exposes distinct native jumps, scoped search, and full titles wh
     assert.match(f.doc.querySelector('.forum_list strong').textContent, /stall…$/);
     assert.ok(f.doc.querySelector('.epc-workspace .epc-toolbar'));
     assert.equal(f.doc.querySelector('.epc-engine'), null);
+    assert.deepEqual(f.errors, []);
+  } finally { f.close(); }
+});
+
+test('the forum index groups long latest titles with their native jump and author on reversible rows', async () => {
+  const f = await start('/forum');
+  try {
+    const { doc } = f;
+    const thread = doc.querySelector('.forum_index .last_thread');
+    const nativeTitle = thread.querySelector('a');
+    const shortTitle = nativeTitle.textContent;
+    doc.querySelector('.epc-forum-toggle').click();
+    const latest = doc.querySelector('.epc-forum-index-latest');
+    assert.equal(latest.querySelector('.last_thread'), thread);
+    assert.equal(nativeTitle.textContent, nativeTitle.title);
+    assert.equal(latest.querySelector('.epc-forum-jump').hash, '#post12');
+    assert.match(latest.querySelector('.epc-forum-index-author').title, /long fixture username/);
+    assert.equal(latest.closest('tr').querySelectorAll('.epc-forum-topic-count').length, 2);
+    doc.querySelector('.epc-forum-toggle').click();
+    assert.equal(doc.querySelector('.epc-forum-index-latest'), null);
+    assert.equal(thread.parentElement.localName, 'td');
+    assert.equal(nativeTitle.textContent, shortTitle);
     assert.deepEqual(f.errors, []);
   } finally { f.close(); }
 });
@@ -298,15 +320,16 @@ test('the forum follows the site palette even when the system setting differs', 
   } finally { dark.close(); light.close(); }
 });
 
-test('awards sit directly beside the avatar and return to the native cell in Classic view', async () => {
+test('awards are visible beside the avatar and return to the native cell in Classic view', async () => {
   const f = await start('/forum/thread/42', { storage: memoryStorage({ 'ep.forum.reader': true }) });
   try {
     const post = f.doc.getElementById('post12');
     const avatar = post.querySelector('img.epc-forum-author-avatar');
     const awards = avatar.nextElementSibling;
     assert.ok(awards.matches('.epc-forum-awards'));
-    assert.equal(awards.querySelector('summary').textContent, 'Awards');
-    assert.equal(awards.querySelector('.badges a').textContent, 'Site contributor');
+    assert.equal(awards.closest('details'), null);
+    assert.deepEqual([...awards.querySelectorAll('img')].map(image => image.alt), ['Site contributor', 'Helpful member']);
+    assert.equal(awards.querySelector('a').hash, '#userbadges');
     assert.equal(post.querySelector('.postbody .badges'), null);
     f.doc.querySelector('.epc-forum-toggle').click();
     assert.equal(avatar.closest('td').className, 'avatar');
@@ -347,10 +370,15 @@ test('the image panel keeps URL insertion available in BBCode mode', async () =>
     f.doc.querySelector('.epc-forum-source-images').click();
     const panel = f.doc.querySelector('.epc-forum-media');
     assert.equal(panel.hidden, false);
-    assert.match(panel.textContent, /Connect Hamsterimg/);
+    const setup = panel.querySelector('.epc-forum-image-setup');
+    assert.equal(setup.querySelector('h3').textContent, 'Set up image uploads');
+    assert.equal(setup.querySelectorAll('ol > li').length, 3);
+    assert.equal(setup.querySelector('a').textContent, 'Connect Hamsterimg');
+    assert.equal(setup.querySelector('a').target, '_blank');
     assert.match(panel.textContent, /Recent uploads/);
     assert.match(panel.textContent, /My images/);
-    [...panel.querySelectorAll('button')].find(button => button.textContent === 'From URL').click();
+    setup.querySelector('button').click();
+    assert.equal(panel.querySelector('.epc-forum-image-setup'), null);
     panel.querySelector('input[aria-label="Image URL"]').value = 'https://example.test/image.png';
     [...panel.querySelectorAll('button')].find(button => button.textContent === 'Insert image').click();
     assert.equal(f.doc.getElementById('quickpost').value, '[img]https://example.test/image.png[/img]');
@@ -371,6 +399,7 @@ test('script-generated file changes and paste events cannot start an upload', as
     f.doc.getElementById('quickpost').dispatchEvent(paste);
     assert.equal(f.doc.querySelector('.epc-forum-media').hidden, true);
     f.doc.querySelector('.epc-forum-source-images').click();
+    assert.equal(f.doc.querySelector('.epc-forum-image-setup'), null);
     const picker = f.doc.querySelector('.epc-forum-media input[type="file"]');
     Object.defineProperty(picker, 'files', { value: [image] });
     picker.dispatchEvent(new f.win.Event('change', { bubbles: true }));
@@ -435,6 +464,154 @@ test('the full native toolbar is immediately available in BBCode and the Visual 
     doc.querySelector('.epc-forum-toggle').click();
     assert.equal(doc.querySelector('.epc-forum-source-tools'), null);
     assert.equal(doc.getElementById('fixture-bold').hasAttribute('tabindex'), false);
+    assert.deepEqual(f.errors, []);
+  } finally { f.close(); }
+});
+
+test('new topics use the Visual editor and keep the native form fields and preview', async () => {
+  const f = await start('/forum/23/new', { storage: memoryStorage({ 'ep.forum.reader': true, 'ep.forum.visual': true }) });
+  try {
+    const { doc, win } = f;
+    const form = doc.getElementById('newthreadform');
+    const source = form.elements.body;
+    const editor = form.querySelector('.epc-forum-inline-editor');
+    assert.equal(editor.querySelector('.ProseMirror').getAttribute('aria-label'), 'Topic body');
+    form.elements.title.value = 'A new topic';
+    form.querySelector('#newthreadtext [name=subscribe]').checked = true;
+    form.elements.poll_question.value = 'Which one?';
+    editor.querySelector('[data-format="horizontal_rule"]').click();
+    let preview;
+    form.querySelector('#newthreadpreviewbutton').addEventListener('click', () => { preview = new win.FormData(form); });
+    form.querySelector('#newthreadpreviewbutton').click();
+    assert.equal(form.getAttribute('action'), '/forum/23/new');
+    assert.equal(preview.get('title'), 'A new topic');
+    assert.equal(preview.get('subscribe'), '1');
+    assert.equal(preview.get('poll_question'), 'Which one?');
+    assert.equal(preview.get('token'), 'fixture-topic-token');
+    assert.match(preview.get('body'), /\[hr\]/);
+
+    editor.querySelector('.epc-forum-modes button:nth-child(2)').click();
+    const unsupported = '[mediainfo]Keep the original source[/mediainfo]';
+    source.value = unsupported;
+    editor.querySelector('.epc-forum-modes button').click();
+    assert.equal(editor.querySelector('.epc-forum-visual').hidden, true);
+    assert.match(editor.querySelector('[role="status"]').textContent, /needs BBCode/);
+    assert.equal(source.value, unsupported);
+    doc.querySelector('.epc-forum-toggle').click();
+    assert.equal(form.querySelector('.epc-forum-inline-editor'), null);
+    assert.equal(form.elements.body, source);
+    assert.equal(source.classList.contains('epc-forum-inline-hidden'), false);
+    assert.equal(source.value, unsupported);
+    assert.deepEqual(f.errors, []);
+  } finally { f.close(); }
+});
+
+test('topics share the reply image picker and insert links in Visual and BBCode', async () => {
+  const f = await start('/forum/23/new', { storage: memoryStorage({ 'ep.forum.reader': true, 'ep.forum.visual': true }) });
+  try {
+    const { doc } = f;
+    const inline = doc.querySelector('.epc-forum-inline-editor');
+    const panel = inline.querySelector('.epc-forum-media');
+    const image = inline.querySelector('[data-format="image"]');
+    const fromURL = url => {
+      [...panel.querySelectorAll('button')].find(button => button.textContent === 'From URL').click();
+      panel.querySelector('input[aria-label="Image URL"]').value = url;
+      [...panel.querySelectorAll('button')].find(button => button.textContent === 'Insert image').click();
+    };
+    image.click();
+    assert.equal(image.getAttribute('aria-controls'), panel.id);
+    assert.match(panel.textContent, /Upload.*Recent uploads.*My images.*From URL/);
+    assert.match(panel.textContent, /Connect Hamsterimg/);
+    fromURL('https://example.test/topic.png');
+    assert.equal(inline.querySelector('.epc-forum-editor-image').getAttribute('src'), 'https://example.test/topic.png');
+    const mode = [...inline.querySelectorAll('.epc-forum-modes button')].find(button => button.textContent === 'BBCode');
+    mode.click();
+    const source = doc.getElementById('posttext');
+    assert.equal(source.value, '[img]https://example.test/topic.png[/img]');
+    source.value = '';
+    inline.querySelector('.epc-forum-source-images').click();
+    fromURL('https://example.test/source.png');
+    assert.equal(source.value, '[img]https://example.test/source.png[/img]');
+    assert.equal(panel.hidden, true);
+    assert.deepEqual(f.errors, []);
+  } finally { f.close(); }
+});
+
+test('library results stay with their post editor and cancelling clears its picker request', async () => {
+  const resultID = '892a44d3-ae62-43dd-802c-af2b8ccb4200';
+  const pendingID = '53759297-34ed-4d8f-9ab5-d9ba746ccda9';
+  const key = id => 'ep.forum.hamster.request.' + id;
+  const href = 'https://hamsterimg.net/images/fixture.png';
+  const started = Date.now() - 1000;
+  const job = { origin: site, account: '7', action: 'browse', started };
+  const storage = memoryStorage({
+    'ep.forum.reader': true,
+    [key(resultID)]: { ...job, context: 'edit.12', result: { images: [{ href }] } },
+    [key(pendingID)]: { ...job, context: 'edit.13' }
+  });
+  const f = await start('/forum/thread/42', { storage, session: {
+    'ep.forum.hamster.edit.12.7': resultID, 'ep.forum.hamster.edit.13.7': pendingID
+  } });
+  try {
+    const { doc } = f;
+    for (const id of [12, 13]) {
+      doc.getElementById('content' + id).innerHTML = '<div id="editcont' + id + '"><textarea id="editbox' + id +
+        '" name="body"></textarea></div>';
+    }
+    await until(() => doc.getElementById('editbox12').value === '[img]' + href + '[/img]');
+    assert.equal(doc.getElementById('editbox13').value, '');
+    assert.equal(doc.getElementById('quickpost').value, '');
+    assert.equal(doc.querySelectorAll('.epc-forum-media').length, 3);
+    assert.equal(new Set([...doc.querySelectorAll('.epc-forum-media')].map(panel => panel.id)).size, 3);
+    doc.getElementById('content13').textContent = 'Cancelled edit';
+    await until(() => storage.get(key(pendingID), null) === null);
+    assert.ok(doc.querySelector('#editcont12 .epc-forum-media'));
+    assert.deepEqual(f.errors, []);
+  } finally { f.close(); }
+});
+
+test('asynchronous native post edits keep BBCode and restore forum controls after cancel or save', async () => {
+  const f = await start('/forum/thread/42', { storage: memoryStorage({ 'ep.forum.visual': true }) });
+  try {
+    const { doc } = f;
+    const post = doc.getElementById('post13');
+    const nativeRows = post.innerHTML;
+    doc.querySelector('.epc-forum-toggle').click();
+    const content = doc.getElementById('content13');
+    assert.ok(content.querySelector('.epc-forum-folded-quote'));
+    let original;
+    doc.getElementById('edit13').addEventListener('click', () => {
+      original = content.innerHTML;
+      content.innerHTML = '<div id="preview13"></div><div id="editcont13"></div>';
+    });
+    doc.getElementById('edit13').click();
+    assert.doesNotMatch(original, /epc-forum-folded-quote/);
+    const host = doc.getElementById('editcont13');
+    host.innerHTML = '<table class="bb_holder"></table><textarea id="editbox13" name="body">[b]Original[/b]</textarea>';
+    await until(() => host.querySelector('.ProseMirror strong'));
+    const source = host.querySelector('textarea');
+    assert.equal(source.value, '[b]Original[/b]');
+    host.querySelector('[data-format="horizontal_rule"]').click();
+    assert.match(source.value, /\[hr\]/);
+
+    host.hidden = true;
+    host.hidden = false;
+    assert.equal(host.querySelector('textarea'), source);
+    content.innerHTML = original;
+    await until(() => content.querySelector('.epc-forum-folded-quote'));
+    assert.equal(source.classList.contains('epc-forum-inline-hidden'), false);
+    assert.equal(post.querySelector('.epc-forum-inline-editor'), null);
+
+    doc.getElementById('edit13').click();
+    doc.getElementById('editcont13').innerHTML = '<textarea id="editbox13" name="body">Draft edit</textarea>';
+    await until(() => post.querySelector('.epc-forum-inline-editor'));
+    post.innerHTML = nativeRows.replace('The retry works for me', 'The edited reply works');
+    await until(() => post.querySelector('.epc-forum-quote'));
+    assert.match(post.querySelector('.post_content').textContent, /The edited reply works/);
+    assert.equal(post.querySelector('.epc-forum-inline-editor'), null);
+    assert.ok(post.querySelector('.epc-forum-folded-quote'));
+    doc.querySelector('.epc-forum-toggle').click();
+    assert.equal(post.querySelector('.epc-forum-quote, .epc-forum-folded-quote'), null);
     assert.deepEqual(f.errors, []);
   } finally { f.close(); }
 });

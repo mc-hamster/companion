@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.16.10](dist/EmporniumCompanion-2.16.10.user.js)**
+**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.16.11](dist/EmporniumCompanion-2.16.11.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -63,7 +63,7 @@ On a torrent detail page, turn on **Reformat details** in the Companion toolbar 
 
 On a forum page, flip **Enable in forum** directly in the Companion toolbar. Use **Boards**, **Unread**, **Subscriptions**, and **Search** on the toolbar to navigate the forum. In an enhanced thread, **Topics** opens a compact list of topics in the current board.
 
-Open **Settings** on the toolbar for color theme, post text size, and long-quote folding. **Match site** follows the forum's light or dark theme. **Post link** opens the permanent link to an individual post, and **Awards** opens beside the author's avatar.
+Open **Settings** on the toolbar for color theme, post text size, and long-quote folding. **Match site** follows the forum's light or dark theme. **Post link** opens the permanent link to an individual post, and awards appear beside the author's avatar.
 
 On a thread, use the floating control for **Top**, **Bottom**, **Unread** when available, or **Reply**. **Bottom** jumps to the end of the current page. Use **Quote** on a post or select an excerpt and choose **Quote selection**.
 
@@ -71,7 +71,9 @@ Choose **Compact**, **Wide**, or **Full** in the reply window. **Minimize** save
 
 **Visual** supports fonts, sizes, alignment, links, images, video links, tables, anchors, spoilers, site smilies, and post labels. On narrow windows, scroll a toolbar row sideways to reach more commands. The color picker offers a palette, custom colors, and recently used colors. Select a table, row, or cells to reveal their formatting controls. Use **BBCode** for the full native toolbar and exact source editing. **Preview** uses Empornium's renderer so you can check your formatting before posting.
 
-In **Image → Upload**, select **Connect Hamsterimg** once. Sign in on the Hamsterimg tab and choose **Use displayed key**, or paste the key you saved earlier. The key is stored locally for your forum account and excluded from backups. Back in the reply, choose files or drop or paste images into the editor to upload and insert them. **Recent uploads** shows images uploaded through Companion, **My images** opens the signed-in Hamsterimg library, and **From URL** accepts an existing image link. In BBCode mode, these choices are under **Add images**.
+**New Topic** and **Edit post** also offer Visual and BBCode editing for the body. Use the site's **Preview**, **Create thread**, and edit controls to finish. Topics, replies, and post edits share the same image picker.
+
+The first time you open **Image → Upload**, Companion walks you through connecting Hamsterimg. Choose **Connect Hamsterimg** to open setup in a new tab. Sign in on the Hamsterimg tab and choose **Use displayed key**, or paste the key you saved earlier. The key is stored locally for your forum account and excluded from backups. Back in the forum, choose files or drop or paste images into the editor to upload and insert them. **Recent uploads** shows images uploaded through Companion, **My images** opens the signed-in Hamsterimg library, and **From URL** accepts an existing image link. In BBCode mode, these choices are under **Add images**.
 
 ## Updates and backups
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { emporniumAccountID } from './core.mjs';
 import { ForumComposer, forumReplyForm } from './forum-composer.mjs';
+import { forumNewTopicSource, mountForumInlineEditor } from './forum-inline-editor.mjs';
 import { forumButton, forumElement, forumSiteTheme } from './forum-ui.mjs';
 import { createWorkspaceChrome, createWorkspacePane, styleWorkspaceSwitch, updateWorkspacePane } from './workspace.mjs';
 export { mountHamsterPicker } from './hamster-picker.mjs';
@@ -182,7 +183,13 @@ class ForumReader {
     this.mountHeader();
     this.styleNativeNavigation();
     if (this.route.kind === 'thread') this.mountThread();
-    else this.mountLists();
+    else if (this.route.kind === 'new-topic') {
+      const source = forumNewTopicSource(this.content, this.page, this.route.board);
+      if (source) {
+        const editor = mountForumInlineEditor(source, this, { context: 'topic.' + this.route.board, label: 'Topic body' });
+        this.changes.push(() => editor.dispose());
+      }
+    } else this.mountLists();
     const fitWidth = () => this.fitWidth();
     fitWidth();
     this.on(this.win, 'resize', fitWidth);
@@ -202,10 +209,10 @@ class ForumReader {
     if (overflow) documentElement.classList.add('epc-forum-fit');
   }
 
-  mark(element, name) {
+  mark(element, name, changes = this.changes) {
     if (!element || element.classList.contains(name)) return;
     element.classList.add(name);
-    this.changes.push(() => element.classList.remove(name));
+    changes.push(() => element.classList.remove(name));
   }
 
   mountHeader() {
@@ -336,6 +343,31 @@ class ForumReader {
           link.append(caption);
           this.changes.push(() => caption.remove());
         }
+        if (table.classList.contains('forum_index')) this.layoutLatestPost(row);
+      }
+    }
+  }
+
+  layoutLatestPost(row) {
+    const thread = row.querySelector('td > .last_thread');
+    const cell = thread?.parentElement;
+    const title = thread?.querySelector('a[href]');
+    const author = cell?.querySelector(':scope > :is(.last_poster,.float_right)');
+    if (!title || !author || !forumTopicPath.test(forumURL(title, this.page)?.pathname || '')) return;
+    const layout = forumElement(this.doc, 'div', 'epc-forum-index-latest');
+    cell.prepend(layout);
+    this.changes.push(() => layout.remove());
+    const originalTitle = title.textContent;
+    title.textContent = forumThreadTitle(title);
+    this.changes.push(() => { title.textContent = originalTitle; });
+    this.mark(author, 'epc-forum-index-author');
+    if (!author.hasAttribute('title')) {
+      author.title = author.textContent.trim();
+      this.changes.push(() => author.removeAttribute('title'));
+    }
+    for (const child of [...cell.children]) {
+      if (child === thread || child === author || child.matches('.epc-forum-jump') || child.querySelector('.epc-forum-jump')) {
+        this.move(child, layout);
       }
     }
   }
@@ -353,60 +385,19 @@ class ForumReader {
     if (controls) this.composer = new ForumComposer(this.win, this.storage, page, route.thread, this.account,
       { ...controls, dock, threadActions: actions }, this.media);
     this.posts = new Map();
+    const views = new Map();
     const pinned = new Map();
     let unread;
-    let openAwards = null;
     for (const post of content.querySelectorAll('table.forum_post[id^="post"]')) {
       const id = forumPostElement.exec(post.id)?.[1];
       const head = post.rows[0]?.cells[0];
       const body = post.querySelector('td.postbody');
       if (!id || !head || !body) continue;
       this.mark(post, 'epc-forum-post');
-      this.mark(head, 'epc-forum-post-head');
-      this.mark(body, 'epc-forum-post-body');
-      const permalink = head.querySelector('a.post_id[href]');
-      if (permalink) {
-        const label = permalink.textContent;
-        const title = permalink.getAttribute('title');
-        permalink.textContent = 'Post link';
-        permalink.title = 'Permanent link to post #' + id;
-        this.changes.push(() => {
-          permalink.textContent = label;
-          if (title === null) permalink.removeAttribute('title');
-          else permalink.title = title;
-        });
-        this.move(permalink, head, head.querySelector('[id="bar' + id + '"]'), 'epc-forum-post-link');
-      }
-      const profile = head.querySelector('.user_dropdown a[href*="user.php"],a.username[href],a[href^="/user.php?id="]');
-      const user = profile?.textContent.trim();
-      this.mark(profile, 'epc-forum-author-link');
-      const avatar = post.querySelector('td.avatar > img.avatar');
-      const awards = post.querySelector('td.avatar > .badges');
-      if (avatar) this.move(avatar, head, head.firstChild, 'epc-forum-author-avatar');
-      if (awards?.childElementCount) {
-        const details = forumElement(doc, 'details', 'epc-forum-awards');
-        const summary = forumElement(doc, 'summary', '', 'Awards');
-        const panel = forumElement(doc, 'div', 'epc-forum-awards-panel');
-        details.append(summary, panel);
-        if (avatar) avatar.after(details);
-        else head.prepend(details);
-        this.changes.push(() => details.remove());
-        this.move(awards, panel);
-        this.on(details, 'toggle', () => {
-          if (details.open) {
-            if (openAwards && openAwards !== details) openAwards.open = false;
-            openAwards = details;
-          } else if (openAwards === details) openAwards = null;
-        });
-        this.on(details, 'keydown', event => {
-          if (event.key !== 'Escape' || !details.open || event.isComposing) return;
-          event.preventDefault();
-          details.open = false;
-          summary.focus();
-        });
-      }
-      this.mark(post.querySelector('td.avatar'), 'epc-forum-avatar-cell');
-
+      const view = { post, id, changes: [], folds: [] };
+      views.set(post, view);
+      const user = this.stylePost(view, head, body);
+      this.foldPostQuotes(view, body);
       const isPinned = Boolean(head.querySelector('.sticky_post'));
       if (!isPinned && !unread && post.classList.contains('forum_unread')) {
         unread = forumElement(doc, 'div', 'epc-forum-unread-marker');
@@ -415,38 +406,146 @@ class ForumReader {
         this.changes.push(() => unread.remove());
       }
       if (isPinned) pinned.set(id, this.fold(post, user ? 'Pinned post · ' + user : 'Pinned post', 'epc-forum-pinned'));
-      for (const quote of body.querySelectorAll('.post_content blockquote.bbcode:not(.spoiler)')) {
-        if (quote.closest('.spoiler,.epc-forum-folded-quote') || !(quote.querySelector('blockquote') || quote.textContent.length > 360)) continue;
-        const details = this.fold(quote, '', 'epc-forum-folded-quote');
-        const summary = details.firstElementChild;
-        summary.append(forumElement(doc, 'span', 'epc-forum-quote-show', 'Show quoted text'),
-          forumElement(doc, 'span', 'epc-forum-quote-hide', 'Hide quoted text'));
-        details.open = !this.collapseQuotes.checked;
-      }
-
-      const nativeQuote = head.querySelector('button[id="quote' + id + '"]');
-      if (user && nativeQuote && this.composer) {
-        const button = forumElement(doc, 'button', 'epc-forum-quote', 'Quote');
-        button.type = 'button';
-        nativeQuote.after(button);
-        this.changes.push(() => button.remove());
-        this.mark(nativeQuote, 'epc-forum-duplicate-link');
-        this.posts.set(id, { post, user });
-        this.on(button, 'click', () => this.quote(id, user, this.selected?.id === id ? this.selected.text : undefined));
-      }
     }
+    this.observePostEditors(views);
     const openPinned = () => {
       const id = forumPostElement.exec(this.win.location.hash.slice(1))?.[1] || page.searchParams.get('postid');
       if (pinned.has(id)) pinned.get(id).open = true;
     };
     openPinned();
-    this.on(doc, 'pointerdown', event => {
-      if (openAwards?.open && !openAwards.contains(event.target)) openAwards.open = false;
-    });
     this.on(this.win, 'hashchange', openPinned);
     this.mountThreadActions(actions, unread);
     if (this.posts.size) this.mountSelectionQuote();
     if (this.board) this.mountBoardTopics();
+  }
+
+  stylePost(view, head, body) {
+    const { doc } = this;
+    const { post, id, changes } = view;
+    const controller = new this.win.AbortController();
+    const { signal } = controller;
+    changes.push(() => controller.abort());
+    view.head = head;
+    this.mark(head, 'epc-forum-post-head', changes);
+    this.mark(body, 'epc-forum-post-body', changes);
+    const actions = head.querySelector('[id="bar' + id + '"]');
+    this.mark(actions, 'epc-forum-post-actions', changes);
+    const permalink = head.querySelector('a.post_id[href]');
+    if (permalink) {
+      const label = permalink.textContent;
+      const title = permalink.getAttribute('title');
+      permalink.textContent = 'Post link';
+      permalink.title = 'Permanent link to post #' + id;
+      changes.push(() => {
+        permalink.textContent = label;
+        if (title === null) permalink.removeAttribute('title');
+        else permalink.title = title;
+      });
+      this.move(permalink, actions || head, actions?.firstChild ?? null, 'epc-forum-post-link', changes);
+    }
+    const profile = head.querySelector('.user_dropdown a[href*="user.php"],a.username[href],a[href^="/user.php?id="]');
+    const user = profile?.textContent.trim();
+    this.mark(profile, 'epc-forum-author-link', changes);
+    const avatar = post.querySelector('td.avatar > img.avatar');
+    const awards = post.querySelector('td.avatar > .badges');
+    if (avatar || awards?.childElementCount) {
+      const media = forumElement(doc, 'div', 'epc-forum-post-media');
+      head.prepend(media);
+      changes.push(() => media.remove());
+      if (avatar) this.move(avatar, media, null, 'epc-forum-author-avatar', changes);
+      if (awards?.childElementCount) this.move(awards, media, null, 'epc-forum-awards', changes);
+    }
+    this.mark(post.querySelector('td.avatar'), 'epc-forum-avatar-cell', changes);
+
+    const edit = head.querySelector('button[id="edit' + id + '"]');
+    if (actions && edit) this.move(edit, actions, actions.firstChild, null, changes);
+    const nativeQuote = head.querySelector('button[id="quote' + id + '"]');
+    if (user && nativeQuote && this.composer) {
+      const button = forumElement(doc, 'button', 'epc-forum-quote', 'Quote');
+      button.type = 'button';
+      if (actions) {
+        actions.prepend(button);
+        const divider = nativeQuote.previousSibling;
+        if (divider?.nodeType === 3 && /^\s*[-·]\s*$/.test(divider.data)) {
+          const text = divider.data;
+          divider.data = '';
+          changes.push(() => { divider.data = text; });
+        }
+      } else nativeQuote.after(button);
+      changes.push(() => button.remove());
+      this.mark(nativeQuote, 'epc-forum-duplicate-link', changes);
+      this.posts.set(id, { post, user });
+      button.addEventListener('click', () => this.quote(id, user, this.selected?.id === id ? this.selected.text : undefined), { signal });
+    }
+    return user;
+  }
+
+  foldPostQuotes(view, body) {
+    const { doc } = this;
+    for (const quote of body.querySelectorAll('.post_content blockquote.bbcode:not(.spoiler)')) {
+      if (quote.closest('.spoiler,.epc-forum-folded-quote') || !(quote.querySelector('blockquote') || quote.textContent.length > 360)) continue;
+      const details = this.fold(quote, '', 'epc-forum-folded-quote', view.folds);
+      const summary = details.firstElementChild;
+      summary.append(forumElement(doc, 'span', 'epc-forum-quote-show', 'Show quoted text'),
+        forumElement(doc, 'span', 'epc-forum-quote-hide', 'Hide quoted text'));
+      details.open = !this.collapseQuotes.checked;
+    }
+  }
+
+  clearPostView(view) {
+    this.posts.delete(view.id);
+    view.editor?.dispose();
+    view.editor = null;
+    for (const undo of view.folds.reverse()) undo();
+    for (const undo of view.changes.reverse()) undo();
+    view.folds.length = view.changes.length = 0;
+  }
+
+  observePostEditors(views) {
+    const { content, win } = this;
+    content.addEventListener('click', event => {
+      const button = event.target.closest?.('button[id^="edit"]');
+      const view = views.get(button?.closest('table.epc-forum-post'));
+      if (!view || button.disabled || button.id !== 'edit' + view.id) return;
+      // The native edit action snapshots the post HTML for Cancel.
+      for (const undo of view.folds.reverse()) undo();
+      view.folds.length = 0;
+    }, { capture: true, signal: this.abort.signal });
+
+    const observer = new win.MutationObserver(records => {
+      const updated = new Set();
+      for (const { target } of records) {
+        if (!/^(?:post|content|editcont)[1-9]\d{0,14}$/.test(target.id || '')) continue;
+        const view = views.get(target.closest('table.epc-forum-post'));
+        if (view) updated.add(view);
+      }
+      for (const view of updated) this.updatePostEditor(view);
+    });
+    observer.observe(content, { childList: true, subtree: true });
+    this.changes.push(() => {
+      observer.disconnect();
+      for (const view of views.values()) this.clearPostView(view);
+    });
+    for (const view of views.values()) this.updatePostEditor(view);
+  }
+
+  updatePostEditor(view) {
+    const { post, id } = view;
+    const head = post.rows[0]?.cells[0];
+    const body = post.querySelector('td.postbody');
+    if (!head || !body) return;
+    if (head !== view.head) {
+      this.clearPostView(view);
+      this.stylePost(view, head, body);
+    }
+    const host = body.querySelector('[id="content' + id + '"] > [id="editcont' + id + '"]');
+    const source = host?.querySelector('textarea[id="editbox' + id + '"][name="body"]');
+    if (view.editor?.source !== source) {
+      view.editor?.dispose();
+      const submit = head.querySelector('[id="edit_save_' + id + '"]');
+      view.editor = source ? mountForumInlineEditor(source, this, { context: 'edit.' + id, label: 'Post body', submit }) : null;
+    }
+    if (!host && !view.folds.length) this.foldPostQuotes(view, body);
   }
 
   mountThreadActions(parent, unread) {
@@ -472,20 +571,20 @@ class ForumReader {
     element.addEventListener(event, listener, { signal: this.abort.signal });
   }
 
-  move(element, target, before = null, className) {
-    if (className) this.mark(element, className);
+  move(element, target, before = null, className, changes = this.changes) {
+    if (className) this.mark(element, className, changes);
     const marker = this.doc.createComment('');
     element.before(marker);
     target.insertBefore(element, before);
-    this.changes.push(() => marker.replaceWith(element));
+    changes.push(() => marker.replaceWith(element));
   }
 
-  fold(element, title, className) {
+  fold(element, title, className, changes = this.changes) {
     const details = forumElement(this.doc, 'details', className);
     details.append(forumElement(this.doc, 'summary', '', title));
     element.before(details);
-    this.changes.push(() => details.remove());
-    this.move(element, details);
+    changes.push(() => details.remove());
+    this.move(element, details, null, null, changes);
     return details;
   }
 
@@ -615,6 +714,7 @@ export function mountCompanionForum(win, storage, page, route, addStyle, css, me
   const heading = content?.querySelector('h2');
   const account = emporniumAccountID(doc, page);
   if (!heading || !account || doc.querySelector('.epc-forum-header,body#login,#loginform,form[action="/login.php"]')) return;
+  if (route.kind === 'new-topic' && !forumNewTopicSource(content, page, route.board)) return;
   addStyle(css);
   return new ForumReader(win, storage, page, route, content, heading, account, media);
 }

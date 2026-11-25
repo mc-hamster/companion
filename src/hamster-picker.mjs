@@ -44,7 +44,7 @@ export function mountHamsterPicker(win, storage, service, addStyle, css) {
   addStyle(css);
   const panel = forumElement(doc, 'section', 'epc-root epc-hamster-picker');
   panel.setAttribute('aria-label', 'Companion Hamsterimg picker');
-  const title = forumElement(doc, 'h2', '', job.action === 'connect' ? 'Connect Hamsterimg' : 'Choose images for your reply');
+  const title = forumElement(doc, 'h2', '', job.action === 'connect' ? 'Connect Hamsterimg' : 'Choose images to insert');
   const status = forumElement(doc, 'p', 'epc-hamster-status');
   status.setAttribute('role', 'status');
   panel.append(title);
@@ -53,7 +53,7 @@ export function mountHamsterPicker(win, storage, service, addStyle, css) {
   const getActive = () => {
     const active = readHamsterRequest(storage, id, service, win.Date.now());
     if (active && !active.result) return active;
-    status.textContent = 'This request ended. Open Image in your forum reply to start again.';
+    status.textContent = 'This request ended. Open Image in the forum editor to start again.';
     return null;
   };
   function complete(active, result, message) {
@@ -66,10 +66,11 @@ export function mountHamsterPicker(win, storage, service, addStyle, css) {
   }
 
   if (job.action === 'connect') {
+    panel.classList.add('epc-hamster-connect');
     const settings = new URL('settings/api', service);
     if (page.pathname.replace(/\/$/, '') !== settings.pathname || doc.querySelector('form input[type="password"]')) {
-      status.textContent = 'Sign in to Hamsterimg, then open your API settings.';
-      const link = forumElement(doc, 'a', '', 'Open API settings');
+      status.textContent = 'Sign in to your Hamsterimg account or create one. Then open API settings to finish connecting.';
+      const link = forumElement(doc, 'a', 'epc-forum-media-action', 'Open API settings');
       link.href = settings.href;
       panel.append(status, link);
       return;
@@ -83,11 +84,16 @@ export function mountHamsterPicker(win, storage, service, addStyle, css) {
     input.setAttribute('aria-label', 'Hamsterimg API key');
     input.placeholder = 'Paste your API key';
     const save = forumButton(doc, 'Save key');
-    const hint = forumElement(doc, 'p', '', 'Use the key shown in Hamsterimg settings, or paste a key you saved earlier. The first upload checks it.');
+    const hint = forumElement(doc, 'p', '', 'Save the key from this page to connect Companion. Your first upload checks that it works.');
+    const manual = forumElement(doc, 'details', 'epc-hamster-key-manual');
     const fields = forumElement(doc, 'div', 'epc-hamster-key-actions');
     fields.append(input, save);
-    panel.append(hint, use, fields, status);
-    const refresh = () => { use.hidden = !displayed(); };
+    manual.append(forumElement(doc, 'summary', '', 'Enter a key manually'), fields);
+    panel.append(hint, use, manual, status);
+    const refresh = () => {
+      use.hidden = !displayed();
+      if (use.hidden) manual.open = true;
+    };
     refresh();
     const observer = new win.MutationObserver(refresh);
     observer.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['value'] });
@@ -104,7 +110,7 @@ export function mountHamsterPicker(win, storage, service, addStyle, css) {
       try {
         storage.set(hamsterAccountKey(active.origin, active.account), key);
         input.value = '';
-        complete(active, { connected: true }, 'Key saved. Return to your forum reply.');
+        complete(active, { connected: true }, 'Key saved. Choose Done to return to the forum editor.');
         observer.disconnect();
       } catch { status.textContent = 'The key could not be saved. Try again.'; }
     };
@@ -205,13 +211,13 @@ export function mountHamsterPicker(win, storage, service, addStyle, css) {
   insert.addEventListener('click', event => {
     if (!event.isTrusted || !selected.size) return;
     if (hamsterProfile(doc, service).profile?.href !== profile.href) {
-      status.textContent = 'The Hamsterimg account changed. Open My images again from your reply.';
+      status.textContent = 'The Hamsterimg account changed. Open My images again from the editor.';
       return;
     }
     const active = getActive();
     if (!active) return;
     try {
-      complete(active, { images: [...selected.values()] }, 'Images sent. Return to your forum reply.');
+      complete(active, { images: [...selected.values()] }, 'Images sent. Return to the forum editor.');
       observer.disconnect();
       for (const button of buttons.keys()) {
         button.parentElement?.classList.remove('epc-hamster-pickable');

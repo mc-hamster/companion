@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { createForumEditor, readForumVisualSource } from './forum-editor.mjs';
-import { formatForumQuote, forumLiteralText, forumMarkValue, forumQuoteSource, safeForumMediaURL } from './forum-bbcode.mjs';
+import { createForumEditor, forumEditorFonts, forumVisualPreference, readForumVisualSource } from './forum-editor.mjs';
+import { formatForumQuote, forumLiteralText, forumQuoteSource, safeForumMediaURL } from './forum-bbcode.mjs';
 import { ForumMedia } from './forum-media.mjs';
-import { forumButton, forumElement } from './forum-ui.mjs';
+import { forumButton, forumElement, forumHelpLink } from './forum-ui.mjs';
 
-const forumVisualPreference = 'ep.forum.visual';
 const forumSizePreference = 'ep.forum.composerSize';
 const forumSizes = [['compact', 'Compact'], ['wide', 'Wide'], ['full', 'Full']];
 const forumPostID = /^[1-9]\d{0,14}$/;
@@ -207,18 +206,9 @@ export class ForumComposer {
     this.preview.setAttribute('sandbox', '');
     this.sourceArea.after(this.visualArea, this.preview);
     this.mountMedia();
-    this.sourceImages = forumButton(doc, 'Add images', 'epc-forum-source-images');
-    this.sourceImages.setAttribute('aria-controls', 'epc-forum-media');
-    this.sourceImages.setAttribute('aria-expanded', 'false');
-    this.on(this.sourceImages, 'click', () => this.openImages(null, this.sourceImages));
-    this.visualHelp = forumElement(doc, 'a', 'epc-forum-reply-help', 'Help');
+    this.visualHelp = forumHelpLink(doc);
     this.visualHelp.hidden = true;
-    this.visualHelp.setAttribute('aria-label', 'BBCode help');
-    this.visualHelp.href = '/articles/view/bbcode';
-    this.visualHelp.target = '_blank';
-    this.visualHelp.rel = 'noopener noreferrer';
-    this.switcher.append(this.sourceImages, this.visualHelp);
-    this.listenForImages();
+    this.switcher.append(this.visualHelp);
 
     const tools = this.sourceArea.querySelector(':scope > .bb_holder, :scope > .bbcode_assistant, :scope > table');
     if (tools) {
@@ -387,7 +377,6 @@ export class ForumComposer {
     this.media.hide(false);
     this.media.destroy();
     this.mountMedia();
-    this.imageSource = null;
     this.editor?.destroy();
     this.editor = null;
     this.form.reset();
@@ -403,9 +392,19 @@ export class ForumComposer {
   mountMedia() {
     this.media = new ForumMedia({
       win: this.win, storage: this.storage, page: this.page, account: this.account, thread: this.thread,
-      ...this.mediaOptions, insert: urls => this.insertImages(urls), busyChanged: () => this.refreshSubmit(),
-      close: () => this.focusEditor()
+      ...this.mediaOptions, source: this.source, visualArea: this.visualArea, scope: this.form,
+      getVisualEditor: () => this.mode === 'visual' ? this.editor : null,
+      beforeInsert: () => {
+        if (!this.minimized) this.open(false);
+        if (this.mode === 'preview') this.setMode(this.writeMode, { focus: false });
+      },
+      afterInsert: () => {
+        this.save();
+        if (!this.panel.hidden) this.focusEditor();
+      },
+      busyChanged: () => this.refreshSubmit(), close: () => this.focusEditor()
     });
+    this.switcher.insertBefore(this.media.sourceButton, this.visualHelp ?? null);
     this.editorBody.prepend(this.media.root);
   }
 
@@ -461,55 +460,6 @@ export class ForumComposer {
     else this.modes.get('preview').focus();
   }
 
-  listenForImages() {
-    const accept = event => {
-      if (!event.isTrusted || this.sending || !event.target.closest?.('.ProseMirror,#quickpost,.epc-forum-media')) return;
-      const files = (event.clipboardData || event.dataTransfer)?.files;
-      if (!files?.length) return;
-      if (!this.media.uploading) this.captureImages();
-      if (this.media.addFiles(files)) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-    for (const event of ['paste', 'drop']) this.form.addEventListener(event, accept, { capture: true, signal: this.abort.signal });
-    this.on(this.form, 'dragover', event => {
-      if (event.isTrusted && event.dataTransfer?.types.includes('Files') &&
-        event.target.closest?.('.ProseMirror,#quickpost,.epc-forum-media')) {
-        event.preventDefault();
-      }
-    });
-  }
-
-  captureImages() {
-    if (this.mode === 'visual') this.editor.captureImages();
-    else this.imageSource = { body: this.source.value, start: this.source.selectionStart, end: this.source.selectionEnd };
-  }
-
-  openImages(href, trigger) {
-    if (this.sending) return;
-    this.captureImages();
-    this.media.show(href ? 'url' : 'upload', href || '', trigger);
-  }
-
-  insertImages(urls) {
-    if (this.sending || !urls.length) return false;
-    if (!this.minimized) this.open(false);
-    if (this.mode === 'preview') this.setMode(this.writeMode, { focus: false });
-    if (this.mode === 'visual') this.editor.insertImages(urls);
-    else {
-      const range = this.imageSource?.body === this.source.value ? this.imageSource : null;
-      const start = range?.start ?? this.source.selectionStart;
-      const end = range?.end ?? this.source.selectionEnd;
-      this.source.setRangeText(urls.map(href => '[img]' + href + '[/img]').join('\n'), start, end, 'end');
-      this.imageSource = null;
-      this.changed();
-    }
-    this.save();
-    if (!this.panel.hidden) this.focusEditor();
-    return true;
-  }
-
   setMode(mode, { remember = false, focus = true } = {}) {
     if (this.sending) return;
     this.previewRequest?.abort();
@@ -520,19 +470,18 @@ export class ForumComposer {
       if (parsed) {
         this.editor?.destroy();
         this.visualSource = this.source.value;
-        const fonts = [...this.form.querySelectorAll('select[name="fontfont"] option')]
-          .map(option => option.value).filter(name => name !== '-1' && forumMarkValue('font', name));
+        const fonts = forumEditorFonts(this.form);
         this.editor = createForumEditor(this.visualArea, parsed, source => {
           this.visualSource = this.source.value = source;
           this.changed();
-        }, { page: this.page, fonts: fonts.length ? fonts : undefined, openImages: (href, trigger) => this.openImages(href, trigger) });
+        }, { page: this.page, fonts, mediaId: this.media.root.id, openImages: (href, trigger) => this.media.open(href, trigger) });
       } else {
         unavailable = true;
         mode = 'bbcode';
       }
     }
     this.mode = mode;
-    this.sourceImages.hidden = mode !== 'bbcode';
+    this.media.sourceButton.hidden = mode !== 'bbcode';
     this.visualHelp.hidden = mode !== 'visual';
     this.sourceArea.hidden = mode !== 'bbcode';
     this.visualArea.hidden = mode !== 'visual';

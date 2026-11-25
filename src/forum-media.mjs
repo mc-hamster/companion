@@ -10,19 +10,27 @@ const recentLimit = 60;
 const modes = [['upload', 'Upload'], ['recent', 'Recent uploads'], ['library', 'My images'], ['url', 'From URL']];
 
 export class ForumMedia {
-  constructor({ win, storage, page, service, request, account, thread, insert, busyChanged, close }) {
-    Object.assign(this, { win, doc: win.document, storage, page, service, request, account, thread, insert, busyChanged, close });
+  constructor({ win, storage, page, service, request, account, thread, context, source, visualArea, scope,
+    getVisualEditor, beforeInsert = () => {}, afterInsert, busyChanged, close }) {
+    Object.assign(this, { win, doc: win.document, storage, page, service, request, account, thread, context,
+      source, visualArea, getVisualEditor, beforeInsert, afterInsert, busyChanged, close });
     this.abort = new win.AbortController();
     this.key = hamsterAccountKey(page.origin, account);
     this.recentPrefix = 'ep.forum.hamster.recent.' + page.origin + '.' + account + '.';
-    this.sessionKey = 'ep.forum.hamster.reply.' + account + '.' + thread;
+    this.sessionKey = context ? 'ep.forum.hamster.' + context + '.' + account :
+      'ep.forum.hamster.reply.' + account + '.' + thread;
     this.mode = 'upload';
     this.files = [];
     this.selected = new Set();
     this.root = forumElement(this.doc, 'section', 'epc-forum-media');
-    this.root.id = 'epc-forum-media';
+    this.root.id = context ? 'epc-forum-media-' + source.id : 'epc-forum-media';
     this.root.hidden = true;
     this.root.setAttribute('aria-label', 'Add images');
+    this.sourceButton = forumButton(this.doc, 'Add images', 'epc-forum-source-images');
+    this.sourceButton.setAttribute('aria-controls', this.root.id);
+    this.sourceButton.setAttribute('aria-expanded', 'false');
+    this.on(this.sourceButton, 'click', () => this.open(null, this.sourceButton));
+    this.listenForImages(scope);
     this.nav = forumElement(this.doc, 'div', 'epc-forum-media-nav');
     this.nav.setAttribute('role', 'group');
     this.nav.setAttribute('aria-label', 'Image source');
@@ -58,14 +66,80 @@ export class ForumMedia {
     element.addEventListener(event, fn, { signal: this.abort.signal });
   }
 
+  canEdit() {
+    return this.source.isConnected && !this.source.readOnly && !this.source.disabled;
+  }
+
+  listenForImages(scope) {
+    const ownsTarget = target => target === this.source || this.root.contains(target) ||
+      (this.visualArea.contains(target) && target.closest?.('.ProseMirror'));
+    const accept = event => {
+      if (!event.isTrusted || !this.canEdit() || !ownsTarget(event.target)) return;
+      const files = (event.clipboardData || event.dataTransfer)?.files;
+      if (!files?.length) return;
+      if (!this.uploading) this.captureSelection();
+      if (this.addFiles(files)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    const signal = this.abort.signal;
+    for (const event of ['paste', 'drop']) scope.addEventListener(event, accept, { capture: true, signal });
+    this.on(scope, 'dragover', event => {
+      if (event.isTrusted && this.canEdit() && event.dataTransfer?.types.includes('Files') && ownsTarget(event.target)) {
+        event.preventDefault();
+      }
+    });
+  }
+
+  captureSelection() {
+    const editor = this.getVisualEditor();
+    this.selectionEditor = editor;
+    if (editor) {
+      this.sourceSelection = null;
+      editor.captureImages();
+    } else this.sourceSelection = { body: this.source.value, start: this.source.selectionStart, end: this.source.selectionEnd };
+  }
+
+  open(href, trigger) {
+    if (!this.canEdit()) return;
+    this.captureSelection();
+    this.show(href ? 'url' : 'upload', href || '', trigger);
+  }
+
+  insert(urls) {
+    if (!urls.length || !this.canEdit()) return false;
+    this.beforeInsert();
+    const editor = this.getVisualEditor();
+    if (editor) {
+      if (editor !== this.selectionEditor) editor.captureImages();
+      editor.insertImages(urls);
+    } else {
+      const range = this.sourceSelection?.body === this.source.value ? this.sourceSelection : null;
+      const start = range?.start ?? this.source.selectionStart;
+      const end = range?.end ?? this.source.selectionEnd;
+      this.source.setRangeText(urls.map(href => '[img]' + href + '[/img]').join('\n'), start, end, 'end');
+      this.source.dispatchEvent(new this.win.Event('input', { bubbles: true }));
+    }
+    this.selectionEditor = this.sourceSelection = null;
+    this.afterInsert();
+    return true;
+  }
+
   show(mode = this.mode, href, trigger) {
+    const opening = this.root.hidden;
     this.mode = mode;
-    if (trigger) this.trigger = trigger;
+    if (trigger && this.trigger !== trigger) {
+      this.trigger?.setAttribute('aria-expanded', 'false');
+      this.trigger = trigger;
+    }
     if (href !== undefined) this.url = href;
     this.root.hidden = false;
     this.trigger?.setAttribute('aria-expanded', 'true');
     this.render();
-    if (trigger) (mode === 'url' ? this.content.querySelector('input') : this.tabs.get(mode)).focus({ preventScroll: true });
+    const setupHeading = this.content.querySelector('.epc-forum-image-setup h3');
+    if (setupHeading && (trigger || opening)) setupHeading.focus();
+    else if (trigger) (mode === 'url' ? this.content.querySelector('input') : this.tabs.get(mode)).focus({ preventScroll: true });
   }
 
   hide(focus = true) {
@@ -109,13 +183,14 @@ export class ForumMedia {
         const started = this.win.Date.now();
         cleanupHamsterRequests(this.storage, started);
         const id = this.win.crypto.randomUUID();
-        this.storage.set(HAMSTER_JOB_PREFIX + id, { action, started, origin: this.page.origin, account: this.account, thread: this.thread });
+        const scope = this.context ? { context: this.context } : { thread: this.thread };
+        this.storage.set(HAMSTER_JOB_PREFIX + id, { action, started, origin: this.page.origin, account: this.account, ...scope });
         this.id = id;
         try { this.win.sessionStorage.setItem(this.sessionKey, id); } catch {}
         url.hash = HAMSTER_PICKER_HASH + '=' + id;
         link.href = url.href;
         this.watchRequest();
-        this.setStatus(action === 'connect' ? 'Waiting for the key from Hamsterimg…' : 'Waiting for your image selection…');
+        this.setStatus(action === 'connect' ? 'Finish setup in the Hamsterimg tab, then return here.' : 'Waiting for your image selection…');
       } catch {
         event.preventDefault();
         this.setStatus('Could not open the Hamsterimg picker. Try again.', true);
@@ -133,6 +208,11 @@ export class ForumMedia {
     }
   }
 
+  ownsRequest(job) {
+    return job?.origin === this.page.origin && job.account === this.account &&
+      job.thread === this.thread && job.context === this.context;
+  }
+
   endRequest() {
     if (!this.id) return;
     const id = this.id;
@@ -142,7 +222,10 @@ export class ForumMedia {
     try {
       if (this.win.sessionStorage.getItem(this.sessionKey) === id) this.win.sessionStorage.removeItem(this.sessionKey);
     } catch {}
-    try { this.storage.delete(HAMSTER_JOB_PREFIX + id); } catch {}
+    try {
+      const key = HAMSTER_JOB_PREFIX + id;
+      if (this.ownsRequest(this.storage.get(key, null))) this.storage.delete(key);
+    } catch {}
   }
 
   checkRequest() {
@@ -151,7 +234,7 @@ export class ForumMedia {
     const deliver = () => {
       if (id !== this.id || this.abort.signal.aborted) return;
       const job = readHamsterRequest(this.storage, id, this.service, this.win.Date.now());
-      if (!job || job.origin !== this.page.origin || job.account !== this.account || job.thread !== this.thread) {
+      if (!this.ownsRequest(job)) {
         this.endRequest();
         this.setStatus('The Hamsterimg request expired. Open it again to continue.', true);
         return;
@@ -179,6 +262,41 @@ export class ForumMedia {
     } else deliver();
   }
 
+  uploadSetup() {
+    const { doc } = this;
+    const setup = forumElement(doc, 'section', 'epc-forum-image-setup');
+    const heading = forumElement(doc, 'h3', '', 'Set up image uploads');
+    heading.id = this.root.id + '-setup';
+    heading.tabIndex = -1;
+    setup.setAttribute('aria-labelledby', heading.id);
+    const steps = forumElement(doc, 'ol', 'epc-forum-image-steps');
+    for (const [title, text] of [
+      ['Sign in to Hamsterimg', 'Use your Hamsterimg account or create one in the new tab.'],
+      ['Save your connection', 'Choose Use displayed key in the Companion panel. The key lets Companion upload images for you.'],
+      ['Return to your post', this.files.some(item => item.state === 'queued')
+        ? 'Your queued files will upload automatically. Companion will insert the image links.'
+        : 'Choose, paste, or drop an image. Companion uploads it to Hamsterimg and inserts its link.']
+    ]) {
+      const step = forumElement(doc, 'li');
+      step.append(forumElement(doc, 'strong', '', title), forumElement(doc, 'span', '', text));
+      steps.append(step);
+    }
+    const actions = forumElement(doc, 'div', 'epc-forum-image-setup-actions');
+    const connect = this.requestLink('connect', 'Connect Hamsterimg');
+    const hint = forumElement(doc, 'span', 'epc-forum-image-setup-note', 'Opens Hamsterimg in a new tab');
+    hint.id = this.root.id + '-setup-hint';
+    connect.setAttribute('aria-describedby', hint.id);
+    const useLink = forumButton(doc, 'Use an image link');
+    this.on(useLink, 'click', () => {
+      this.show('url');
+      this.content.querySelector('input')?.focus();
+    });
+    actions.append(connect, useLink);
+    setup.append(heading, forumElement(doc, 'p', '', 'Connect once to upload from this browser.'),
+      actions, hint, steps, forumElement(doc, 'p', 'epc-forum-image-setup-note', 'Your key is saved in this browser for your forum account.'));
+    return setup;
+  }
+
   renderUpload() {
     const key = this.connectedKey();
     const { doc } = this;
@@ -193,16 +311,13 @@ export class ForumMedia {
       input.accept = 'image/*';
       input.multiple = true;
       input.setAttribute('aria-label', 'Choose images to upload');
-      picker.append(input, forumElement(doc, 'strong', '', 'Choose images'), forumElement(doc, 'span', '', 'or drop or paste images into your reply'));
+      picker.append(input, forumElement(doc, 'strong', '', 'Choose images'), forumElement(doc, 'span', '', 'or drop or paste images into the editor'));
       this.on(input, 'change', event => {
         if (event.isTrusted) this.addFiles(input.files);
       });
       block.append(connection, picker);
     } else {
-      block.append(
-        forumElement(doc, 'p', '', 'Connect your Hamsterimg account once to upload files directly from a reply.'),
-        this.requestLink('connect', 'Connect Hamsterimg')
-      );
+      block.append(this.uploadSetup());
     }
     if (this.files.length) {
       const queue = forumElement(doc, 'ul', 'epc-forum-upload-queue');
@@ -239,6 +354,7 @@ export class ForumMedia {
   }
 
   addFiles(items) {
+    if (!this.canEdit()) return false;
     const files = [...(items || [])].filter(file => file.type.startsWith('image/') ||
       (!file.type && /\.(?:png|jpe?g|gif|webp|avif|bmp)$/i.test(file.name)));
     if (!files.length) return false;
@@ -249,7 +365,7 @@ export class ForumMedia {
   }
 
   async upload() {
-    if (this.uploading || this.abort.signal.aborted || !this.files.some(item => item.state === 'queued')) return;
+    if (this.uploading || this.abort.signal.aborted || !this.canEdit() || !this.files.some(item => item.state === 'queued')) return;
     const key = this.connectedKey();
     if (!key) return;
     this.uploading = true;
@@ -347,7 +463,7 @@ export class ForumMedia {
 
   renderLibrary() {
     this.content.replaceChildren(
-      forumElement(this.doc, 'p', '', 'Pick images from your signed-in Hamsterimg library and insert them into this reply.'),
+      forumElement(this.doc, 'p', '', 'Pick images from your signed-in Hamsterimg library and insert them into the editor.'),
       this.requestLink('browse', 'Open My images')
     );
   }
@@ -385,6 +501,7 @@ export class ForumMedia {
   destroy() {
     this.abort.abort();
     this.endRequest();
+    this.sourceButton.remove();
     this.root.remove();
   }
 }

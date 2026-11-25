@@ -4,9 +4,13 @@ export const LEGACY_TAG_LISTS = new Map([['favorite', 'favoriteTags'], ['caution
 const defaultTagCategories = Object.freeze([
   ['favorite', 'Liked', '#ccefe0'], ['loved', 'Loved', '#75c399'],
   ['liked-performer', 'Liked performer', '#d0e4ff'], ['loved-performer', 'Loved performer', '#82aff1'],
-  ['new-performer', 'New performer', '#f6ecaa'], ['liked-site', 'Liked site', '#ead6f9'],
-  ['loved-site', 'Loved site', '#cda4ef'], ['caution', 'Caution', '#c33c3c']
+  ['new-performer', 'New performer', '#f6ecaa'], ['liked-site', 'Liked site', '#efb5ff'],
+  ['loved-site', 'Loved site', '#cda4ef'], ['caution', 'Caution', '#ba8080']
 ].map(([id, name, color]) => Object.freeze({ id, name, color, enabled: true, ...(LEGACY_TAG_LISTS.has(id) ? {} : { tags: '' }) })));
+const previousTagCategoryColors = {
+  caution: ['#ffe2a8', '#c33c3c'],
+  'liked-site': ['#ead6f9']
+};
 
 export const DEFAULTS = Object.freeze({
   enabled: true, previews: true, inlineThumbnails: true,
@@ -74,12 +78,11 @@ function normalizeTagCategories(input, settings) {
     if (!name && !preset) continue;
     let color = typeof group.color === 'string' && /^#[0-9a-f]{6}$/i.test(group.color)
       ? group.color.toLowerCase() : preset?.color || '#ccefe0';
-    const caution = group.id === 'caution';
-    const colorCustomized = caution && group.colorCustomized === true;
-    // Older settings stored the amber default alongside manually chosen colors.
-    if (caution && color === '#ffe2a8' && !colorCustomized) color = preset.color;
+    const colorCustomized = group.colorCustomized === true;
+    // Older settings stored preset colors even when the user never used the picker.
+    if (preset && !colorCustomized && previousTagCategoryColors[group.id]?.includes(color)) color = preset.color;
     const next = { id: group.id, name: name || preset.name, color, enabled: group.enabled !== false };
-    if (colorCustomized) next.colorCustomized = true;
+    if (preset && colorCustomized) next.colorCustomized = true;
     if (!LEGACY_TAG_LISTS.has(group.id)) {
       if (typeof group.tags === 'string' && group.tags.length > 50000) throw new Error('Tag highlight list exceeds 50,000 characters.');
       next.tags = tagListTokens(group.tags).filter(tag => {
@@ -316,6 +319,8 @@ export function companionForumPage({ pathname, searchParams }) {
   if (path === '/forum') return { kind: 'boards' };
   if (path === '/forum/search') return { kind: 'search' };
   if (path === '/forum/unread') return { kind: 'unread' };
+  const topic = /^\/forum\/([1-9]\d{0,14})\/new$/.exec(path);
+  if (topic) return { kind: 'new-topic', board: topic[1] };
   const board = /^\/forum\/([1-9]\d{0,14})(\/unread)?$/.exec(path);
   if (board) return { kind: board[2] ? 'unread' : 'board', board: board[1] };
   const thread = /^\/forum\/thread\/([1-9]\d{0,14})$/.exec(path);

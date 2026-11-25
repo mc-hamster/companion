@@ -31,6 +31,15 @@ export function forumElement(doc, tag, className = '', text = '') {
   return element;
 }
 
+export function forumHelpLink(doc) {
+  const link = forumElement(doc, 'a', 'epc-forum-reply-help', 'Help');
+  link.setAttribute('aria-label', 'BBCode help');
+  link.href = '/articles/view/bbcode';
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  return link;
+}
+
 export function forumButton(doc, text, className = '') {
   const button = forumElement(doc, 'button', className, text);
   button.type = 'button';

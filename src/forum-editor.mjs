@@ -192,6 +192,14 @@ const forumSchema = new Schema({
   }
 });
 
+export const forumVisualPreference = 'ep.forum.visual';
+
+export function forumEditorFonts(container) {
+  const fonts = [...container.querySelectorAll('select[name="fontfont"] option')]
+    .map(option => option.value).filter(name => name !== '-1' && forumMarkValue('font', name));
+  return fonts.length ? fonts : undefined;
+}
+
 export function readForumVisualSource(source) {
   const parsed = parseForumBBCode(source);
   if (!parsed) return null;
@@ -233,7 +241,7 @@ export function createForumEditor(root, doc, onChange, options) {
     state: EditorState.create({ doc, selection: Selection.atEnd(doc),
       plugins: [history(), shortcuts, keymap(baseKeymap), tableEditing({ allowTableNodeSelection: true })] }),
     editable: () => !disabled,
-    attributes: { role: 'textbox', 'aria-label': 'Reply text', 'aria-multiline': 'true', spellcheck: 'true' },
+    attributes: { role: 'textbox', 'aria-label': options.label || 'Reply text', 'aria-multiline': 'true', spellcheck: 'true' },
     dispatchTransaction(transaction) {
       const result = view.state.applyTransaction(transaction);
       for (const applied of result.transactions) if (imageBookmark) imageBookmark = imageBookmark.map(applied.mapping);

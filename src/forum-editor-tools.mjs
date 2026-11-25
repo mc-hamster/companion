@@ -185,7 +185,7 @@ async function loadForumSmilies(page, from, signal, win) {
   return batch;
 }
 
-export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, page = root.ownerDocument.baseURI, openImages } = {}) {
+export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, page = root.ownerDocument.baseURI, openImages, mediaId, optionsId = 'epc-forum-editor-options' } = {}) {
   const doc = root.ownerDocument;
   const win = doc.defaultView;
   const controller = new win.AbortController();
@@ -212,8 +212,7 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
   }
   panel.hidden = true;
   toolbar.append(textTools, insertTools, tableTools);
-  const rootId = 'epc-forum-editor-options';
-  panel.id = rootId;
+  panel.id = optionsId;
   root.append(toolbar, panel);
 
   function button(parent, name, text, label, action) {
@@ -413,7 +412,7 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
 
   function panelButton(parent, name, title, label, open) {
     const control = button(parent, name, title, label, () => open(control));
-    control.setAttribute('aria-controls', rootId);
+    control.setAttribute('aria-controls', optionsId);
     control.setAttribute('aria-expanded', 'false');
     return control;
   }
@@ -475,9 +474,9 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
   const images = button(insertTools, 'image', 'Image', 'Insert image', () => {
     const current = view.state.selection.node;
     closePanel(false);
-    openImages?.(current?.type === nodes.image ? current.attrs.href : null, images);
+    openImages(current?.type === nodes.image ? current.attrs.href : null, images);
   });
-  images.setAttribute('aria-controls', 'epc-forum-media');
+  images.setAttribute('aria-controls', mediaId);
   images.setAttribute('aria-expanded', 'false');
   panelButton(insertTools, 'video', 'Video', 'Insert video', trigger => {
     const current = view.state.selection.node;
