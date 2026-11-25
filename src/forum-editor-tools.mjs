@@ -202,6 +202,7 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
     return node;
   };
   const toolbar = element('div', '', 'epc-forum-format');
+  toolbar.id = 'epc-forum-visual-toolbar';
   const textTools = element('div', '', 'epc-forum-format-row');
   const insertTools = element('div', '', 'epc-forum-format-row');
   const tableTools = element('div', '', 'epc-forum-table-tools epc-forum-format-row');

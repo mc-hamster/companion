@@ -423,6 +423,14 @@ test('the full native toolbar is immediately available in BBCode and the Visual 
     assert.equal(bullet.textContent, 'Linked bullet');
     assert.equal(f.win.getComputedStyle(bullet).listStylePosition, 'outside');
     const tools = doc.querySelector('.epc-forum-format');
+    const disclosure = doc.querySelector('.epc-forum-visual-tools');
+    assert.equal(disclosure.hidden, false);
+    assert.equal(disclosure.getAttribute('aria-controls'), tools.id);
+    assert.equal(disclosure.getAttribute('aria-expanded'), 'false');
+    disclosure.click();
+    assert.equal(disclosure.getAttribute('aria-expanded'), 'true');
+    disclosure.click();
+    assert.equal(disclosure.getAttribute('aria-expanded'), 'false');
     for (const name of ['sup', 'sub', 'color', 'image', 'video', 'table', 'anchor', 'horizontal_rule', 'bg', 'smilies']) {
       assert.ok(tools.querySelector('[data-format="' + name + '"]'), name);
     }

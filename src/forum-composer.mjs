@@ -210,13 +210,24 @@ export class ForumComposer {
     this.sourceImages.setAttribute('aria-controls', 'epc-forum-media');
     this.sourceImages.setAttribute('aria-expanded', 'false');
     this.on(this.sourceImages, 'click', () => this.openImages(null, this.sourceImages));
-    this.switcher.append(this.sourceImages);
+    this.visualTools = forumButton(doc, 'Tools', 'epc-forum-visual-tools');
+    this.visualTools.hidden = true;
+    this.visualTools.setAttribute('aria-controls', 'epc-forum-visual-toolbar');
+    this.visualTools.setAttribute('aria-expanded', 'false');
+    this.on(this.visualTools, 'click', () => {
+      const expanded = this.visualTools.getAttribute('aria-expanded') === 'true';
+      this.visualTools.setAttribute('aria-expanded', String(!expanded));
+    });
+    this.switcher.append(this.sourceImages, this.visualTools);
     this.listenForImages();
 
     const tools = this.sourceArea.querySelector(':scope > .bb_holder, :scope > .bbcode_assistant, :scope > table');
     if (tools) {
       this.tools = forumElement(doc, 'details', 'epc-forum-source-tools');
-      this.tools.open = true;
+      const constrained = this.win.matchMedia?.('(max-height: 640px), (max-width: 690px)');
+      const updateTools = () => { this.tools.open = !constrained?.matches; };
+      updateTools();
+      constrained?.addEventListener?.('change', updateTools, { signal: this.abort.signal });
       this.tools.append(forumElement(doc, 'summary', '', 'Native BBCode tools'));
       tools.before(this.tools);
       this.move(tools, this.tools);
@@ -526,6 +537,7 @@ export class ForumComposer {
     }
     this.mode = mode;
     this.sourceImages.hidden = mode !== 'bbcode';
+    this.visualTools.hidden = mode !== 'visual';
     this.sourceArea.hidden = mode !== 'bbcode';
     this.visualArea.hidden = mode !== 'visual';
     this.preview.hidden = true;
