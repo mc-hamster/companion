@@ -205,6 +205,21 @@ test('floating thread controls jump to page positions and retain the draft launc
   } finally { f.close(); }
 });
 
+test('the composer layout overrides the native inline reply form display', async () => {
+  const f = await start('/forum/thread/42', { storage: memoryStorage({ 'ep.forum.reader': true }) });
+  try {
+    const { doc } = f;
+    const form = doc.querySelector('.epc-forum-compose > #quickpostform');
+    assert.equal(form.style.display, 'block');
+    // jsdom cannot resolve an important stylesheet declaration over a normal inline style.
+    const layout = [...doc.styleSheets].flatMap(sheet => [...sheet.cssRules])
+      .find(rule => rule.selectorText === '.epc-forum-compose > form');
+    assert.ok(layout);
+    assert.equal(layout.style.getPropertyValue('display'), 'flex');
+    assert.equal(layout.style.getPropertyPriority('display'), 'important');
+  } finally { f.close(); }
+});
+
 test('empty pagination wrappers disappear while links on multipage threads remain available', async () => {
   const storage = memoryStorage({ 'ep.forum.reader': true });
   const single = await start('/forum/thread/42?single-page', { storage });

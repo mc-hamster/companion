@@ -55,7 +55,7 @@ function forumThreadHTML(url, posted) {
     topPager + posts.join('') + bottomPager +
     (locked ? '<p>This thread is locked.</p>' :
       '<div class="head">Post reply</div><div class="box pad">' +
-      '<form id="quickpostform" action="/forum/thread/' + id + '/reply" method="post">' +
+      '<form id="quickpostform" action="/forum/thread/' + id + '/reply" method="post" style="display: block; text-align: center;">' +
       '<input type="hidden" name="token" value="fixture-token"><div id="quickreplytext">' +
       '<table class="bb_holder"><tr><td><div class="bb_buttons_left">' +
       '<a id="fixture-bold" onclick="this.closest(\'form\').body.value+=\'[b]text[/b]\'">Bold</a>' +

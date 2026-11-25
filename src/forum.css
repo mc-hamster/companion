@@ -475,7 +475,7 @@ html.epc-forum-fit, html.epc-forum-fit body, .epc-forum-fit #wrapper { min-width
 .epc-forum-compose-sizes button { margin: 0; padding-inline: 7px; border-color: transparent; }
 .epc-forum-compose-head .epc-forum-minimize { border-color: transparent; color: var(--epc-muted); }
 .epc-forum-compose > form {
-  display: flex;
+  display: flex !important; /* The native reply form sets display: block inline. */
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;

@@ -1,5 +1,7 @@
 # Validation
 
+Version 2.16.8 passes 467 automated checks. The forum fixture now includes the native reply form's inline display rule. At 1122 × 533, the button was clipped in 2.16.7 and stayed visible in 2.16.8. Local Chrome and Firefox verified all composer sizes and editor modes down to 320 × 200. Chrome submitted a fixture reply from Preview at 320 × 256. [Luminance reply form](https://github.com/Empornium/Luminance/blob/master/application/Plugins/Forum/templates/thread.html.twig#L168-L190)
+
 Version 2.16.7 passes 466 automated checks. In local Chrome and Firefox fixtures, Post reply stayed visible while the editor scrolled in Compact, Wide, and Full at viewport sizes down to 320 × 200. Chrome submitted a fixture reply from Preview at 320 × 256.
 
 Version 2.16.6 passes 466 automated checks, including upgrading the old amber Caution default to red and remembering a subsequently chosen color across reloads. A local Chromium fixture verified rounded highlights in List and Grid and immediate updates when changing a category color.
