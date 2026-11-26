@@ -357,7 +357,10 @@ a.pager_next[aria-disabled=true],a[rel=next][aria-disabled=true]{opacity:.55;poi
   margin:var(--epc-detail-gap) 0;padding:14px var(--epc-detail-gap);
   border:1px solid var(--epc-line);border-radius:12px;background:var(--epc-bg);color:var(--epc-fg)
 }
-#content .epc-detail-panels #details_top>:is(.sidebar,.middle_column){float:none!important;inline-size:100%;min-inline-size:0;margin:0}
+/* Keep the reformatted panels full width when Widepornium sizes the native columns. */
+#content .epc-detail-panels #details_top>:is(.sidebar,.middle_column){
+  float:none!important;inline-size:100%!important;min-inline-size:0;max-inline-size:100%;margin:0
+}
 #content [data-ep-detail-layout] #details_top>.middle_column:not(:has(>:not([data-ep-detail-original-hidden],.hidden,[hidden],br,script,style))){display:none}
 #content [data-ep-detail-layout] #details_top>:is(.sidebar,.middle_column)>.head:not(.hidden,[hidden]){
   display:flow-root;box-sizing:border-box;block-size:auto;min-block-size:0;max-block-size:none
