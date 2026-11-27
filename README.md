@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.16.13](dist/EmporniumCompanion-2.16.13.user.js)**
+**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.16.14](dist/EmporniumCompanion-2.16.14.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -59,6 +59,8 @@ To curate a collage, open it and click **Pin for quick add** in the Companion to
 
 On a torrent detail page, turn on **Reformat details** in the Companion toolbar for a gallery that starts with the cover. Expand **File list** below Tags to see the files. Hover for a larger preview or click to open the image viewer. Turn off **Reformat details** to return to the original page. Companion remembers the switch for other detail pages.
 
+Choose **Visual** or **BBCode** when writing or editing a torrent comment. Comments share the forum editor's image picker and use the site's **Preview** and posting controls. You can use the editor with **Reformat details** on or off.
+
 ## Forum
 
 On a forum page, flip **Enable in forum** directly in the Companion toolbar. Use **Boards**, **Unread**, **Subscriptions**, and **Search** on the toolbar to navigate the forum. In an enhanced thread, **Topics** opens a compact list of topics in the current board.
@@ -75,7 +77,7 @@ Choose **Compact**, **Wide**, or **Full** in the reply window. **Minimize** save
 
 **New Topic** and **Edit post** also offer Visual and BBCode editing for the body. Use the site's **Preview**, **Create thread**, and edit controls to finish. Topics, replies, and post edits share the same image picker.
 
-The first time you open **Image → Upload**, Companion walks you through connecting Hamsterimg. Choose **Connect Hamsterimg** to open setup in a new tab. Sign in on the Hamsterimg tab and choose **Use displayed key**, or paste the key you saved earlier. The key is stored locally for your forum account and excluded from backups. Back in the forum, choose files or drop or paste images into the editor to upload and insert them. **Recent uploads** shows images uploaded through Companion, **My images** opens the signed-in Hamsterimg library, and **From URL** accepts an existing image link. In BBCode mode, these choices are under **Add images**.
+The first time you open **Image → Upload**, Companion walks you through connecting Hamsterimg. Choose **Connect Hamsterimg** to open setup in a new tab. Sign in on the Hamsterimg tab and choose **Use displayed key**, or paste the key you saved earlier. The key is stored locally for your Empornium account and excluded from backups. Back in the editor, choose files or drop or paste images to upload and insert them. **Recent uploads** shows images uploaded through Companion, **My images** opens the signed-in Hamsterimg library, and **From URL** accepts an existing image link. In BBCode mode, these choices are under **Add images**.
 
 ## Updates and backups
 

@@ -53,7 +53,7 @@ export function mountHamsterPicker(win, storage, service, addStyle, css) {
   const getActive = () => {
     const active = readHamsterRequest(storage, id, service, win.Date.now());
     if (active && !active.result) return active;
-    status.textContent = 'This request ended. Open Image in the forum editor to start again.';
+    status.textContent = 'This request ended. Open the image picker again from the editor.';
     return null;
   };
   function complete(active, result, message) {
@@ -110,7 +110,7 @@ export function mountHamsterPicker(win, storage, service, addStyle, css) {
       try {
         storage.set(hamsterAccountKey(active.origin, active.account), key);
         input.value = '';
-        complete(active, { connected: true }, 'Key saved. Choose Done to return to the forum editor.');
+        complete(active, { connected: true }, 'Key saved. Choose Done to return to the editor.');
         observer.disconnect();
       } catch { status.textContent = 'The key could not be saved. Try again.'; }
     };
@@ -217,7 +217,7 @@ export function mountHamsterPicker(win, storage, service, addStyle, css) {
     const active = getActive();
     if (!active) return;
     try {
-      complete(active, { images: [...selected.values()] }, 'Images sent. Return to the forum editor.');
+      complete(active, { images: [...selected.values()] }, 'Images sent. Return to the editor.');
       observer.disconnect();
       for (const button of buttons.keys()) {
         button.parentElement?.classList.remove('epc-hamster-pickable');

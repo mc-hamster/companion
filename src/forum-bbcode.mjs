@@ -113,8 +113,11 @@ export function forumQuoteSource(thread, post) {
 }
 
 export function forumQuoteCredit(credit) {
-  const match = /^([^,]+),f([1-9]\d{0,14}),([1-9]\d{0,14})$/.exec(credit);
-  return match ? { author: match[1], href: forumQuoteSource(match[2], match[3]) } : { author: credit };
+  const match = /^([^,]+),([ft])([1-9]\d{0,14}),([1-9]\d{0,14})$/.exec(credit);
+  if (!match) return { author: credit };
+  const [, author, kind, topic, post] = match;
+  const href = kind === 'f' ? forumQuoteSource(topic, post) : '/torrents.php?id=' + topic + '&postid=' + post + '#post' + post;
+  return { author, href };
 }
 
 export function forumLiteralText(value) {

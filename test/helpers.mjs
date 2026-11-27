@@ -63,9 +63,20 @@ export function detailFixtureHTML({ collages = true, comments = true, cover = tr
     <table class="bbcode" style="width:840px"><tr><td>Camera notes</td><td>UHD, 24 fps, stereo</td></tr></table>
     <div id="torrentsigbox">Uploader signature <img src="/coast-signature.svg" width="480" height="360" alt="Signature"></div></div></div></div>
     <div class="head">Thanks</div><div class="box pad center"><form id="thanksform"><button type="button">Say thanks</button></form></div>
-    <div class="linkbox pager"></div>${comments ? '<table id="post100" class="forum_post"><tr><td>Example comment</td></tr></table>' : ''}
-    <table id="quickreplypreview" class="forum_post hidden"><tr><td>Preview</td></tr></table>
-    <div class="head">Post reply</div><div class="box pad shadow"><form id="quickpostform"><textarea name="body"></textarea></form></div></div>
+    <div class="linkbox pager"></div>${comments ? `<table id="post100" class="forum_post">
+    <tr class="smallhead"><td><button type="button" onclick="Quote('100','t42','Riley')">Quote</button>
+    <button type="button" id="edit100" onclick="Edit_Form('100')">Edit</button><span id="bar100"></span></td></tr>
+    <tr><td class="postbody"><div id="content100">The tide was exceptionally low.</div></td></tr></table>` : ''}
+    <div id="message" class="hidden"></div>
+    <table id="quickreplypreview" class="forum_post hidden"><tr><td id="contentpreview"></td></tr></table>
+    <div class="head">Post reply</div><div class="box pad shadow">
+    <form id="quickpostform" method="post" onsubmit="return Validate_Form('message', 'quickpost')" style="text-align:center">
+    <div id="quickreplytext"><input type="hidden" name="action" value="add_comment">
+    <input type="hidden" name="auth" value="fixture-comment-token"><input type="hidden" name="groupid" value="42">
+    <table class="bb_holder"><tr><td>BBCode controls</td></tr></table>
+    <textarea id="quickpost" name="body" class="long" rows="5"></textarea><br></div>
+    <input id="post_preview" type="button" value="Preview" onclick="this.preview ? Quick_Edit() : Quick_Preview()">
+    <input type="submit" value="Post reply"></form></div></div>
     </div></div></body></html>`;
 }
 export function memoryStorage(initial = {}) {

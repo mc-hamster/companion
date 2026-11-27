@@ -108,6 +108,20 @@ function epStart() {
     validateNSE: input => validateNSE(input, epSchema)
   }).start();
   document.addEventListener(epRunningEvent, event => event.preventDefault());
+  const torrentID = epApp.detailLayout.torrentID;
+  if (torrentID) {
+    const mountComments = () => {
+      const discussion = document.querySelector('#content > .details.thin > .main_column');
+      const account = emporniumAccountID(document, epPage);
+      if (!discussion || !account) return;
+      const bundle = epLoadForum();
+      const media = { service: bundle.hamsterServiceBase(epPage, epFixture), request: epRequest };
+      epApp.cleanups.push(bundle.mountTorrentCommentEditors(discussion, { storage: epStorage, page: epPage, account, media },
+        torrentID, () => GM_addStyle(epForumStyle)));
+    };
+    if (document.readyState === 'loading') epApp.on(document, 'DOMContentLoaded', mountComments, { once: true });
+    else mountComments();
+  }
   GM_registerMenuCommand('Companion settings', () => {
     epApp.openPane('settings'); epApp.root?.scrollIntoView({ block: 'start' });
   });

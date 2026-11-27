@@ -24,17 +24,18 @@ test('Hamsterimg requests are scoped to the originating tracker account and expi
   assert.equal(hamsterKey(' ' + key + ' '), key);
 });
 
-test('Hamsterimg accepts topic and post-edit jobs while rejecting ambiguous or invalid contexts', () => {
+test('Hamsterimg accepts topic, post edit, and torrent comment jobs with valid contexts', () => {
   const id = '892a44d3-ae62-43dd-802c-af2b8ccb4200';
   const name = HAMSTER_JOB_PREFIX + id;
   const job = { origin: tracker, account: '7', action: 'browse', started: 12000 };
   const storage = memoryStorage();
-  for (const context of ['topic.23', 'edit.42']) {
+  for (const context of ['topic.23', 'edit.42', 'torrent.42.comment', 'torrent.42.edit.100']) {
     const scoped = { ...job, context };
     storage.set(name, scoped);
     assert.deepEqual(readHamsterRequest(storage, id, service, 12001), scoped);
   }
-  for (const scope of [{ context: 'topic.0' }, { context: 'edit.42/other' }, { context: 'topic.23', thread: '42' }]) {
+  for (const scope of [{ context: 'topic.0' }, { context: 'edit.42/other' }, { context: 'topic.23', thread: '42' },
+    { context: 'torrent.42.edit' }, { context: 'torrent.42.edit.0' }, { context: 'torrent.0.comment' }]) {
     storage.set(name, { ...job, ...scope });
     assert.equal(readHamsterRequest(storage, id, service, 12001), null);
   }

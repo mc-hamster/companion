@@ -11,10 +11,12 @@ export const HAMSTER_SELECTION_LIMIT = 50;
 const jobLifetime = 60 * 60 * 1000;
 const validID = /^[1-9]\d{0,14}$/;
 const validInlineContext = /^(?:topic|edit)\.[1-9]\d{0,14}$/;
+const validTorrentContext = /^torrent\.[1-9]\d{0,14}\.(?:comment|edit\.[1-9]\d{0,14})$/;
 
 function validComposer(job) {
   return job.context === undefined ? validID.test(job.thread || '') :
-    job.thread === undefined && typeof job.context === 'string' && validInlineContext.test(job.context);
+    job.thread === undefined && typeof job.context === 'string' &&
+      (validInlineContext.test(job.context) || validTorrentContext.test(job.context));
 }
 const validNonce = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

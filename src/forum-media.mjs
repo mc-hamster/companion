@@ -293,7 +293,7 @@ export class ForumMedia {
     });
     actions.append(connect, useLink);
     setup.append(heading, forumElement(doc, 'p', '', 'Connect once to upload from this browser.'),
-      actions, hint, steps, forumElement(doc, 'p', 'epc-forum-image-setup-note', 'Your key is saved in this browser for your forum account.'));
+      actions, hint, steps, forumElement(doc, 'p', 'epc-forum-image-setup-note', 'Your key is saved in this browser for your Empornium account.'));
     return setup;
   }
 

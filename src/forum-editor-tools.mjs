@@ -527,7 +527,7 @@ export function mountForumToolbar(root, view, commands, { fonts = defaultFonts, 
     const current = forumBlock(view.state, 'bg');
     const parts = current?.node.attrs.label.split(',') ?? [];
     const oldColor = parts.find(part => forumMarkValue('color', part) && !alignments.some(([value]) => value === part));
-    const defaultColor = doc.documentElement.dataset.epForumTheme === 'dark' ? '#253a57' : '#dbe8fa';
+    const defaultColor = root.closest('[data-ep-forum-theme]')?.dataset.epForumTheme === 'dark' ? '#253a57' : '#dbe8fa';
     configure(trigger, [
       { label: 'Background color', value: oldColor || defaultColor, swatch: 'background', required: true },
       { label: 'Width', value: parts.find(part => /^\d/.test(part)), placeholder: 'Optional, e.g. 75%' },

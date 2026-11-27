@@ -6,6 +6,7 @@ import { forumButton, forumElement, forumSiteTheme } from './forum-ui.mjs';
 import { createWorkspaceChrome, createWorkspacePane, styleWorkspaceSwitch, updateWorkspacePane } from './workspace.mjs';
 export { mountHamsterPicker } from './hamster-picker.mjs';
 export { hamsterServiceBase } from './hamster-media.mjs';
+export { mountTorrentCommentEditors } from './torrent-comments.mjs';
 
 const forumThemes = [['site', 'Match site'], ['light', 'Light'], ['graphite', 'Graphite'], ['plum', 'Plum']];
 const forumTextSizes = [['small', 'Small'], ['regular', 'Regular'], ['large', 'Large']];
