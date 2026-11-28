@@ -57,7 +57,7 @@ test('group expansion preserves original links, tags, status and row handlers; d
   try {
     const row = f.doc.querySelector('[data-fixture-id="3"]'), title = row.querySelector('.fixture-title');
     let clicks = 0; title.addEventListener('click', event => { event.preventDefault(); clicks++; });
-    const button = f.doc.querySelector('.epc-version-control'); assert.equal(button.textContent, 'Show 2 versions');
+    const button = f.doc.querySelector('.epc-version-control'); assert.equal(button.textContent, 'Show version details');
     assert.equal(row.classList.contains('epc-version-hidden'), true);
     assert.match(f.doc.querySelector('.epc-result-summary').textContent, /2 shown · 1 grouped/);
     button.click(); assert.equal(row.classList.contains('epc-version-hidden'), false);
@@ -102,11 +102,12 @@ test('new rows join existing groups without stealing focus, and same names in ot
     f.doc.querySelector('.torrent_table tbody').insertAdjacentHTML('beforeend', rowHTML(3, { title: 'Mountain Walk [2160p]' }));
     f.doc.querySelector('#content').insertAdjacentHTML('beforeend', '<table><tbody>' + rowHTML(4, { title: 'Mountain Walk [480p]' }) + '</tbody></table>');
     await settle();
-    assert.equal(f.doc.activeElement, button); assert.equal(button.textContent, 'Hide 3 versions');
+    assert.equal(f.doc.activeElement, button); assert.equal(button.getAttribute('aria-expanded'), 'true');
+    assert.equal(button.previousElementSibling.children.length, 3);
     assert.equal(f.doc.querySelectorAll('.epc-version-control').length, 1);
     assert.equal(f.doc.querySelector('[data-fixture-id="4"]').classList.contains('epc-version-member'), false);
     f.doc.querySelector('[data-fixture-id="3"] [title]').title = 'Pictures / Images'; f.app.syncGridFilters();
-    assert.equal(button.textContent, 'Hide 2 versions');
+    assert.equal(button.previousElementSibling.children.length, 2);
     assert.equal(f.doc.querySelector('[data-fixture-id="3"]').classList.contains('epc-version-member'), false);
   } finally { f.close(); }
 });
@@ -118,7 +119,7 @@ test('[FLT-08] revealing a filtered version leaves unfiltered versions grouped a
     const second=f.doc.querySelector('[data-fixture-id="2"]');second.classList.add('hidden');second.setAttribute('isNSEHidden','1');f.app.syncGridFilters();
     assert.equal(f.doc.querySelector('.epc-version-control').getAttribute('aria-expanded'),'false');
     f.app.toggleFiltered.click();assert.equal(second.classList.contains('epc-version-hidden'),false);
-    assert.equal(f.doc.querySelectorAll('.epc-version-hidden').length,1);assert.equal(f.doc.querySelector('.epc-version-control').textContent,'Show 2 versions');
+    assert.equal(f.doc.querySelectorAll('.epc-version-hidden').length,1);assert.equal(f.doc.querySelectorAll('.epc-version-list li').length,2);
     f.doc.querySelector('.epc-version-control').click();f.app.toggleFiltered.click();
     assert.equal(f.doc.querySelector('.epc-version-control').getAttribute('aria-expanded'),'true');
     assert.equal(second.classList.contains('hidden'),true);assert.equal(second.classList.contains('epc-revealed'),false);

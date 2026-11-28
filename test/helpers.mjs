@@ -1,13 +1,15 @@
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { escapeHTML } from '../src/core.mjs';
 
-export function rowHTML(id = 1, { title = 'Example ' + id, tags = 'sample.tag', uploader = 'ExampleUser', extra = '' } = {}) {
+export function rowHTML(id = 1, { title = 'Example ' + id, tags = 'sample.tag', uploader = 'ExampleUser', extra = '',
+  size = '4', downloadHref = '' } = {}) {
+  const download = downloadHref ? '<a class="fixture-download" href="' + escapeHTML(downloadHref) + '">DL</a>' : '';
   return '<tr class="torrent rowa" data-fixture-id="' + id + '">' +
     '<td class="cats_col"><div title="Category">CAT</div></td><td>' +
-    '<span class="torrent_icon_container"><span class="icon"><a href="/torrents.php?id=' + id + '"><div class="icon_container"><div class="icon_stack"><i class="font_icon torrent_icons ' + extra + '"></i></div></div></a></span></span> ' +
+    '<span class="torrent_icon_container"><span class="icon"><a href="/torrents.php?id=' + id + '"><div class="icon_container"><div class="icon_stack"><i class="font_icon torrent_icons ' + extra + '"></i></div></div></a></span>' + download + '</span> ' +
     '<a class="fixture-title" href="/torrents.php?id=' + id + '" onmouseover="return overlib(overlay' + id + ')" onmouseout="return nd()">' + escapeHTML(title) + '</a>' +
     '<div class="tags">' + tags.split(' ').map(t => '<a href="/torrents.php?taglist=' + t + '">' + t + '</a>').join(' ') + '</div></td>' +
-    '<td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td class="r00">0</td><td>6</td>' +
+    '<td>1</td><td>2</td><td>3</td><td>' + escapeHTML(size) + '</td><td>5</td><td class="r00">0</td><td>6</td>' +
     '<td class="user">' + (uploader ? '<a href="/user.php?id=10">' + uploader + '</a>' : '<span class="anon_name">anon</span>') + '</td></tr>';
 }
 export function overlayHTML(id, url, thumbnail) {
@@ -48,6 +50,10 @@ export function detailFixtureHTML({ collages = true, comments = true, cover = tr
     <div id="details_top"><div class="sidebar">${cover ? '<div class="head"><strong>Cover</strong></div>' +
     '<div class="box box_albumart" id="coverimage"><img src="/coast-cover.svg" alt="Coastal cliffs under a moonlit sky" width="480" height="360"></div>' : ''}
     <a id="tags"></a><div class="head"><strong>Tags</strong></div><div class="box box_tags" id="tag_container">
+    <div class="tag_header">
+      <div>sort by <button type="button">uses</button> <button type="button">score</button> <button type="button">az</button></div>
+      Please vote for tags based <a href="#tag-rules"><strong class="important_text">only</strong></a> on their appropriateness for this upload.
+    </div>
     <ul id="torrent_tags_list" class="stats nobullet"><li><a href="#field-recording">field.recording</a></li><li><a href="#coast">coast</a></li></ul></div></div>
     <div class="middle_column"><div class="head"><strong>Torrent information</strong></div>
     <table class="torrent_table">${editions.map(([id, quality]) => fileRow(id, quality)).join('')}</table>

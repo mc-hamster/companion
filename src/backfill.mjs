@@ -53,6 +53,7 @@ export function nextBackfillURL(source, current, search, loaded = new Set()) {
 
 export function torrentID(row, base) {
   for (const link of row.querySelectorAll('a[href]')) {
+    if (link.closest('.epc-versions')) continue;
     try {
       const url = new URL(link.getAttribute('href'), base), id = url.searchParams.get('id');
       if (url.origin === new URL(base).origin && url.pathname === '/torrents.php' &&

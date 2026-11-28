@@ -5,7 +5,7 @@ const defaultTagCategories = Object.freeze([
   ['favorite', 'Liked', '#ccefe0'], ['loved', 'Loved', '#75c399'],
   ['liked-performer', 'Liked performer', '#d0e4ff'], ['loved-performer', 'Loved performer', '#82aff1'],
   ['new-performer', 'New performer', '#f6ecaa'], ['liked-site', 'Liked site', '#efb5ff'],
-  ['loved-site', 'Loved site', '#cda4ef'], ['caution', 'Caution', '#ba8080']
+  ['loved-site', 'Loved site', '#cda4ef'], ['caution', 'Disliked', '#ba8080'], ['hated', 'Hated', '#a63e52']
 ].map(([id, name, color]) => Object.freeze({ id, name, color, enabled: true, ...(LEGACY_TAG_LISTS.has(id) ? {} : { tags: '' }) })));
 const previousTagCategoryColors = {
   caution: ['#ffe2a8', '#c33c3c'],
@@ -74,14 +74,17 @@ function normalizeTagCategories(input, settings) {
     if (!group || typeof group.id !== 'string' || usedIDs.has(group.id)) continue;
     const preset = presets.get(group.id);
     if (!preset && !/^custom-[a-f0-9-]{36}$/.test(group.id)) continue;
-    const name = typeof group.name === 'string' && group.name.trim().slice(0, 64);
+    let name = typeof group.name === 'string' && group.name.trim().slice(0, 64);
     if (!name && !preset) continue;
+    const namedCaution = group.id === 'caution' && name === 'Caution' && group.nameCustomized === true;
+    if (group.id === 'caution' && name === 'Caution' && !namedCaution) name = preset.name;
     let color = typeof group.color === 'string' && /^#[0-9a-f]{6}$/i.test(group.color)
       ? group.color.toLowerCase() : preset?.color || '#ccefe0';
     const colorCustomized = group.colorCustomized === true;
     // Older settings stored preset colors even when the user never used the picker.
     if (preset && !colorCustomized && previousTagCategoryColors[group.id]?.includes(color)) color = preset.color;
     const next = { id: group.id, name: name || preset.name, color, enabled: group.enabled !== false };
+    if (namedCaution) next.nameCustomized = true;
     if (preset && colorCustomized) next.colorCustomized = true;
     if (!LEGACY_TAG_LISTS.has(group.id)) {
       if (typeof group.tags === 'string' && group.tags.length > 50000) throw new Error('Tag highlight list exceeds 50,000 characters.');

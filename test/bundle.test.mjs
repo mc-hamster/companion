@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { domFixture, fixtureHTML, rowHTML, overlayHTML, memoryStorage, fakeClock, settle, until } from './helpers.mjs';
+import { detailFixtureHTML, domFixture, fixtureHTML, rowHTML, overlayHTML, memoryStorage, fakeClock, settle, until } from './helpers.mjs';
 const bundle = await readFile(new URL('../dist/EmporniumCompanion.user.js', import.meta.url), 'utf8');
 test('release metadata and versioned installable match the package and tested canonical artifact', async () => {
   const {version,repository,homepage}=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
@@ -34,7 +34,7 @@ function authoredInterfaceText(doc) {
   return pieces.join('\n');
 }
 async function setup(initial = {}, rows = rowHTML(1) + rowHTML(2), extra = '', url, options = {}) {
-  const f = domFixture(fixtureHTML(rows, overlayHTML(1, 'https://x.test/a.jpg') + extra), url);
+  const f = domFixture(options.html ?? fixtureHTML(rows, overlayHTML(1, 'https://x.test/a.jpg') + extra), url);
   const storage = memoryStorage({ 'ep.settings': { inlineThumbnails: false }, ...initial }), clock = fakeClock();
   const win = f.win;
   win.GM_getValue = storage.get; win.GM_setValue = storage.set; win.GM_listValues = storage.list;
@@ -396,14 +396,14 @@ test('Luminance import previews a merge, preserves existing choices and can undo
   try {
     const form = f.doc.querySelector('.epc-luminance-import');
     const button = text => [...form.querySelectorAll('button')].find(node => node.textContent === text);
-    form.querySelector('textarea').value = JSON.stringify({ useTag1aTags: true, useTag7aTags: true, useTerribleTags: true,
-      useTag7dTags: true, tags: { Tags1a: ['📸 Fern', 'fern'], Tags7a: ['existing', 'review'], terrible: ['block.me', 'allowed'],
+    form.querySelector('textarea').value = JSON.stringify({ useTag1aTags: true, useTag7aTags: true, useTag7bTags: true, useTerribleTags: true,
+      useTag7dTags: true, tags: { Tags1a: ['📸 Fern', 'fern'], Tags7a: ['existing', 'review'], Tags7b: ['strong.warning'], terrible: ['block.me', 'allowed'],
         Tags7d: ['metadata'] } });
     button('Preview import').click();
     const select = [...form.querySelectorAll('select')];
-    assert.deepEqual(select.map(node => node.value), ['favorite', 'caution', 'skip', 'skip']);
+    assert.deepEqual(select.map(node => node.value), ['favorite', 'caution', 'hated', 'skip', 'skip']);
     assert.equal(f.storage.get('nseTaglist'), 'old.block');
-    for (const [index, value] of [[2, 'block'], [3, 'collapse']]) {
+    for (const [index, value] of [[3, 'block'], [4, 'collapse']]) {
       select[index].value = value; select[index].dispatchEvent(new f.win.Event('change'));
     }
     assert.match(form.querySelector('[role=status]').textContent, /2 conflicts skipped/);
@@ -411,6 +411,7 @@ test('Luminance import previews a merge, preserves existing choices and can undo
     assert.equal(f.storage.get('nseTaglist'), 'old.block block.me');
     assert.equal(f.storage.get('ep.settings').favoriteTags, 'existing fern');
     assert.equal(f.storage.get('ep.settings').cautionTags, 'review');
+    assert.equal(f.storage.get('ep.settings').tagCategories.find(group => group.id === 'hated').tags, 'strong.warning');
     assert.equal(f.storage.get('ep.settings').collapsedDetailTags, 'metadata');
     button('Preview import').click();
     assert.equal(button('Import selected tags').disabled, true);
@@ -475,7 +476,7 @@ test('Grid cues reveal matching tags while detail collapse and responsive layout
   rowHTML(1, { tags: 'fern woodland orchid' }), detail);
   try {
     const cue = f.doc.querySelector('.epc-grid-tag-cue');
-    assert.deepEqual([...cue.querySelectorAll('.epc-tag-swatch')].map(node => node.textContent), ['Liked', 'Caution']);
+    assert.deepEqual([...cue.querySelectorAll('.epc-tag-swatch')].map(node => node.textContent), ['Liked', 'Disliked']);
     const nativeTags = f.doc.querySelector('tr.torrent .tags');
     assert.equal(f.win.getComputedStyle(nativeTags).display, 'none');
     cue.querySelector('summary').click();
@@ -495,6 +496,55 @@ test('Grid cues reveal matching tags while detail collapse and responsive layout
     f.doc.querySelector('[data-ep-layout=list]').click();
     assert.equal(f.doc.querySelector('.epc-grid-tag-cue'), null);
   } finally { f.close(); }
+});
+
+test('the visible detail tag editor works in both layouts and preserves earlier Caution assignments', async t => {
+  for (const reformatDetailPages of [false, true]) await t.test(reformatDetailPages ? 'reformatted' : 'native', async () => {
+    const f = await setup({ nseRightClickManagementEnabled: false, nseRCMTagsEnabled: false, nseTaglist: 'blocked',
+      'ep.settings': { reformatDetailPages, cautionTags: 'field.recording', collapsedDetailTags: 'coast',
+        tagCategories: [{ id: 'caution', name: 'Caution', color: '#805566', colorCustomized: true }] } },
+    '', '', 'https://www.empornium.sx/torrents.php?id=42', { html: detailFixtureHTML() });
+    try {
+      assert.equal(f.doc.querySelector('.details').hasAttribute('data-ep-detail-layout'), reformatDetailPages);
+      if (reformatDetailPages) {
+        const header = f.doc.querySelector('#tag_container .tag_header');
+        assert.equal(f.win.getComputedStyle(header).display, 'block');
+        assert.equal(f.win.getComputedStyle(header.firstElementChild).display, 'inline-block');
+      }
+      const [recording, coast] = f.doc.querySelectorAll('#torrent_tags_list > li > a');
+      const editor = f.doc.querySelector('.epc-detail-highlight-editor');
+      const summary = editor.querySelector('summary'), select = editor.querySelector('select');
+      assert.equal(summary.textContent, 'Highlight tags');
+      summary.click();
+      await until(() => select.options.length === 3, 'Detail highlight tags');
+      const pick = value => {
+        select.value = value;
+        select.dispatchEvent(new f.win.Event('change', { bubbles: true }));
+      };
+      pick('field.recording');
+      const disliked = editor.querySelector('[data-highlight=caution]');
+      assert.equal(disliked.textContent, 'Disliked');
+      assert.equal(disliked.getAttribute('aria-pressed'), 'true');
+      assert.equal(recording.style.getPropertyValue('--epc-tag-background'), '#805566');
+      pick('coast');
+      const hated = editor.querySelector('[data-highlight=hated]');
+      assert.equal(hated.textContent, 'Hated');
+      hated.focus(); hated.click();
+      assert.equal(coast.dataset.epTagTone, 'hated');
+      assert.equal(f.doc.activeElement.getAttribute('aria-pressed'), 'true');
+      assert.equal(f.storage.get('ep.settings').cautionTags, 'field.recording');
+      assert.equal(f.storage.get('ep.settings').tagCategories.find(group => group.id === 'hated').tags, 'coast');
+      assert.equal(f.storage.get('nseTaglist'), 'blocked');
+      const clear = editor.querySelector('[data-highlight=clear]');
+      clear.focus(); clear.click();
+      assert.equal(coast.hasAttribute('data-ep-tag-tone'), false);
+      assert.equal(f.doc.activeElement, select);
+      select.dispatchEvent(new f.win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      assert.equal(editor.open, false);
+      assert.equal(f.doc.activeElement, summary);
+      assert.equal(f.errors.length, 0, f.errors.join('\n'));
+    } finally { f.close(); }
+  });
 });
 
 test('List column choices use heading identity, keep sorting accessible and apply to appended rows', async () => {
@@ -529,25 +579,49 @@ test('List column choices use heading identity, keep sorting accessible and appl
   } finally { f.close(); }
 });
 
-test('Grid opens alternate version links inside the representative card and preserves List expansion', async () => {
-  const rows = rowHTML(1, { title: 'Mountain Walk [720p]' }) +
-    rowHTML(2, { title: 'Mountain Walk [1080p]' }) + rowHTML(3, { title: 'Mountain Walk [2160p]' });
+test('List and Grid show inline versions with native downloads and independent details expansion', async () => {
+  const path = id => '/torrents.php?action=download&id=' + id + '&authkey=fixture';
+  const rows = rowHTML(1, { title: 'Mountain Walk [720p]', size: '800 MiB', downloadHref: path(1) }) +
+    rowHTML(2, { title: 'Mountain Walk [1080p H.264]', size: '1.4 GiB', downloadHref: path(2) }) +
+    rowHTML(3, { title: 'Mountain Walk [2160p]', downloadHref: path(3) + '&usetoken=1' });
   const f = await setup({}, rows);
   try {
     const row = id => f.doc.querySelector('[data-fixture-id="' + id + '"]');
-    row(1).querySelector('.epc-version-control').click();
+    const versions = row(1).querySelector('.epc-versions');
+    const control = versions.querySelector('button');
+    const choices = [...versions.querySelectorAll('li>a:first-child')];
+    const downloads = [...versions.querySelectorAll('.epc-version-download')];
+    assert.deepEqual(choices.map(link => link.textContent), ['720p · 800 MiB', '1080p · H.264 · 1.4 GiB', '2160p']);
+    assert.deepEqual(choices.map(link => new URL(link.href).searchParams.get('id')), ['1', '2', '3']);
+    assert.deepEqual(downloads.map(link => new URL(link.href).pathname + new URL(link.href).search), [path(1), path(2)]);
+    assert.equal(f.win.getComputedStyle(versions).display, 'flow-root');
+    assert.equal(control.getAttribute('aria-expanded'), 'false');
+    assert.equal(row(2).classList.contains('epc-version-hidden'), true);
+    const clicked = [];
+    for (const id of [1, 2, 3]) row(id).querySelector('.fixture-download').addEventListener('click', event => {
+      event.preventDefault(); clicked.push(id);
+    });
+    downloads[1].click();
+    assert.deepEqual(clicked, [2], 'one click uses the correct native link while the original row is collapsed');
+    control.click();
     assert.equal(row(2).classList.contains('epc-version-hidden'), false);
     f.doc.querySelector('[data-ep-layout=grid]').click();
-    const versions = row(1).querySelector('.epc-grid-versions');
-    assert.equal(versions.querySelector('summary').textContent, '3 versions');
-    versions.querySelector('summary').click();
-    assert.equal(versions.open, true);
-    assert.deepEqual([...versions.querySelectorAll('a')].map(link => [link.textContent, new URL(link.href).searchParams.get('id')]),
-      [['1080p', '2'], ['2160p', '3']]);
+    assert.equal(row(1).querySelector('.epc-versions'), versions);
+    assert.equal(control.getAttribute('aria-expanded'), 'false');
+    assert.equal(row(2).classList.contains('epc-version-hidden'), true);
+    downloads[0].click();
+    assert.deepEqual(clicked, [2, 1]);
+    control.click();
+    assert.equal(control.getAttribute('aria-expanded'), 'true');
+    assert.equal(row(2).classList.contains('epc-version-hidden'), false);
+    assert.notEqual(f.win.getComputedStyle(row(2).querySelector('[data-ep-grid-label=Size]')).display, 'none');
+    assert.notEqual(f.win.getComputedStyle(row(2).querySelector('.tags')).display, 'none');
+    control.click();
     assert.equal(row(2).classList.contains('epc-version-hidden'), true);
     f.doc.querySelector('[data-ep-layout=list]').click();
-    assert.equal(f.doc.querySelector('.epc-grid-versions'), null);
+    assert.equal(control.getAttribute('aria-expanded'), 'true');
     assert.equal(row(2).classList.contains('epc-version-hidden'), false);
+    assert.equal(f.errors.length, 0, f.errors.join('\n'));
   } finally { f.close(); }
 });
 
@@ -1011,15 +1085,16 @@ test('version grouping respects live filtering and restores archived Hard Pass v
   const f = await setup({ nseTaglist: 'blocked', nseHardPassEnabled: true, nseHardPassTaglist: 'hard', nseRemoveHardPassResults: true }, rows);
   try {
     let button = f.doc.querySelector('.epc-version-control');
-    assert.equal(button.closest('tr').dataset.fixtureId, '2'); assert.equal(button.textContent, 'Show 2 versions');
+    const optionIDs = () => [...f.doc.querySelectorAll('.epc-version-list li>a:first-child')].map(link => new URL(link.href).searchParams.get('id'));
+    assert.equal(button.closest('tr').dataset.fixtureId, '2'); assert.deepEqual(optionIDs(), ['2', '4']);
     assert.equal(f.doc.querySelector('[data-fixture-id="3"]'), null);
     f.doc.querySelector('.epc-navigation [data-pane="filters"]').click();
     const hard = f.doc.getElementById('nseHardPassTaglistArea'); hard.value = '';
     hard.dispatchEvent(new f.win.Event('change', { bubbles: true })); await settle(80);
-    button = f.doc.querySelector('.epc-version-control'); assert.equal(button.textContent, 'Show 3 versions');
+    assert.deepEqual(optionIDs(), ['2', '3', '4']);
     f.doc.querySelector('[data-ep-reveal]').click();
     button = f.doc.querySelector('.epc-version-control'); assert.equal(button.closest('tr').dataset.fixtureId, '2');
-    assert.equal(button.textContent, 'Show 3 versions'); button.click();
+    assert.deepEqual(optionIDs(), ['2', '3', '4']); button.click();
     assert.equal(f.win.getComputedStyle(f.doc.querySelector('[data-fixture-id="1"]')).display,'table-row');
     assert.equal(f.doc.querySelector('[data-fixture-id="1"]').getAttribute('isNSEHidden'), '1');
     assert.equal(f.doc.querySelectorAll('.nseToggleIcon').length, 4);
@@ -1034,13 +1109,16 @@ test('backfilled variants join the same expanded group with previews and tag hig
   const rows = rowHTML(1, { title: 'Mountain Walk [720p]', tags: 'favorite' }) + rowHTML(2, { title: 'Mountain Walk [1080p]' });
   const f = await setup({ 'ep.settings': { inlineThumbnails: false, favoriteTags: 'favorite', backfillPages: 1 } }, rows, '', undefined, {
     fetch: async url => ({ ok: true, url, headers: { get: () => 'text/html' }, text: async () => fixtureHTML(
-      rowHTML(2, { title: 'Mountain Walk [1080p]' }) + rowHTML(3, { title: 'Mountain Walk [2160p]', tags: 'favorite' }), overlayHTML(3, 'https://x.test/c.jpg')) })
+      rowHTML(2, { title: 'Mountain Walk [1080p]' }) + rowHTML(3, { title: 'Mountain Walk [2160p]', tags: 'favorite',
+        downloadHref: '/torrents.php?action=download&id=3' }), overlayHTML(3, 'https://x.test/c.jpg')) })
   });
   try {
     const button = f.doc.querySelector('.epc-version-control'); button.click(); button.focus();
     f.doc.querySelector('[data-ep-backfill]').click(); await settle(120);
     assert.equal(f.doc.querySelectorAll('tr.torrent').length, 3);
-    assert.equal(button.textContent, 'Hide 3 versions'); assert.equal(f.doc.activeElement, button);
+    assert.equal(button.textContent, 'Hide version details'); assert.equal(f.doc.activeElement, button);
+    assert.equal(button.previousElementSibling.children.length, 3);
+    assert.equal(new URL(button.previousElementSibling.querySelector('.epc-version-download').href).searchParams.get('id'), '3');
     const third = f.doc.querySelector('[data-fixture-id="3"]');
     assert.ok(third.querySelector('.nseToggleIcon')); assert.equal(third.querySelector('.tags a').dataset.epTagTone, 'favorite');
     assert.ok(third.querySelector('a[data-ep-backfill-preview]'));
@@ -1091,6 +1169,11 @@ test('tag categories update earlier defaults and remember colors selected in the
   assert.equal(f.win.getComputedStyle(caution).borderRadius, '999px');
 
   f.doc.querySelector('[data-pane=filters]').click();
+  const disliked = f.doc.querySelector('[data-tag-category=caution] input[type=text]');
+  assert.equal(disliked.value, 'Disliked');
+  disliked.value = 'Caution';
+  disliked.dispatchEvent(new f.win.Event('change', { bubbles: true }));
+  assert.equal(disliked.value, 'Caution');
   for (const [id, previousColor, tag] of [['caution', '#c33c3c', caution], ['liked-site', '#ead6f9', site]]) {
     const category = f.doc.querySelector(`[data-tag-category="${id}"]`);
     const color = category.querySelector('input[type=color]');
@@ -1105,6 +1188,7 @@ test('tag categories update earlier defaults and remember colors selected in the
   const reopened = await setup(Object.fromEntries(f.storage.data), rows);
   t.after(reopened.close);
   assert.deepEqual([...reopened.doc.querySelectorAll('.tags a')].map(background), ['#c33c3c', '#f6ecaa', '#ead6f9']);
+  assert.match(reopened.doc.querySelector('.tags a').title, /Caution tag/);
 
   const amber = await setup(defaultsWithCaution('#ffe2a8'), rows);
   t.after(amber.close);
@@ -1121,7 +1205,7 @@ test('custom tag categories support conflict review, bulk moves, colors, order, 
     };
     f.doc.querySelector('[data-pane=filters]').click();
     const manager = f.doc.querySelector('[data-option-group=tag-highlights]');
-    assert.equal(manager.querySelectorAll('[data-tag-category]').length, 8);
+    assert.equal(manager.querySelectorAll('[data-tag-category]').length, 9);
     click(manager, 'Add category');
     const custom = manager.querySelector('[data-tag-category^=custom-]');
     const id = custom.dataset.tagCategory;
@@ -1129,7 +1213,7 @@ test('custom tag categories support conflict review, bulk moves, colors, order, 
     change(custom.querySelector('input[type=text]'), 'Standouts');
     change(custom.querySelector('input[type=color]'), '#203050');
     click(custom, 'Move up');
-    assert.equal(custom.nextElementSibling.dataset.tagCategory, 'caution');
+    assert.equal(custom.nextElementSibling.dataset.tagCategory, 'hated');
     custom.querySelector('textarea').value = 'sample.tag sample.extra';
     click(custom, 'Save tags');
     assert.match(custom.querySelector('[role=status]').textContent, /sample\.tag \(Liked\)/);

@@ -47,7 +47,7 @@ export const settingHelp = Object.freeze({
   backfillEnabled: 'Enable Load more on supported lists and collages so you can append results to the current page.',
   backfillMode: 'Choose manual loading, a fixed number of additional pages, or every remaining page. Loading all pages can use more memory.',
   backfillPages: 'Set the number of extra pages per click or per automatic batch in fixed-count mode. The current page is already loaded.',
-  groupVersions: 'Keep alternate video versions together. In List, expand the original rows. In Grid, open the versions list on the card.',
+  groupVersions: 'Show alternate video versions together with their download links. Choose Show version details to see the original results.',
   collapsedDetailTags: 'Enter space-separated tags to tuck under Show other tags on torrent detail pages. The original tag links and controls are still available.',
   seenMode: 'Choose what to do with results whose detail pages you’ve opened in this browser. Show filtered can reveal hidden seen results in the current view.',
   nseBlacklistTaglistArea: 'Hide results with any of these exact tags. Separate tags with spaces. An Allow match can override an ordinary block.',

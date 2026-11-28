@@ -374,7 +374,7 @@ test('a backfilled variant can form a group and collapse an existing duplicate',
     assert.match(f.app.filterSummary.textContent, /^2 shown/);
     await f.app.backfill.run();
     const control = f.doc.querySelector('.epc-version-control');
-    assert.equal(control.textContent, 'Show 3 versions');
+    assert.equal(control.previousElementSibling.children.length, 3);
     assert.deepEqual([...f.doc.querySelectorAll('.epc-version-hidden')].map(row => row.dataset.fixtureId), ['2', '3']);
     assert.match(f.app.filterSummary.textContent, /^1 shown · 2 grouped/);
     control.click();

@@ -26,7 +26,7 @@ import { coalesceScanRoots, presentationMutation, mutationChangesResults } from 
 const SEARCH_KEY = 'ep.searches';
 const CACHE_STATS_PIN_KEY = 'ep.cacheStatsPinned';
 const DIAGNOSTIC_LIMIT = 3000;
-const OWN = '.epc-root,.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback,.epc-media-retry,.epc-engine,.epc-version-control,.epc-version-columns,.epc-grid-card-actions,#nseOuter,#nseFloatyBoi';
+const OWN = '.epc-root,.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback,.epc-media-retry,.epc-engine,.epc-versions,.epc-version-columns,.epc-grid-card-actions,#nseOuter,#nseFloatyBoi';
 const hiddenMedia = '.hidden:not(.epc-revealed),[hidden],.epc-filter-hidden,.epc-version-hidden,[data-ep-detail-original-hidden]';
 const detailGalleryRoot = '.epc-detail-preview-images,.epc-detail-spoiler-gallery';
 const galleryImageSelector = `:is(${detailGalleryRoot}) img`;
@@ -230,7 +230,7 @@ export class CompanionApp {
       for (const mutation of mutations) {
         if (mutation.target.nodeType === 1 && mutation.target.closest?.(OWN)) continue;
         if (mutation.type === 'childList' && [...mutation.addedNodes, ...mutation.removedNodes].every(node =>
-          node.nodeType === 1 && node.matches('.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback,.epc-grid-card-actions'))) continue;
+          node.nodeType === 1 && node.matches('.epc-thumbnail,.epc-cover-image,.epc-cover-status,.epc-grid-gif-poster,.epc-grid-gif-playback,.epc-grid-card-actions,.epc-versions'))) continue;
         if (presentationMutation(mutation)) continue;
         const categoryTagsChanged = this.tags.activeCategory && mutation.type === 'childList' &&
           mutation.target.closest?.('tr.torrent div.tags');

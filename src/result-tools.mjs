@@ -3,6 +3,7 @@
 // Variations, and the Emp++/Luminance tag highlighters. See THIRD_PARTY.md.
 import { relativeLuminance, tagCategoriesWithTags, tagCategorySettings, tagHighlightPreferences, tagListTokens } from './core.mjs';
 import { samePreference } from './preferences.mjs';
+import { applyWorkspaceTheme } from './workspace.mjs';
 
 const resultTagSelector = 'div.tags > a';
 const detailTagSelector = 'ul#torrent_tags_list > li > a';
@@ -20,9 +21,23 @@ export function styleHighlight(element, color) {
 
 export function resultTitleLink(row) {
   return [...row.querySelectorAll('td a[href*="torrents.php"]')].find(link => {
-    if (!link.textContent.trim() || link.closest('.tags,.torrent_icon_container,.epc-thumbnail,.epc-grid-card-actions')) return false;
+    if (!link.textContent.trim() || link.closest('.tags,.torrent_icon_container,.epc-thumbnail,.epc-grid-card-actions,.epc-versions')) return false;
     try { const url = new URL(link.href); return url.searchParams.has('id') && !url.searchParams.has('action'); }
     catch { return false; }
+  });
+}
+
+function versionDownloadLink(row, detail, origin) {
+  const id = detail.searchParams.get('id');
+  if (detail.origin !== origin || detail.pathname !== '/torrents.php' || !/^[1-9]\d{0,14}$/.test(id || '')) return;
+  return [...row.querySelectorAll('a[href*="action=download"]:not(.epc-version-download)')].find(link => {
+    try {
+      const url = new URL(link.href);
+      const actions = url.searchParams.getAll('action'), ids = url.searchParams.getAll('id');
+      return url.origin === origin && url.pathname === detail.pathname && !url.username && !url.password &&
+        actions.length === 1 && actions[0] === 'download' && ids.length === 1 && ids[0] === id &&
+        !url.searchParams.has('usetoken');
+    } catch { return false; }
   });
 }
 
@@ -74,8 +89,9 @@ function removeGridCardAction(control) {
 export class VersionGroups {
   constructor(app) {
     this.app = app; this.rows = new Map(); this.moves = new Map(); this.controls = new Map();
-    this.tables = new WeakMap(); this.nextTable = 0; this.nextRow = 0; this.expanded = new Set(); this.collapsed = 0; this.groups = new Map();
-    this.layouts = new Map(); this.candidates = new Map(); this.gridControls = new Map();
+    this.tables = new WeakMap(); this.nextTable = 0; this.nextRow = 0; this.collapsed = 0; this.groups = new Map();
+    this.expanded = { list: new Set(), grid: new Set() };
+    this.layouts = new Map(); this.candidates = new Map();
   }
   captureOrder(rows = this.app.doc.querySelectorAll('tr.torrent')) {
     for (const row of rows) if (row.matches('tr.torrent') && !this.rows.has(row)) {
@@ -108,30 +124,36 @@ export class VersionGroups {
     return affected;
   }
   renderGroup(key) {
+    const { app } = this;
     const candidates = this.candidates.get(key);
     if (candidates.length < 2 || !candidates.some(item => item.parsed.hits.length)) return;
     const group = [...candidates].sort((a, b) => a.entry.order - b.entry.order);
-    const [head, ...members] = group, grid = this.app.settings.resultsView === 'grid' && !!head.row.closest('#content');
-    const open = !grid && this.expanded.has(key);
+    const [head, ...members] = group;
+    const grid = app.settings.resultsView === 'grid' && !!head.row.closest('#content');
+    const expanded = grid ? this.expanded.grid : this.expanded.list;
+    const open = expanded.has(key);
     const ids = members.map(({ row, entry }) => {
       if (!row.id) row.id = 'epc-version-row-' + entry.order;
       return row.id;
     });
-    let control = this.controls.get(head.row);
-    if (!control) {
-      control = this.app.button('', () => this.toggleGroup(control.dataset.versionKey));
-      control.className = 'epc-version-control'; this.controls.set(head.row, control);
+    let entry = this.controls.get(head.row);
+    if (!entry) {
+      const root = app.node('div', null, 'epc-versions');
+      const list = app.node('ul', null, 'epc-version-list');
+      list.setAttribute('aria-label', 'Versions');
+      const control = app.button('', () => this.toggleGroup(control.dataset.versionKey));
+      control.className = 'epc-version-control';
+      root.append(list, control);
+      this.controls.set(head.row, entry = { root, list, control });
     }
+    const { root, control } = entry;
+    const titleCell = head.link.closest('td');
+    if (root.parentElement !== titleCell) titleCell.insertBefore(root, titleCell.querySelector(':scope > .tags'));
+    this.renderOptions(entry, group);
     if (!open) this.collapsed += group.length - (this.groups.get(key)?.group.length || 1);
-    this.groups.set(key, { group, control });
+    this.groups.set(key, { group, control, expanded });
     control.dataset.versionKey = key;
-    const caption = (open ? 'Hide' : 'Show') + ' ' + group.length + ' versions';
-    if (control.textContent !== caption) control.textContent = caption;
-    control.setAttribute('aria-expanded', String(open)); control.setAttribute('aria-controls', ids.join(' '));
-    const labels = [...new Set(group.map(item => item.parsed.label))].join('\n');
-    control.title = 'Versions on loaded pages:\n' + labels;
-    if (head.link.nextElementSibling !== control) head.link.after(control);
-    if (grid) this.renderGridGroup(head, group);
+    control.setAttribute('aria-controls', ids.join(' '));
     let previous = head.row;
     for (const { row } of members) {
       if (!this.moves.has(row)) {
@@ -140,37 +162,64 @@ export class VersionGroups {
       }
       if (previous.nextElementSibling !== row) previous.after(row);
       previous = row;
-      this.toggle(row, 'epc-version-hidden', !open); this.toggle(row, 'epc-version-member', true);
+      this.toggle(row, 'epc-version-member', true);
     }
+    this.setGroupOpen(group, control, open);
     return group;
   }
-  renderGridGroup(head, group) {
+  renderOptions(entry, group) {
     const { app } = this;
-    let entry = this.gridControls.get(head.row);
-    if (!entry) {
-      const details = app.node('details', null, 'epc-root epc-grid-versions');
-      details.append(app.node('summary'), app.node('ul', null, 'epc-grid-version-list'));
-      gridCardActions(app, head.link).append(details);
-      this.gridControls.set(head.row, entry = { details });
-    }
-    const values = group.map(({ parsed, link }) => [parsed.label.replace(/(\d)[PI]\b/g, suffix => suffix.toLowerCase()), link.href, link.textContent.trim()]);
-    const signature = JSON.stringify(values);
+    const { list, control } = entry;
+    const origin = app.win.location.origin;
+    const options = group.map(({ row, parsed, link }) => {
+      const detail = new URL(link.href);
+      const titleCell = link.closest('td');
+      let size;
+      for (let cell = titleCell.nextElementSibling; cell; cell = cell.nextElementSibling) {
+        const text = cell.textContent.trim();
+        if (/^\d+(?:[.,]\d+)*\s*(?:[kmgt]i?b|b|bytes?)$/i.test(text)) { size = text; break; }
+      }
+      const format = parsed.label.replace(/(\d)[PI](?=\d*\b)/g, suffix => suffix.toLowerCase());
+      return { row, detail, label: size ? format + ' · ' + size : format, title: link.textContent.trim(),
+        download: versionDownloadLink(row, detail, origin) };
+    });
+    const signature = JSON.stringify(options.map(({ detail, label, title, download }) => [detail.href, label, title, download?.href]));
     if (entry.signature === signature) return;
     entry.signature = signature;
-    const [summary, list] = entry.details.children;
-    summary.textContent = group.length + ' versions';
     const focus = list.contains(app.doc.activeElement) && app.doc.activeElement.href;
-    list.replaceChildren(...values.map(([label, href, title], index) => {
+    list.replaceChildren(...options.map(({ row, detail, label, title, download }) => {
       const item = app.node('li');
-      if (!index) item.append(app.node('strong', label), app.node('span', 'Current card'));
-      else {
-        const link = app.node('a', label);
-        link.href = href; link.title = title; link.setAttribute('aria-label', title);
-        item.append(link);
+      const link = app.node('a', label);
+      link.href = detail.href; link.title = title;
+      item.append(link);
+      if (download) {
+        const action = app.node('a', 'Download', 'epc-version-download');
+        action.href = download.href;
+        action.setAttribute('aria-label', 'Download ' + label + ' — ' + title);
+        for (const attr of ['target', 'rel', 'download', 'referrerpolicy']) {
+          if (download.hasAttribute(attr)) action.setAttribute(attr, download.getAttribute(attr));
+        }
+        action.addEventListener('click', event => {
+          if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          const native = row.isConnected && versionDownloadLink(row, detail, origin);
+          if (native) native.click();
+          else app.toast('Open the version’s torrent page to download it.');
+        });
+        item.append(action);
       }
       return item;
     }));
-    if (focus) [...list.querySelectorAll('a')].find(link => link.href === focus)?.focus({ preventScroll: true });
+    if (focus) ([...list.querySelectorAll('a')].find(link => link.href === focus) || control).focus({ preventScroll: true });
+  }
+  setGroupOpen(group, control, open) {
+    const caption = open ? 'Hide version details' : 'Show version details';
+    if (control.textContent !== caption) control.textContent = caption;
+    control.setAttribute('aria-expanded', String(open));
+    for (const [index, { row }] of group.entries()) {
+      row.toggleAttribute('data-ep-version-details', open);
+      if (index) this.toggle(row, 'epc-version-hidden', !open);
+    }
   }
   append(rows) {
     if (!this.app.filtersReady || !this.app.settings.groupVersions) return;
@@ -193,13 +242,13 @@ export class VersionGroups {
       if (marker.isConnected) marker.before(row);
       marker.remove(); this.moves.delete(row);
     }
-    for (const [row, control] of this.controls) if (!representatives.has(row)) { control.remove(); this.controls.delete(row); }
-    for (const [row, { details }] of this.gridControls) if (!representatives.has(row) || settings.resultsView !== 'grid') {
-      removeGridCardAction(details); this.gridControls.delete(row);
+    for (const [row, { root }] of this.controls) if (!representatives.has(row)) {
+      root.remove(); this.controls.delete(row);
     }
     for (const [row] of this.rows) {
       if (!members.has(row)) {
         this.toggle(row, 'epc-version-hidden', false); this.toggle(row, 'epc-version-member', false);
+        if (!representatives.has(row)) row.removeAttribute('data-ep-version-details');
       }
       if (!row.isConnected && !this.app.detachedFilterRows.has(row)) {
         this.moves.get(row)?.remove(); this.moves.delete(row); this.rows.delete(row);
@@ -209,14 +258,11 @@ export class VersionGroups {
   }
   toggleGroup(key) {
     const current = this.groups.get(key); if (!current) return;
-    const { group, control } = current, open = !this.expanded.has(key);
-    if (group[0].row.closest('.epc-result-grid')) return;
-    if (open) this.expanded.add(key); else this.expanded.delete(key);
-    for (const { row } of group.slice(1)) this.toggle(row, 'epc-version-hidden', !open);
+    const { group, control, expanded } = current, open = !expanded.has(key);
+    if (open) expanded.add(key); else expanded.delete(key);
+    this.setGroupOpen(group, control, open);
     const difference = (open ? 1 : -1) * (group.length - 1);
     this.collapsed -= difference;
-    control.textContent = (open ? 'Hide' : 'Show') + ' ' + group.length + ' versions';
-    control.setAttribute('aria-expanded', String(open));
     this.app.groupVisibilityChanged(difference);
     if (open) this.app.media.prepareThumbnails(group.map(item => item.row));
     this.hideCollapsedPreview();
@@ -275,12 +321,11 @@ export class VersionGroups {
     this.moves.clear();
     for (const [row, entry] of this.rows) {
       this.toggle(row, 'epc-version-hidden', false); this.toggle(row, 'epc-version-member', false);
+      row.removeAttribute('data-ep-version-details');
       if (!entry.originalID && /^epc-version-row-/.test(row.id)) row.removeAttribute('id');
       if (!row.isConnected && !this.app.detachedFilterRows.has(row)) this.rows.delete(row);
     }
-    for (const control of this.controls.values()) control.remove();
-    for (const { details } of this.gridControls.values()) removeGridCardAction(details);
-    this.gridControls.clear();
+    for (const { root } of this.controls.values()) root.remove();
     this.controls.clear(); this.groups.clear(); this.candidates.clear(); this.collapsed = 0;
   }
   dispose() { this.clear(); this.rows.clear(); }
@@ -531,35 +576,88 @@ export class TagHighlights {
     if (!list) return;
     const { adaptiveDetailTags, collapsedDetailTags } = app.settings;
     list.toggleAttribute('data-ep-adaptive-tags', adaptiveDetailTags);
-    list.toggleAttribute('data-ep-tags-expanded', this.detailExpanded);
     const collapsed = new Set(tagListTokens(collapsedDetailTags));
+    const names = new Map();
     let count = 0;
     for (const item of list.children) {
       const tag = item.matches('li') && item.querySelector(':scope > a');
-      const low = !!tag && !item.hidden && !item.classList.contains('hidden') && collapsed.has(tag.textContent.trim().toLocaleLowerCase());
+      const name = tag && !item.hidden && !item.classList.contains('hidden') && tag.textContent.trim();
+      const value = name && name.toLocaleLowerCase();
+      if (value) names.set(value, name);
+      const low = !!value && collapsed.has(value);
       item.toggleAttribute('data-ep-low-priority-tag', low);
       if (low) count++;
     }
-    if (!count) {
-      this.detailControls?.remove(); this.detailControls = this.detailToggle = null; this.detailExpanded = false;
+    if (!count) this.detailExpanded = false;
+    list.toggleAttribute('data-ep-tags-expanded', this.detailExpanded);
+    if (!names.size) {
+      this.detailControls?.remove();
+      this.detailControls = this.detailToggle = this.detailEditor = null;
       return;
     }
-    if (!this.detailToggle) {
-      const controls = app.node('div', null, 'epc-root epc-detail-tag-actions');
-      this.detailToggle = app.button('', () => {
-        this.detailExpanded = !this.detailExpanded;
-        this.refreshDetailTags();
-      });
-      this.detailToggle.setAttribute('aria-controls', list.id);
-      controls.append(this.detailToggle); list.before(controls);
-      this.detailControls = controls;
-    }
+    if (!this.detailControls) this.mountDetailEditor(list);
+    this.detailToggle.hidden = !count;
     const label = (this.detailExpanded ? 'Hide ' : 'Show ') + count + (count === 1 ? ' other tag' : ' other tags');
     if (this.detailToggle.textContent !== label) this.detailToggle.textContent = label;
     this.detailToggle.setAttribute('aria-expanded', String(this.detailExpanded));
+    if (this.detailEditor.details.open) this.refreshDetailEditor(names);
+  }
+  mountDetailEditor(list) {
+    const { app } = this;
+    const controls = app.node('div', null, 'epc-root epc-detail-tag-actions');
+    const details = app.node('details', null, 'epc-detail-highlight-editor');
+    const summary = app.node('summary', 'Highlight tags');
+    const select = app.node('select'); select.setAttribute('aria-label', 'Tag to highlight');
+    const actions = app.node('div');
+    details.append(summary, select, actions);
+    details.addEventListener('toggle', () => {
+      if (!details.isConnected) return;
+      if (details.open) this.refreshDetailTags();
+      app.media.invalidateLayout();
+    });
+    details.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || !details.open) return;
+      event.preventDefault(); event.stopPropagation();
+      details.open = false; summary.focus();
+    });
+    select.addEventListener('change', () => this.refreshDetailTags());
+    this.detailEditor = { details, select, actions };
+    this.detailToggle = app.button('', () => {
+      this.detailExpanded = !this.detailExpanded;
+      this.refreshDetailTags();
+    });
+    this.detailToggle.setAttribute('aria-controls', list.id);
+    controls.append(this.detailToggle, details);
+    list.before(controls);
+    this.detailControls = controls;
+    applyWorkspaceTheme(app, [controls]);
+  }
+  refreshDetailEditor(names) {
+    const { app, detailEditor: editor } = this;
+    const { select, actions } = editor;
+    const signature = JSON.stringify([...names]);
+    if (editor.names !== signature) {
+      editor.names = signature;
+      const previous = select.value;
+      const placeholder = app.node('option', 'Choose a tag'); placeholder.value = '';
+      select.replaceChildren(placeholder, ...[...names].map(([value, name]) => {
+        const option = app.node('option', name); option.value = value; return option;
+      }));
+      select.value = names.has(previous) ? previous : '';
+    }
+    const tag = select.value, groups = this.categories();
+    if (editor.tag === tag && editor.groups === groups) return;
+    editor.tag = tag; editor.groups = groups;
+    const focus = actions.contains(app.doc.activeElement) && app.doc.activeElement.dataset.highlight;
+    actions.replaceChildren();
+    if (tag) actions.append(this.highlightActions(tag, tone => this.choose(tag, tone)));
+    if (focus) {
+      const next = [...actions.querySelectorAll('button')].find(button => button.dataset.highlight === focus && !button.hidden);
+      (next || select).focus({ preventScroll: true });
+    }
   }
   releaseDetailTags() {
-    this.detailControls?.remove(); this.detailControls = this.detailToggle = null;
+    this.detailControls?.remove(); this.detailControls = this.detailToggle = this.detailEditor = null;
     this.detailList?.removeAttribute('data-ep-adaptive-tags');
     this.detailList?.removeAttribute('data-ep-tags-expanded');
     for (const item of this.detailList?.children || []) item.removeAttribute('data-ep-low-priority-tag');
@@ -602,18 +700,24 @@ export class TagHighlights {
     const app = this.app;
     this.categories();
     const group = this.groups.find(group => group.id === tone && group.enabled);
-    if (tone && !group) return;
-    if (!this.assign(new Set([tag]), tone)) return;
-    app.doc.getElementById('nseRCMBox')?.classList.add('hidden');
-    const anchor = app.ruleMenuOrigin;
-    if (anchor?.closest('.epc-filter-hidden')) this.viewChip?.focus();
-    else anchor?.focus({ preventScroll: true });
+    if (!tag || (tone && !group) || !this.assign(new Set([tag]), tone)) return false;
     app.toast(group ? 'Highlighted as ' + group.name + '.' : 'Highlight cleared.');
+    return true;
   }
   menu(menu, kind, value) {
     menu.querySelector('.epc-highlight-actions')?.remove();
     if (kind !== 'tag') return;
-    const tag = value.trim().toLocaleLowerCase(), app = this.app;
+    const tag = value.trim().toLocaleLowerCase();
+    menu.append(this.highlightActions(tag, tone => {
+      if (!this.choose(tag, tone)) return;
+      menu.classList.add('hidden');
+      const anchor = this.app.ruleMenuOrigin;
+      if (anchor?.closest('.epc-filter-hidden')) this.viewChip?.focus();
+      else anchor?.focus({ preventScroll: true });
+    }));
+  }
+  highlightActions(tag, choose) {
+    const { app } = this;
     const group = app.node('section', null, 'epc-highlight-actions'); group.setAttribute('aria-label', 'Tag highlight');
     group.append(app.node('p', 'Highlight as', 'epc-caption'));
     const choices = app.node('div', null, 'epc-highlight-choices');
@@ -621,7 +725,7 @@ export class TagHighlights {
     const categories = this.categories();
     const selected = this.assignments.get(tag)?.id;
     for (const category of categories.filter(category => category.enabled)) {
-      const button = app.button(category.name, () => this.choose(tag, category.id));
+      const button = app.button(category.name, () => choose(category.id));
       button.dataset.highlight = category.id;
       button.prepend(app.node('i', null, 'epc-tag-color-dot'));
       button.firstChild.setAttribute('aria-hidden', 'true');
@@ -629,9 +733,9 @@ export class TagHighlights {
       button.setAttribute('aria-pressed', String(selected === category.id));
       choices.append(button);
     }
-    const clear = app.button('Clear highlight', () => this.choose(tag, ''));
+    const clear = app.button('Clear highlight', () => choose(''));
     clear.dataset.highlight = 'clear'; clear.hidden = !selected; group.append(clear);
-    menu.append(group);
+    return group;
   }
   dispose() {
     for (const tag of this.originals.keys()) this.restore(tag);

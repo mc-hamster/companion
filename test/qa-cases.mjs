@@ -42,7 +42,7 @@ const rows = [
   ['VER-06','Versions','P1','200+ rows / resize','Expand variants, hide categories, resize and disable grouping.','Measured proportions remain readable; native layout can be restored.',1],
   ['LAYOUT-01','Table layout','P0','Native Name width=100% header; 50 initial results','Backfill five pages past200 rows; inspect headings/data; resize to720px and back.','All header text fits its column; metadata retains width; Name fills remaining space; no overlap.',1],
   ['LAYOUT-02','Table layout','P0','Stabilized large table; category column removed','Backfill again, stop mid-batch, toggle category removal and disable grouping.','Measure completed batches once; preserve spans and native attributes; release owned widths on disable/removal.',1],
-  ['TAG-01','Highlights','P0','Favorite/Caution/blocked overlap','Choose Favorite, Caution, Clear; add a block.','One visual choice; visibility unchanged; block/Hard Pass remains clear.',1],
+  ['TAG-01','Highlights','P0','Liked, Disliked, Hated and blocked tags','Choose each highlight, clear it, and add a block.','One visual choice per tag. Blocking hides matching results.',1],
   ['TAG-02','Highlights','P1','Boolean and wildcard search','Use positive and negated grouped terms.','Only positive matching tags emphasized; no regexp backtracking.',0],
   ['TAG-03','Highlights','P1','Tag DOM changes','Append, rename and remove tag elements.','Highlights follow current values; removed nodes leave the index.',0],
   ['TAG-04','Highlights','P0','Stored highlights','Edit lists, reload, export/restore and Undo.','Choices persist and remain independent from visibility rules.',1],

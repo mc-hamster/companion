@@ -2,7 +2,7 @@
 
 Make Empornium easier to browse with image previews, filters, saved searches, and more results on one page.
 
-**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.16.14](dist/EmporniumCompanion-2.16.14.user.js)**
+**[Install stable Companion](https://raw.githubusercontent.com/mc-hamster/companion/main/dist/EmporniumCompanion.user.js)** · **[2.16.15](dist/EmporniumCompanion-2.16.15.user.js)**
 
 Companion is a small add-on that runs through [Tampermonkey](https://www.tampermonkey.net/) in your browser. You'll need your own Empornium account.
 
@@ -11,7 +11,7 @@ Companion is a small add-on that runs through [Tampermonkey](https://www.tamperm
 - **Preview before opening.** See thumbnails beside results and hover over them for a larger image. Click a preview to keep it open.
 - **Browse in a grid.** Switch to thumbnail cards. Open an image preview to see a larger version. Choose card width in Settings or Getting started.
 - **Filter and recognize results.** Filter by tags, titles, or uploaders. Highlight tags with named colors and browse results in a category.
-- **Less clutter.** Similar releases are grouped together. Choose **Show versions** to compare them.
+- **Compare versions at a glance.** Similar releases appear together with their download links. Choose **Show version details** to see the original results.
 - **Your searches, one click away.** Save a search and run it again from the toolbar.
 - **More results without page hopping.** Add the next few pages to your current search or collage, or let Companion load them automatically.
 - **Fewer repeated image downloads.** Companion saves supported images in your browser for reuse and retries images that have trouble loading.
@@ -43,7 +43,7 @@ In **Filters → Conditional rules**, choose **Add a rule** to combine tags, tit
 
 Enable **Use keyboard shortcuts** during setup, or find the toggle and key mappings under **Settings → Advanced settings → Keyboard & menus**.
 
-Click **Grid** above the results to switch to thumbnail cards. **List** switches back. Open **View options** beside the layout switch to choose the card size, spacing, title truncation, tags, and details in Grid or the visible columns in List. Hover over a thumbnail or click its preview button to load the larger image. Use the versions button on a grouped card to open alternate releases. Your layout is remembered across visits.
+Click **Grid** above the results to switch to thumbnail cards. **List** switches back. Open **View options** beside the layout switch to choose the card size, spacing, title truncation, tags, and details in Grid or the visible columns in List. Hover over a thumbnail or click its preview button to load the larger image. Your layout is remembered across visits.
 
 Grid covers fill the card width. Set **View options → Spacing → Compact** to bring cards closer together. Use **Animated Covers** beside **Show filtered** in the toolbar to play covers as they come into view. The switch starts off and saves one preference for both List and Grid. List playback shows inline covers. Companion preloads covers using its image cache and respects your system's reduced-motion preference.
 
@@ -51,7 +51,7 @@ Hover over, focus, or tap the small gauge beside the Companion name to see load 
 
 Grid titles show up to two lines by default. Turn off **View options → Truncate titles** to show full titles. Stats, uploader, and category information are hidden by default. Enable **Settings → Appearance → Show details in grid cards** to display them.
 
-Open **Tags** on any Grid card to see its tags and assign highlights. Use **Settings → Appearance → Show tags in grid cards** to keep tag lists open. Right-click a tag and choose **Highlight as**, or open **Filters → Tag highlights** to edit categories and browse their matches among loaded results.
+Choose **Highlight tags** on a torrent page to set or clear a tag’s highlight. **Disliked** includes your existing Caution tags, and **Hated** gives stronger dislikes their own color. Open **Tags** on a Grid card to see its tags and assign highlights, or right-click a tag and choose **Highlight as**. Use **Filters → Tag highlights** to edit categories and browse their matches among loaded results.
 
 To add more results yourself, click **Load more** below the results. This brings the following pages into the page you're viewing. **Stop loading** stays visible while pages load and keeps the results already added. For automatic loading, look under **Settings → Browsing → Load more pages**.
 

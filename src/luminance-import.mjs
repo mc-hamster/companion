@@ -52,7 +52,8 @@ export function readLuminanceExport(text) {
     const rawWeight = data.tagValues?.[modernKey] ?? data.tagValues?.[key];
     const weight = typeof rawWeight === 'number' ? rawWeight : luminanceWeights.get(rawWeight) ??
       (rawWeight == null ? id[0] === '7' ? -1 : id.endsWith('c') ? 0 : 1 : 0);
-    const destination = !enabled || hiding || id === '7d' ? 'skip' : id === '7c' || weight < 0 ? 'caution' :
+    const negativeHighlight = id === '7b' ? 'hated' : 'caution';
+    const destination = !enabled || hiding || id === '7d' ? 'skip' : id === '7c' || weight < 0 ? negativeHighlight :
       weight > 0 ? luminanceHighlightCategories.get(id) ?? 'favorite' : 'skip';
     const savedName = data.names?.[key] ?? data.names?.[modernKey];
     const name = typeof savedName === 'string' && savedName.trim() ? savedName.trim().slice(0, 100) : luminanceNames.get(id) || modernKey;

@@ -61,7 +61,7 @@ export class OnboardingController {
     form.append(app.node('p', 'Move away to dismiss the larger preview. Click to keep it open and show controls.', 'epc-caption'));
     this.group = app.node('input'); this.group.type = 'checkbox'; this.group.checked = app.settings.groupVersions;
     field(form, 'Group alternate video versions', this.group);
-    form.append(app.node('p', 'Similar releases share a Show versions button. Every version stays accessible.', 'epc-caption'));
+    form.append(app.node('p', 'See each version and its available download link in the grouped result.', 'epc-caption'));
     this.view = app.node('select'); this.view.dataset.welcomeSetting = 'resultsView';
     for (const [value, label] of [['list', 'List'], ['grid', 'Grid · larger image cards']]) {
       const option = app.node('option', label); option.value = value; this.view.append(option);
